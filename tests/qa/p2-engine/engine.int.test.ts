@@ -80,6 +80,13 @@ function build(appleFails = false): Ctx {
 async function seed(eventId: EventId, artists: ArtistSpec[], hash = "hash-1", wholePool = false) {
   await insertEvent(eventId, hash);
   const event = makeEvent(eventId, artists, hash);
+  // D-080: the song cache references `artists`, so lineup artists need real rows, as in prod.
+  for (const a of event.lineup) {
+    await db.execute(sql`
+      INSERT INTO artists (id, name, normalized_name)
+      VALUES (${a.artistId}, ${a.name}, ${a.name.toLowerCase()})
+      ON CONFLICT (id) DO NOTHING`);
+  }
   c.events.put(wholePool ? wholePoolShow(event) : event);
 }
 

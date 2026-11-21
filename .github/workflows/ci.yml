@@ -35,7 +35,7 @@ jobs:
       DATABASE_URL: postgres://app:app@127.0.0.1:54329/concert
       TEST_DB_NAME: concert_test
       NODE_ENV: test
-      LOG_LEVEL: silent
+      # No LOG_LEVEL override: some tests capture log output (secret redaction).
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
