@@ -33,6 +33,7 @@ beforeEach(async () => {
     venue: { name: "Mahalakshmi Lawns", city: "Poona", country: "IN" },
     lineup: [{ name: "The Local Train", tier: "headliner", billingRank: 1 }],
     visibility: "published",
+    posterUrl: "https://example.org/poster.jpg",
   });
 });
 

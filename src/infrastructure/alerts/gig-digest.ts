@@ -7,6 +7,8 @@ import { and, desc, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Alert } from "@/application/ports/alerts";
 import type { Database } from "@/db/client";
+import { checkPublishVisual } from "@/domain/events/publish-visual";
+import { eventVisuals } from "@/infrastructure/db/event-visual";
 import { events, gateDecisions, gigLeads, publishAudit, venues } from "@/db/schema";
 
 /** D-074: the scheduled gate's actor name in `publish_audit`. */
@@ -35,6 +37,8 @@ export type GigActivity = {
     changes: Record<string, { from: unknown; to: unknown }> | null;
   }[];
   newLeads: { artist: string; domain: string; url: string; reason: string }[];
+  /** D-091: upcoming published events with no poster and no headliner photo (never unpublished). */
+  needsImage?: { title: string; night: string }[];
 };
 
 /** Events the auto-gate published since `since` (the spike guard). */
@@ -72,7 +76,26 @@ const auditRows = (db: Database, where: SQL | undefined) =>
     .orderBy(desc(publishAudit.at))
     .limit(LIST_LIMIT);
 
-export async function loadGigActivity(db: Database, since: Date): Promise<GigActivity> {
+/** D-091: the same rule as publishing (`checkPublishVisual`), over upcoming published events. */
+async function publishedWithoutPicture(
+  db: Database,
+  now: Date,
+): Promise<{ title: string; night: string }[]> {
+  const rows = await eventVisuals(
+    db,
+    sql`e.visibility = 'published' and coalesce(e.ends_at, e.starts_at) >= ${now.toISOString()}::timestamptz`,
+  );
+  return rows
+    .filter((r) => !checkPublishVisual(r.visual).ok)
+    .map((r) => ({ title: r.title, night: r.startsAt.toISOString().slice(0, 10) }));
+}
+
+export async function loadGigActivity(
+  db: Database,
+  since: Date,
+  now: Date = new Date(),
+): Promise<GigActivity> {
+  const needsImage = await publishedWithoutPicture(db, now);
   const [published, decided, reverified, leads] = await Promise.all([
     auditRows(
       db,
@@ -108,6 +131,7 @@ export async function loadGigActivity(db: Database, since: Date): Promise<GigAct
       .limit(LIST_LIMIT),
   ]);
   return {
+    needsImage,
     published: published.map((r) => ({
       title: r.title ?? r.nightKey,
       night: r.startsAt ? r.startsAt.toISOString().slice(0, 10) : "?",
@@ -143,8 +167,13 @@ const sourceList = (s: DigestEvent["sources"]) =>
 
 /** The digest alert, or null when there's nothing to report. Pure. */
 export function formatGigDigest(a: GigActivity, since: Date, now: Date): Alert | null {
+  const needsImage = a.needsImage ?? [];
   const total =
-    a.published.length + a.heldOrRejected.length + a.reverified.length + a.newLeads.length;
+    a.published.length +
+    a.heldOrRejected.length +
+    a.reverified.length +
+    a.newLeads.length +
+    needsImage.length;
   if (total === 0) return null;
   const parts: string[] = [
     `Gig Coverage, ${since.toISOString().slice(0, 16)}Z to ${now.toISOString().slice(0, 16)}Z.`,
@@ -184,11 +213,18 @@ export function formatGigDigest(a: GigActivity, since: Date, now: Date): Alert |
       ...a.newLeads.map((l) => `- ${l.artist}: ${l.domain} (${l.reason}) <${l.url}>`),
     );
   }
+  if (needsImage.length > 0) {
+    parts.push(
+      `PUBLISHED WITHOUT A PICTURE: add a poster or a headliner photo (${needsImage.length}):`,
+      ...needsImage.map((e) => `- ${e.title} | ${e.night}`),
+    );
+  }
   const counts = [
     `${a.published.length} published`,
     `${a.heldOrRejected.length} held/rejected`,
     `${a.reverified.length} re-verified`,
     `${a.newLeads.length} leads`,
+    ...(needsImage.length > 0 ? [`${needsImage.length} need a picture`] : []),
   ].join(", ");
   return {
     key: "gig-digest",

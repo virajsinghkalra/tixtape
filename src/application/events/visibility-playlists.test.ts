@@ -27,6 +27,7 @@ async function eventWith(visibility: EventVisibility) {
     venue: { name: "Lawns", city: "Pune", country: "IN" },
     lineup: [{ name: "Ritviz", tier: "headliner", billingRank: 1 }],
     visibility,
+    posterUrl: "https://example.org/nh7.jpg",
   });
   const unreachable = () => {
     throw new Error("must not get past the event lookup");

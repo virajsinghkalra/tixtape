@@ -74,6 +74,13 @@ jobs:
             args+=("--max-artists=$MAX_ARTISTS")
           fi
           npx tsx src/scripts/discover-gigs.ts "${args[@]}"
+      # D-091: held events that only lacked a picture get the image providers run for them, and
+      # are published once they have one. Only the database secret.
+      - name: Retry events held for a missing picture
+        if: always() && github.event.inputs.dry_run != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx tsx src/scripts/retry-image-holds.ts
       # D-060 daily digest of the last 24 h (published, held or rejected and why, re-verification,
       # new leads). Sent only when there's something to report. Only the alert secrets.
       - name: Daily gig digest

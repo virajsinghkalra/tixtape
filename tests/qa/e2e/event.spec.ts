@@ -18,7 +18,7 @@ async function api(page: import("@playwright/test").Page, id: string) {
     endsAt: string | null;
     artistCount: number;
     lineup: { name: string; tier: string; billingRank: number }[];
-    ticketUrl?: string | null;
+    verification?: { sources?: { source: string; url: string | null }[] };
     startsAtDateOnly?: boolean;
   };
 }
@@ -111,14 +111,29 @@ test.describe("P3.2 event page", () => {
     await expect(page.locator("main")).toContainText(/time tba/i);
   });
 
-  test("Buy tickets appears only when the event has a ticket link", async ({ page }) => {
+  // UX #5: "Get the playlist" and "Buy tickets" left the header. The outbound link is
+  // "🎟️ Tickets" (a ticket seller) or "ℹ️ Info ↗" (any other source page), in the playlist card's
+  // action row, and only when a published source gave a link.
+  test("header has no Get the playlist / Buy tickets; Tickets/Info only with a source link", async ({
+    page,
+  }) => {
     for (const title of [LOLLA_TITLE, NH7_TITLE, DILJIT_TITLE]) {
       const id = await eventId(page.request, title);
       const ev = await api(page, id);
       await page.goto(`/events/${id}`);
-      const buy = page.getByRole("link", { name: /tickets?/i });
-      if (ev.ticketUrl) await expect(buy).toHaveAttribute("href", ev.ticketUrl);
-      else await expect(buy).toHaveCount(0);
+      const header = page.locator("main header").first();
+      await expect(header.getByText(/get the playlist|buy tickets/i)).toHaveCount(0);
+      const outbound = page.getByRole("link", { name: /🎟️ tickets|ℹ️ info/i });
+      const urls = (ev.verification?.sources ?? []).map((s) => s.url).filter(Boolean);
+      if (urls.length === 0) await expect(outbound).toHaveCount(0);
+      else {
+        await expect(outbound).toHaveCount(1);
+        expect(urls).toContain(await outbound.getAttribute("href"));
+        if ((await page.locator("#playlist").count()) > 0)
+          await expect(
+            page.locator("#playlist").getByRole("link", { name: /🎟️ tickets|ℹ️ info/i }),
+          ).toHaveCount(1);
+      }
     }
   });
 
@@ -145,7 +160,7 @@ test.describe("P3.2 event page", () => {
     expect(text).not.toMatch(/\{"error"|"code":/);
     // the failure is explained in plain words
     await expect(page.locator("#playlist")).toContainText(
-      /unavailable|opens soon|try again later/i,
+      /unavailable|open(s|ing) soon|try again later/i,
     );
     w.assertClean();
   });

@@ -49,6 +49,7 @@ describe("listEvents / getEvent", () => {
       imageUrl: null,
       url: null,
       visibility: "published" as const,
+      posterUrl: "https://example.org/poster.jpg",
     };
     for (const [title, city, day] of [
       ["Prateek Kuhad Live", "Bangalore", "2026-03-01"],

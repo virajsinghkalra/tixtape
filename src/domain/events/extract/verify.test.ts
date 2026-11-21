@@ -196,3 +196,31 @@ describe("independence", () => {
     expect(v.passes).toBe(false);
   });
 });
+
+describe("verifyEvent lineup completeness (D-091)", () => {
+  it("flags a festival with headliners only, without lowering confidence", () => {
+    const full = verifyEvent([sunburnOfficial, rsi], { now });
+    const headlinersOnly = verifyEvent(
+      [
+        { ...sunburnOfficial, artists: lineup.slice(0, 3) },
+        { ...rsi, artists: lineup.slice(0, 3) },
+      ],
+      { now },
+    );
+    expect(headlinersOnly.flags).toContain("lineup_incomplete");
+    expect(headlinersOnly.lineupCompleteness).toMatchObject({ status: "incomplete", stored: 3 });
+    expect(headlinersOnly.passes).toBe(full.passes);
+    expect(headlinersOnly.confidence).toBe(full.confidence);
+  });
+
+  it("records the fullest source's count", () => {
+    const v = verifyEvent([sunburnOfficial, rsi], { now });
+    expect(v.lineupCompleteness).toMatchObject({
+      stored: v.fields.headliners.artists.length,
+      announced: Math.max(
+        sunburnOfficial.artists.length + sunburnOfficial.supportActs.length,
+        rsi.artists.length + rsi.supportActs.length,
+      ),
+    });
+  });
+});

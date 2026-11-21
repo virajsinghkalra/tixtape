@@ -10,7 +10,8 @@ import { istDay } from "../ist-calendar";
 import { diceOverlap } from "../similarity";
 import { eventNameTokens } from "../dedupe";
 import { normalizeCity, normalizeVenueName } from "../venue";
-import { normalizeArtistName, splitArtistCredit } from "@/domain/shared/normalize";
+import { normalizeArtistName } from "@/domain/shared/normalize";
+import { splitLineupCredit } from "../credits";
 import type { EventType } from "@/domain/shared/lineup";
 import type { CollectorSource, SourceTrust, ValidatedCandidate } from "./candidate";
 
@@ -113,7 +114,7 @@ const TRAILING_PLACE = /\s+(?:at|@|in)\s+.*$/iu;
 export function titleHeadliners(c: ValidatedCandidate): Set<string> {
   const names = new Set<string>();
   const add = (credit: string) => {
-    for (const part of splitArtistCredit(credit.replace(TRAILING_PLACE, ""))) {
+    for (const part of splitLineupCredit(credit.replace(TRAILING_PLACE, ""))) {
       const name = normalizeArtistName(part);
       if (name !== "" && !name.split(" ").every((w) => GENERIC_TITLE_WORDS.has(w))) names.add(name);
     }

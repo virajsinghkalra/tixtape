@@ -1,3 +1,4 @@
+import type { EventVisual } from "@/domain/events/publish-visual";
 import { describe, expect, it, vi } from "vitest";
 import { ingestEvents } from "@/application/events/ingest-events";
 import { fakeEventsWorld } from "@/application/events/testing/fakes";
@@ -89,9 +90,27 @@ function fakeVerification(world: ReturnType<typeof fakeEventsWorld>) {
     }
     return rows.get(id)!;
   };
-  const store: EventVerificationStore & { rows: typeof rows; past: string[][] } = {
+  const store: EventVerificationStore & {
+    rows: typeof rows;
+    past: string[][];
+    visual: EventVisual | null;
+    imageHolds: Set<string>;
+  } = {
     rows,
     past: [],
+    // D-091: a picture by default, so publishing tests keep their meaning; set to null to test holds.
+    visual: { posterUrl: "https://example.org/poster.jpg", headliners: [] } as EventVisual | null,
+    imageHolds: new Set<string>(),
+    async visualOf() {
+      return this.visual;
+    },
+    async setImageHold(id, held) {
+      if (held) this.imageHolds.add(id);
+      else this.imageHolds.delete(id);
+    },
+    async listImageHolds() {
+      return [...this.imageHolds].map((id) => id as EventId);
+    },
     async save(id, verification, checkedAt) {
       row(id).verification = verification;
       row(id).lastVerifiedAt = checkedAt;
@@ -314,6 +333,25 @@ describe("publishEvents and layer 6", () => {
     expect(results[1]!.reason).toMatch(/^fails:/u);
     expect(verification.rows.get(good!.id)?.visibility).toBe("published");
     expect(verification.rows.get(weak!.id)?.visibility).toBe("held");
+  });
+
+  it("D-091: a verified event without a picture stays held, flagged no_image", async () => {
+    const { world, verification, deps, run } = setup();
+    await run([source("sunburn", [sunburn]), source("rollingstone", [rsi])]);
+    const e = world.events.events[0]!;
+    verification.visual = { posterUrl: null, headliners: [{ imageUrl: null, altImageUrl: null }] };
+    const [result] = await publishEvents(deps, [e.id]);
+    expect(result).toMatchObject({
+      published: false,
+      reason: "no_image: Add a poster or a headliner photo first",
+    });
+    expect(verification.rows.get(e.id)?.visibility).toBe("held");
+    expect([...verification.imageHolds]).toEqual([e.id]);
+
+    verification.visual = { posterUrl: "https://sunburn.in/poster.jpg", headliners: [] };
+    expect((await publishEvents(deps, [e.id]))[0]).toMatchObject({ published: true });
+    expect(verification.rows.get(e.id)?.visibility).toBe("published");
+    expect([...verification.imageHolds]).toEqual([]);
   });
 
   it("moves a published event back to held when its official listing disappears", async () => {

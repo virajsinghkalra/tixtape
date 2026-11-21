@@ -13,6 +13,11 @@
  *   series; plausible size and duration; one article can't create a burst of events.
  * The result is stored as `events.verification` and drives `confidence`.
  */
+import {
+  LINEUP_INCOMPLETE,
+  lineupCompleteness,
+  type LineupCompleteness,
+} from "../lineup-completeness";
 import { istDay } from "../ist-calendar";
 import { jaccard } from "../similarity";
 import { foldText } from "../text";
@@ -89,6 +94,8 @@ export type Verification = {
   confidence: number;
   /** Layers 1–4 pass: the event may be offered to the Lead for publishing. */
   passes: boolean;
+  /** D-091: stored vs announced acts. Absent on verifications written before D-091. */
+  lineupCompleteness?: LineupCompleteness;
 };
 
 export type HeadlinerIdentity = {
@@ -410,6 +417,19 @@ export function verifyEvent(
   if (isCancelled(members)) flags.push("cancelled");
   if (headliners.status === "missing") flags.push("lineup_not_announced");
   if (venue.status === "missing") flags.push("venue_unknown");
+  // D-091: a bill shorter than a source announces, or a festival with headliners only.
+  const fullest = [...members].sort(
+    (a, b) => b.artists.length + b.supportActs.length - (a.artists.length + a.supportActs.length),
+  )[0];
+  const completeness = lineupCompleteness({
+    type: members.some((m) => m.type === "festival") ? "festival" : "concert",
+    stored: artists.length,
+    announced: fullest ? fullest.artists.length + fullest.supportActs.length : null,
+    source: fullest?.source ?? null,
+  });
+  if (completeness.status === "incomplete" && headliners.status !== "missing") {
+    flags.push(LINEUP_INCOMPLETE);
+  }
   const passes = checks.every((c) => c.ok !== false);
 
   const weight: Record<FieldStatus, number> = {
@@ -426,8 +446,13 @@ export function verifyEvent(
     0.15 * weight[venue.status] +
     0.25 * weight[headliners.status] +
     0.15 * (checkedIds.length > 0 && checkedIds.every((a) => a.identity === "active") ? 1 : 0.5);
-  confidence -=
-    0.15 * flags.filter((f) => f !== "lineup_not_announced" && f !== "venue_unknown").length;
+  // Informational flags describe our data, not whether the event is real: no penalty.
+  const informational = new Set<string>([
+    "lineup_not_announced",
+    "venue_unknown",
+    LINEUP_INCOMPLETE,
+  ]);
+  confidence -= 0.15 * flags.filter((f) => !informational.has(f)).length;
   confidence = Math.max(0, Math.min(1, passes ? confidence : Math.min(confidence, 0.5)));
 
   return {
@@ -438,6 +463,7 @@ export function verifyEvent(
     independentSources: independent,
     confidence: Math.round(confidence * 100) / 100,
     passes,
+    lineupCompleteness: completeness,
   };
 }
 

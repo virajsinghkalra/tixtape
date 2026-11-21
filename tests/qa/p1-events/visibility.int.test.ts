@@ -132,8 +132,12 @@ const adminPost = (b: unknown) =>
 const patch = (id: string, b: unknown) =>
   adminDetail.PATCH(new Request(u(`/api/admin/events/${id}`), send("PATCH", b)), ctx(id));
 
+/** D-091: publishing needs a poster or a headliner photo; fixtures carry a poster. */
+const POSTER = "https://example.com/poster.jpg";
+
 const input = (over: Json = {}): Json => ({
   title: "Published Gala",
+  posterUrl: POSTER,
   type: "concert",
   startsAt: "2027-02-10T14:00:00Z",
   venue: { name: "NSCI Dome", city: "Mumbai", country: "IN" },
@@ -152,7 +156,12 @@ async function create(over: Json = {}): Promise<string> {
 
 async function setVisibility(id: string, visibility: string) {
   state.role = "admin";
-  const r = await patch(id, { visibility });
+  // D-091: feed events have no poster; publishing sends one (a poster isn't an edit: no admin
+  // source row, so D-026 ownership is unchanged).
+  const r = await patch(
+    id,
+    visibility === "published" ? { visibility, posterUrl: POSTER } : { visibility },
+  );
   expect(r.status).toBe(200);
 }
 
@@ -567,6 +576,104 @@ describe("QA D-056 PATCH visibility", () => {
 });
 
 // ── verification block ──────────────────────────────────────────────────
+
+// ── D-091: a picture is required to publish ───────────────────────────────
+
+describe("QA D-091 publishing needs a poster or a headliner photo", () => {
+  const NO_IMAGE_MESSAGE = "Add a poster or a headliner photo first";
+  const bare = (over: Json = {}) => input({ posterUrl: undefined, ...over });
+  const artistPhoto = (name: string, column: "image_url" | "alt_image_url") =>
+    db.execute(
+      sql`UPDATE artists SET ${sql.raw(column)} = 'https://i.scdn.co/image/qa' WHERE name = ${name}`,
+    );
+  const visibilityOf = async (id: string) =>
+    ((await j(await adminGetOne(id))).event as Json).visibility;
+
+  it("create as published with no picture saves it held with a no_image hold", async () => {
+    const r = await adminPost(bare({ visibility: "published" }));
+    expect(r.status).toBe(201);
+    const b = await j(r);
+    expect(b.holds).toEqual([{ reason: "no_image", message: NO_IMAGE_MESSAGE }]);
+    const id = (b.event as Json).id as string;
+    expect(await visibilityOf(id)).toBe("held");
+    expect((await getEvent(id)).status).toBe(404);
+    expect((await j(await listEvents())).total).toBe(0);
+  });
+
+  it("create as published with a poster is published, with no holds", async () => {
+    const r = await adminPost(input({ visibility: "published" }));
+    expect(r.status).toBe(201);
+    const b = await j(r);
+    expect(b.holds).toBeUndefined();
+    expect((await getEvent((b.event as Json).id as string)).status).toBe(200);
+  });
+
+  it("PATCH to published with no picture → 400 validation_failed; the event stays held", async () => {
+    const id = await create(bare());
+    const r = await patch(id, { visibility: "published" });
+    expect(r.status).toBe(400);
+    const err = (await j(r)).error as Json;
+    expect(err.code).toBe("validation_failed");
+    expect(JSON.stringify(err)).toContain(NO_IMAGE_MESSAGE);
+    expect(await visibilityOf(id)).toBe("held");
+    expect((await getEvent(id)).status).toBe(404);
+  });
+
+  it("a non-http poster doesn't count (or is refused) and never publishes", async () => {
+    const id = await create(bare());
+    const r = await patch(id, { visibility: "published", posterUrl: "javascript:alert(1)" });
+    expect(r.status).toBe(400);
+    expect(await visibilityOf(id)).toBe("held");
+  });
+
+  it("publishes once a poster is added", async () => {
+    const id = await create(bare());
+    expect((await patch(id, { visibility: "published" })).status).toBe(400);
+    const r = await patch(id, { visibility: "published", posterUrl: POSTER });
+    expect(r.status).toBe(200);
+    expect(await visibilityOf(id)).toBe("published");
+    expect((await getEvent(id)).status).toBe(200);
+  });
+
+  it.each(["image_url", "alt_image_url"] as const)(
+    "publishes once a headliner has a photo (%s)",
+    async (column) => {
+      const id = await create(bare());
+      expect((await patch(id, { visibility: "published" })).status).toBe(400);
+      await artistPhoto("Shared Artist", column);
+      expect((await patch(id, { visibility: "published" })).status).toBe(200);
+      expect((await getEvent(id)).status).toBe(200);
+    },
+  );
+
+  it("a photo of a non-headliner act doesn't count", async () => {
+    const id = await create(bare());
+    await artistPhoto("Public Opener", "image_url");
+    expect((await patch(id, { visibility: "published" })).status).toBe(400);
+    expect(await visibilityOf(id)).toBe("held");
+  });
+
+  it("with no headliner tier, the top-billed act's photo counts", async () => {
+    const id = await create(
+      bare({
+        lineup: [
+          { name: "Top Billed", tier: "sub", billingRank: 1 },
+          { name: "Second Billed", tier: "support", billingRank: 2 },
+        ],
+      }),
+    );
+    await artistPhoto("Second Billed", "image_url");
+    expect((await patch(id, { visibility: "published" })).status).toBe(400);
+    await artistPhoto("Top Billed", "image_url");
+    expect((await patch(id, { visibility: "published" })).status).toBe(200);
+  });
+
+  it("holding or archiving needs no picture", async () => {
+    const id = await create(bare());
+    expect((await patch(id, { visibility: "archived" })).status).toBe(200);
+    expect((await patch(id, { visibility: "held" })).status).toBe(200);
+  });
+});
 
 describe("QA D-056 published verification block", () => {
   it("has exactly {sourcesCount, lastVerifiedAt, sources:[{source,url}]} and no raw payload", async () => {

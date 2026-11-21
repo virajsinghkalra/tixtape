@@ -2,11 +2,13 @@
  * Events & Ingestion use cases bound to their ports (P1.4–P1.7). Infrastructure builds the
  * ports (src/infrastructure/events-module.ts); routes reach this through src/server/events.ts.
  */
+import { listNeedingImage } from "./image-holds";
+import type { EventVisualRow } from "@/application/ports/events";
 import type { ArtistRepository } from "@/application/ports/artists";
 import type { EventEngagement, RateLimiter, SearchLog } from "@/application/ports/engagement";
 import type { EventSearch } from "@/application/ports/event-search";
 import type { SourceAdapter, SourceFetchOptions } from "@/application/ports/event-source";
-import type { AdminEventDetail, EventMerge, EventRepository } from "@/application/ports/events";
+import type { EventMerge, EventRepository } from "@/application/ports/events";
 import type { IngestRunRepository } from "@/application/ports/ingest-runs";
 import type { VenueRepository } from "@/application/ports/venues";
 import type { EventId } from "@/domain/shared/ids";
@@ -18,6 +20,7 @@ import {
   listAdminEvents,
   listEvents,
   type AdminEventPage,
+  type AdminEventView,
   type AdminListEventsQuery,
   type EventPage,
   type ListEventsQuery,
@@ -47,8 +50,12 @@ import {
 } from "./search-events";
 
 export type { IngestSummary } from "./ingest-events";
+export type { EventVisualRow } from "@/application/ports/events";
+export { listNeedingImage, retryImageHolds } from "./image-holds";
+export type { ImageRetryResult } from "./image-holds";
 export type {
   AdminEventPage,
+  AdminEventView,
   AdminListEventsQuery,
   EventPage,
   EventVerification,
@@ -81,7 +88,7 @@ export type EventsUseCases = {
   /** Admin: every visibility, with verification state. */
   listAdminEvents(query: AdminListEventsQuery): Promise<AdminEventPage>;
   /** Admin: any visibility. Throws `NotFoundError`. */
-  getAdminEvent(id: EventId): Promise<AdminEventDetail>;
+  getAdminEvent(id: EventId): Promise<AdminEventView>;
   createAdminEvent(input: AdminEventInput): Promise<AdminSaveResult>;
   /** Throws `NotFoundError`, `ValidationError`, `ConflictError`. */
   updateAdminEvent(id: EventId, patch: AdminEventPatch): Promise<AdminSaveResult>;
@@ -98,6 +105,8 @@ export type EventsUseCases = {
   recordPlaylistOpen(eventId: EventId, clientKey: string): Promise<EngagementResult>;
   /** Admin list of queries that found nothing (D-047 §6). */
   listZeroResultQueries(since: Date, limit: number): Promise<{ query: string; count: number }[]>;
+  /** D-091: upcoming published events with no poster and no headliner photo (admin view, digest). */
+  listEventsNeedingImage(): Promise<EventVisualRow[]>;
   /** The sweep: delete search logs older than 90 days. */
   pruneSearchLog(): Promise<number>;
 };
@@ -132,6 +141,7 @@ export function createEventsUseCases(ports: EventsPorts): EventsUseCases {
     recordSearchClick: (click, key) => recordSearchClick(ports, click, key),
     recordPlaylistOpen: (id, key) => recordPlaylistOpen(ports, id, key),
     listZeroResultQueries: (since, limit) => ports.searchLog.listZeroResultQueries(since, limit),
+    listEventsNeedingImage: () => listNeedingImage(ports.events, ports.clock.now()),
     pruneSearchLog: () =>
       ports.searchLog.deleteOlderThan(new Date(ports.clock.now().getTime() - SEARCH_LOG_TTL_MS)),
   };

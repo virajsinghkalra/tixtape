@@ -51,7 +51,7 @@ const panel = (page: Page) => page.locator("#playlist");
 const openInSpotify = (page: Page) => page.getByRole("link", { name: /open in spotify/i });
 
 test.describe("D. playlist panel", () => {
-  test("none → Make playlist → named progress stages → done: Open in Spotify, Copy link, Share", async ({
+  test("none → Make playlist → named progress stages → done: Open in Spotify (UX #5: no Copy link)", async ({
     page,
   }, info) => {
     const w = watch(page);
@@ -92,19 +92,14 @@ test.describe("D. playlist panel", () => {
       await page.waitForTimeout(250);
     }
     const all = [...seen].join(" | ");
-    expect(all).toMatch(/2\/8|6\/8/); // names the artist count
-    expect(all).toMatch(/picking songs|matching artists/i);
-    expect(all).toMatch(/creating (the )?playlist/i);
+    // D-082: stage in a few words, no counts ("Matching…", "Picking songs…", …)
+    expect(all).toMatch(/picking songs|matching/i);
+    expect(all).toMatch(/creating/i);
     expect(all).toMatch(/adding songs/i);
+    expect(all).not.toMatch(/\d+\/\d+|\d+ songs/);
     await expect(openInSpotify(page)).toHaveAttribute("href", URL_OK);
     await expect(openInSpotify(page)).toHaveAttribute("target", "_blank");
-    await expect(panel(page).getByRole("button", { name: /copy link/i })).toBeVisible();
-    await expect(
-      panel(page)
-        .getByRole("button", { name: /share/i })
-        .or(panel(page).getByRole("link", { name: /share/i }))
-        .first(),
-    ).toBeVisible();
+    await expect(panel(page)).toContainText(/live on spotify/i);
     await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
     expect(posts).toHaveLength(1);
     await finalShot(page, info, "D-done");
@@ -155,7 +150,10 @@ test.describe("D. playlist panel", () => {
       },
     ]);
     await page.goto(`/events/${id}`);
-    await expect(panel(page)).toContainText(/joining|already making/i);
+    // joins at once: the progress (or the finished playlist), never a Make playlist button
+    await expect(panel(page)).toContainText(
+      /joining|making|matching|picking|adding|live on spotify/i,
+    );
     await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
     await finalShot(page, info, "D-building-join");
     await expect(openInSpotify(page)).toBeVisible({ timeout: 20_000 });
@@ -163,7 +161,9 @@ test.describe("D. playlist panel", () => {
     expect(calls.every((c) => c.includes(JOB))).toBe(true);
   });
 
-  test("partial: Open in Spotify, plus which artists were skipped", async ({ page }, info) => {
+  test("partial: Open in Spotify; per D-082 no skipped-artist commentary", async ({
+    page,
+  }, info) => {
     const id = await eventId(page.request, LOLLA_TITLE);
     await page.route(STATUS, (r) => json(r, { status: "building", jobId: JOB }));
     await stubJob(page, [
@@ -179,15 +179,12 @@ test.describe("D. playlist panel", () => {
     ]);
     await page.goto(`/events/${id}`);
     await expect(openInSpotify(page)).toBeVisible({ timeout: 20_000 });
-    await expect(panel(page)).toContainText(/2 artists aren.t on Spotify, so they were skipped/i);
-    await expect(panel(page)).toContainText(/Nucleya/);
-    await expect(panel(page)).toContainText(/Ritviz/);
+    await expect(panel(page)).toContainText(/live on spotify/i);
+    await expect(panel(page)).not.toContainText(/skipped|aren.t on Spotify/i);
     await finalShot(page, info, "D-partial");
   });
 
-  test("paused: 'Spotify asked us to slow down, continuing at …' and the page keeps polling", async ({
-    page,
-  }, info) => {
+  test("paused: 'Paused · back at h:mm', and the page keeps polling", async ({ page }, info) => {
     const id = await eventId(page.request, LOLLA_TITLE);
     await page.route(STATUS, (r) => json(r, { status: "building", jobId: JOB }));
     const resume = new Date(Date.now() + 4000).toISOString();
@@ -211,8 +208,11 @@ test.describe("D. playlist panel", () => {
       { status: "running", stage: "select", progress: 50, artistsDone: 5, artistsTotal: 8 },
     ]);
     await page.goto(`/events/${id}`);
-    await expect(panel(page)).toContainText(/slow down/i, { timeout: 15_000 });
-    await expect(panel(page)).toContainText(/continuing at \d{1,2}:\d{2}\s*(am|pm)/i);
+    // BUG: QA-F-19 a paused step (Spotify 429) still reads "Picking songs…"; D-082 says
+    // "Paused · back at 5:33 pm"
+    await expect(panel(page)).toContainText(/paused · back at \d{1,2}:\d{2}\s*(am|pm)/i, {
+      timeout: 15_000,
+    });
     await expect(openInSpotify(page)).toHaveCount(0);
     await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
     await finalShot(page, info, "D-paused");
@@ -221,7 +221,7 @@ test.describe("D. playlist panel", () => {
     expect(calls.length, "the page stopped polling while paused").toBeGreaterThan(before);
   });
 
-  test("unavailable (503): 'temporarily unavailable. Try again later.', no Open in Spotify", async ({
+  test("unavailable (503): 'Opening soon 😴' (D-082), no Open in Spotify", async ({
     page,
   }, info) => {
     const id = await eventId(page.request, LOLLA_TITLE);
@@ -241,10 +241,7 @@ test.describe("D. playlist panel", () => {
     await panel(page)
       .getByRole("button", { name: /make playlist/i })
       .click();
-    // BUG: QA-F-8 (low) the 503 says "Playlist making opens soon. We're connecting our Spotify
-    // account…" instead of SEARCH_FLOW D's "temporarily unavailable. Try again later."
-    await expect(panel(page)).toContainText(/temporarily unavailable/i);
-    await expect(panel(page)).toContainText(/try again later/i);
+    await expect(panel(page)).toContainText(/opening soon/i);
     await expect(openInSpotify(page)).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(/\{"error"|"code"/);
     await finalShot(page, info, "D-unavailable");
@@ -256,7 +253,7 @@ test.describe("D. playlist panel", () => {
     const id = await eventId(page.request, "Diljit Dosanjh Live in Bengaluru"); // unmatched
     await page.goto(`/events/${id}`);
     await settle(page);
-    await expect(panel(page)).toContainText(/coming soon|aren.t on Spotify yet/i);
+    await expect(panel(page)).toContainText(/playlist soon/i);
     await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
     await expect(openInSpotify(page)).toHaveCount(0);
     const r = await page.request.post(`/api/events/${id}/playlist`, { data: {} });
@@ -323,8 +320,10 @@ test.describe("D. DB-backed playlist states", () => {
     await page.goto(`/events/${nh7}`);
     await settle(page);
     await expect(openInSpotify(page)).toHaveAttribute("href", URL_OK);
-    await expect(panel(page)).toContainText(/by Tixtape/i);
-    await expect(panel(page)).toContainText(/updated/i);
+    await expect(panel(page)).toContainText(/live on spotify/i);
+    // BUG: QA-F-20 (low) a ready playlist on an event with unmatched artists also says
+    // "Playlist soon ⏳" next to "Live on Spotify 🎉"
+    await expect(panel(page)).not.toContainText(/playlist soon/i);
     expect(await page.evaluate(() => (window as unknown as { __flash: boolean }).__flash)).toBe(
       false,
     );
@@ -349,7 +348,6 @@ test.describe("D. DB-backed playlist states", () => {
     ]);
     await page.goto(`/events/${nh7}`);
     await expect(openInSpotify(page)).toHaveAttribute("href", URL_OK);
-    await expect(panel(page)).toContainText(/lineup updated, refreshing playlist/i);
     await page.waitForTimeout(2000);
     expect(posts.length, "stale playlist should rebuild automatically").toBeGreaterThanOrEqual(1);
     await finalShot(page, info, "D-stale");
@@ -357,7 +355,7 @@ test.describe("D. DB-backed playlist states", () => {
 });
 
 test.describe("D. estimate, checking, share and copy", () => {
-  test("estimate (D-065): panel matches GET /playlist/estimate; single-artist concert = 2 h 30 min", async ({
+  test("estimate (D-065/D-082): Make playlist only when the estimate has songs; no counts shown", async ({
     page,
   }) => {
     for (const title of [LOLLA_TITLE, "Diljit Dosanjh Live in Bengaluru"]) {
@@ -366,34 +364,22 @@ test.describe("D. estimate, checking, share and copy", () => {
         await page.request.get(`/api/events/${id}/playlist/estimate`)
       ).json()) as {
         songs: number;
-        minutes: number;
         showMinutes: number;
-        days: number;
-        unmatched: number;
       };
+      if (title.startsWith("Diljit")) expect(est.showMinutes).toBe(150); // single-artist concert
+      if (title === LOLLA_TITLE) expect(est.songs).toBeGreaterThan(0);
       await page.goto(`/events/${id}`);
       await settle(page);
       const text = (await panel(page).innerText()).replace(/\s+/g, " ");
-      if (title.startsWith("Diljit")) expect(est.showMinutes).toBe(150);
-      // was QA-F-11: with no artist matched the preview read "0 songs · about 0 min" and still
-      // offered Make playlist.
+      // D-082: no song or minute counts, no "matches the show"
+      expect(text, title).not.toMatch(/\d+ songs|\d+ ?h\b|\d+ min|matches the show/i);
+      const make = panel(page).getByRole("button", { name: /make playlist/i });
       if (est.songs === 0) {
-        expect(text, title).not.toMatch(/\b0 songs\b|about 0 min/);
-        expect(text, title).toMatch(/coming soon/i);
-        await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
-        continue;
+        expect(text, title).toMatch(/playlist soon/i);
+        await expect(make).toHaveCount(0);
+      } else {
+        await expect(make).toBeVisible();
       }
-      expect(text).toContain(`${est.songs} songs`);
-      const fmt = (min: number) => {
-        const h = Math.floor(min / 60);
-        const m = min % 60;
-        return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
-      };
-      const perDay = est.days > 1 ? `${est.days} days × ${fmt(est.showMinutes / est.days)}` : "";
-      expect(
-        text.includes(fmt(est.showMinutes)) || (perDay !== "" && text.includes(perDay)),
-        `show length ${fmt(est.showMinutes)} / ${perDay} in: ${text.slice(0, 300)}`,
-      ).toBe(true);
     }
   });
 
@@ -427,7 +413,7 @@ test.describe("D. estimate, checking, share and copy", () => {
     }
   });
 
-  test("Copy link copies the playlist URL and says so; Share works without native share", async ({
+  test("Share without native share copies the event link and says so", async ({
     page,
     context,
     browserName,
@@ -435,28 +421,11 @@ test.describe("D. estimate, checking, share and copy", () => {
     test.skip(browserName !== "chromium");
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const id = await eventId(page.request, LOLLA_TITLE);
-    await page.route(STATUS, (r) => json(r, { status: "building", jobId: JOB }));
-    await stubJob(page, [
-      {
-        status: "succeeded",
-        stage: "done",
-        progress: 100,
-        artistsDone: 8,
-        artistsTotal: 8,
-        playlistUrl: URL_OK,
-      },
-    ]);
-    await page.goto(`/events/${id}`);
-    await expect(openInSpotify(page)).toBeVisible({ timeout: 20_000 });
-    await panel(page)
-      .getByRole("button", { name: /copy link/i })
-      .click();
-    await expect(page.getByText(/copied/i).first()).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(URL_OK);
-    // page Share (event link): native share if present, else copy with feedback
-    await page.evaluate(() => {
+    await page.addInitScript(() => {
       (navigator as unknown as { share?: unknown }).share = undefined;
     });
+    await page.goto(`/events/${id}`);
+    await settle(page);
     await page
       .getByRole("button", { name: /^share /i })
       .first()

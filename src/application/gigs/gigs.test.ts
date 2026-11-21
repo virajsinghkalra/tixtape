@@ -1,3 +1,4 @@
+import type { EventVisual } from "@/domain/events/publish-visual";
 import { describe, expect, it, vi } from "vitest";
 import { ingestEvents } from "@/application/events/ingest-events";
 import { fakeEventsWorld } from "@/application/events/testing/fakes";
@@ -212,8 +213,25 @@ function verificationStore(world: ReturnType<typeof fakeEventsWorld>) {
     if (!rows.has(id)) rows.set(id, { visibility: "held", verification: null });
     return rows.get(id)!;
   };
-  const store: EventVerificationStore & { rows: typeof rows } = {
+  const store: EventVerificationStore & {
+    rows: typeof rows;
+    visual: EventVisual | null;
+    imageHolds: Set<string>;
+  } = {
     rows,
+    // D-091: a picture by default, so publishing tests keep their meaning; set to null to test holds.
+    visual: { posterUrl: "https://example.org/poster.jpg", headliners: [] } as EventVisual | null,
+    imageHolds: new Set<string>(),
+    async visualOf() {
+      return this.visual;
+    },
+    async setImageHold(id, held) {
+      if (held) this.imageHolds.add(id);
+      else this.imageHolds.delete(id);
+    },
+    async listImageHolds() {
+      return [...this.imageHolds].map((id) => id as EventId);
+    },
     async save(id, v) {
       row(id).verification = v;
     },
@@ -379,6 +397,30 @@ describe("publishDueCandidates", () => {
     expect(
       [...verification.rows.values()].filter((r) => r.visibility === "published"),
     ).toHaveLength(3);
+  });
+
+  it("D-091: a passing night without a picture is held no_image, then retried", async () => {
+    const withVenue = (c: ValidatedGig): ValidatedGig => ({ ...c, venueName: "OML HQ" });
+    const strong = [withVenue(officialNight(run[0]!)), withVenue(outletNight(run[0]!))];
+    const { deps, verification, audit, decisions } = publishSetup(strong);
+    verification.visual = { posterUrl: null, headliners: [{ imageUrl: null, altImageUrl: null }] };
+    const [night] = await publishDueCandidates(deps, { blockedReason: null, record: true });
+    expect(night).toMatchObject({ action: "held_no_image", decision: "hold" });
+    expect(night!.reasons).toEqual([
+      "has_image: no_image: Add a poster or a headliner photo first",
+    ]);
+    expect(verification.rows.get(night!.eventId!)?.visibility).toBe("held");
+    expect([...verification.imageHolds]).toEqual([night!.eventId]);
+    expect(audit.filter((a) => a.action === "published")).toHaveLength(0);
+    expect(decisions.get(night!.nightKey)?.decision).toBe("hold");
+
+    verification.visual = {
+      posterUrl: null,
+      headliners: [{ imageUrl: "https://i.scdn.co/a.jpg", altImageUrl: null }],
+    };
+    const [again] = await publishDueCandidates(deps, { blockedReason: null, record: true });
+    expect(again).toMatchObject({ action: "published" });
+    expect([...verification.imageHolds]).toEqual([]);
   });
 
   it("holds an unmatched headliner even with perfect sources", async () => {

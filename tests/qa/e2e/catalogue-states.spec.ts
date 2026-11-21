@@ -26,6 +26,7 @@ test("city switcher: a city with no events says so and offers a way out, nothing
   await expect(page.getByRole("button", { name: /city: chennai/i })).toBeVisible();
   const main = page.locator("main");
   await expect(main).toContainText(/chennai/i);
+  // BUG: QA-F-18 (low) after D-079 nothing tells the visitor there's nothing in Chennai
   await expect(main).toContainText(/no (gigs|shows|events|concerts)[^.]*(chennai|yet|here)/i);
   await finalShot(page, info, "city-chennai-empty");
   // no out-of-town show is presented as being in Chennai

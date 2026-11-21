@@ -35,6 +35,7 @@ beforeEach(async () => {
     venue: { name: "Lawns", city: "Pune", country: "IN" },
     lineup: [{ name: "The Local Train", tier: "headliner", billingRank: 1 }],
     visibility: "published",
+    posterUrl: "https://example.org/poster.jpg",
   });
   eventId = event.id;
 });

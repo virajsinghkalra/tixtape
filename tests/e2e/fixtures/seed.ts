@@ -5,7 +5,6 @@
 import { AdminEventInputSchema } from "@/application/events";
 import { createEventsModule } from "@/infrastructure/events-module";
 import { container } from "@/server/container";
-import postgres from "postgres";
 
 export const FIXTURE_EVENTS = [
   {
@@ -46,21 +45,28 @@ export const FIXTURE_EVENTS = [
   },
 ] as const;
 
+/**
+ * D-091: an event is published only with a poster or a headliner photo. Fixtures use the app's
+ * own icon from the E2E server (port 3100), so the picture loads offline and no broken-image
+ * console error trips the specs' console watchers.
+ */
+export const FIXTURE_POSTER_URL = `${process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100"}/icon-512.png`;
+
 export async function seedFixtures(): Promise<void> {
-  const c = container();
-  const events = createEventsModule(c);
-  // D-056: fixtures are public, so seed them as published.
-  for (const e of FIXTURE_EVENTS)
-    await events.createAdminEvent(AdminEventInputSchema.parse({ ...e, visibility: "published" }));
-  await c.db.$close();
-  // createAdminEvent stores new events as `held` (D-055/D-056: nothing publishes without review),
-  // and held events are 404 everywhere (D-070). Publish the fixtures directly in the E2E DB only.
   const url = process.env.DATABASE_URL ?? "";
   if (!/\/concert_e2e(\?|$)/.test(url)) throw new Error("seed.ts only runs against concert_e2e");
-  const sql = postgres(url, { max: 1, onnotice: () => {} });
-  const titles = FIXTURE_EVENTS.map((e) => e.title);
-  await sql`update events set visibility = 'published' where title in ${sql(titles)}`;
-  await sql.end();
+  const c = container();
+  const events = createEventsModule(c);
+  // D-056: fixtures are public, so seed them as published, with a poster (D-091).
+  for (const e of FIXTURE_EVENTS) {
+    const saved = await events.createAdminEvent(
+      AdminEventInputSchema.parse({ ...e, visibility: "published", posterUrl: FIXTURE_POSTER_URL }),
+    );
+    if (saved.holds?.length) {
+      throw new Error(`Fixture "${e.title}" was held: ${JSON.stringify(saved.holds)}`);
+    }
+  }
+  await c.db.$close();
 }
 
 // Run directly by tests/e2e/global-setup.ts via tsx (which resolves the "@/" alias).

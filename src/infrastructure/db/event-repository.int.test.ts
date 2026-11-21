@@ -276,6 +276,7 @@ describe("PgEventRepository through the use cases", () => {
       startsAt: "2026-02-14T10:00:00Z",
       venue: { name: "JLN Stadium", city: "Delhi", country: "IN" },
       lineup: [{ name: "Divine", tier: "headliner" }],
+      posterUrl: "https://example.org/zomaland.jpg",
     });
     const held = await createAdminEvent(deps, input);
     expect(held.event.visibility).toBe("held");
@@ -297,6 +298,7 @@ describe("PgEventRepository through the use cases", () => {
   it("a visibility-only PATCH changes nothing else: no admin source, Ticketmaster keeps ownership (QA-E-7)", async () => {
     await ingestEvents(deps, adapter([tm()]), opts);
     const id = (await deps.events.findIdBySourceRef("ticketmaster", "G5vYZ9"))!;
+    await deps.events.setPoster(id, "https://example.org/lolla.jpg"); // D-091: a picture to publish with
     const before = await getAdminEvent(deps.events, id);
 
     const res = await updateAdminEvent(
@@ -306,7 +308,14 @@ describe("PgEventRepository through the use cases", () => {
     );
     expect(res.event.visibility).toBe("published");
     expect(res.event.sources.map((s) => s.source)).toEqual(["ticketmaster"]);
-    const { visibility: _a, updatedAt: _b, ...restBefore } = before;
+    // `lineupCompleteness` and `picture` are computed on the admin read, not stored fields.
+    const {
+      visibility: _a,
+      updatedAt: _b,
+      lineupCompleteness: _l,
+      picture: _p,
+      ...restBefore
+    } = before;
     const { visibility: _c, updatedAt: _d, ...restAfter } = res.event;
     expect(restAfter).toEqual(restBefore);
 

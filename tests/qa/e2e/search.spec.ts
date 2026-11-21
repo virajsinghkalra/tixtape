@@ -265,7 +265,7 @@ test.describe("P3.6 type-ahead search", () => {
     expect(body).not.toMatch(/\{"error"|internal|boom/);
     expect(body).not.toMatch(/no lol shows/i);
     // SEARCH_FLOW B: "Search isn't responding, retrying…", then a Retry button
-    await expect(page.getByText(/isn.t responding/i).first()).toBeVisible();
+    await expect(page.getByText(/search (is )?down|isn.t responding/i).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /retry/i })).toBeVisible({ timeout: 10_000 });
   });
 

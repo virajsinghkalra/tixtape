@@ -22,7 +22,9 @@ import {
   sourceRank,
   topSource,
 } from "@/domain/events/dedupe";
+import type { CreditOptions } from "@/domain/events/credits";
 import { buildLineup, lineupHash, type LineupEntry } from "@/domain/events/lineup";
+import { normalizeArtistName, splitArtistCredit } from "@/domain/shared/normalize";
 import type { RawEvent, RawLineupEntry } from "@/domain/events/raw-event";
 import type { EventVisibility } from "@/domain/events/visibility";
 import type { EventId } from "@/domain/shared/ids";
@@ -63,7 +65,10 @@ export async function writeEvent(
   input: EventInput,
   targetId?: EventId,
 ): Promise<WriteOutcome> {
-  const lineup = input.lineup === null ? null : buildLineup(input.lineup);
+  const lineup =
+    input.lineup === null
+      ? null
+      : buildLineup(input.lineup, await creditOptions(deps.artists, input));
   let target: Target = targetId
     ? { kind: "updated", id: targetId, score: null }
     : await locate(deps.events, input, lineup ?? []);
@@ -154,6 +159,22 @@ async function locate(
     return { kind: "created_for_review", similarTo: match.candidate.id, score: match.score };
   }
   return { kind: "created" };
+}
+
+/**
+ * D-091: how to split this source's credits. Admin lineups (the Lead and Data teams) are
+ * verified and kept exactly as given. Other sources split, except a credit that is already a
+ * known artist or alias ("TOMORROW X TOGETHER" once matched) or on the known-acts list.
+ */
+async function creditOptions(artists: ArtistRepository, input: EventInput): Promise<CreditOptions> {
+  if (input.source === "admin") return { split: false };
+  const known = new Set<string>();
+  for (const entry of input.lineup ?? []) {
+    if (splitArtistCredit(entry.name).length < 2) continue;
+    const key = normalizeArtistName(entry.name);
+    if (key !== "" && (await artists.findByAlias(key))) known.add(key);
+  }
+  return { isKnownAct: (name) => known.has(normalizeArtistName(name)) };
 }
 
 /**

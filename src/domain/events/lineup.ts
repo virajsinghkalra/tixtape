@@ -3,7 +3,8 @@
  */
 import { createHash } from "node:crypto";
 import type { BillingTier } from "@/domain/shared/lineup";
-import { normalizeArtistName, splitArtistCredit } from "@/domain/shared/normalize";
+import { normalizeArtistName } from "@/domain/shared/normalize";
+import { splitLineupCredit, type CreditOptions } from "./credits";
 import type { RawLineupEntry } from "./raw-event";
 
 export type LineupEntry = {
@@ -19,19 +20,23 @@ export type LineupEntry = {
 
 /**
  * Turns billed credits into one entry per artist, in billing order.
- * - "Nucleya b2b Ritviz" becomes two entries with the credit's tier, kept together.
+ * - "Nucleya b2b Ritviz" becomes two entries with the credit's tier, kept together; a known
+ *   act ("TOMORROW X TOGETHER") stays one, and `split: false` keeps every credit as given (D-091).
  * - An artist billed twice (e.g. on two days) keeps its highest billing only, because
  *   event_artists has one row per (event, artist).
  * - Ranks are renumbered 1..n; ties keep input order.
  */
-export function buildLineup(entries: readonly RawLineupEntry[]): LineupEntry[] {
+export function buildLineup(
+  entries: readonly RawLineupEntry[],
+  credits: CreditOptions = {},
+): LineupEntry[] {
   const ordered = entries
     .map((entry, index) => ({ entry, index }))
     .sort((a, b) => a.entry.billingRank - b.entry.billingRank || a.index - b.index);
   const seen = new Set<string>();
   const lineup: LineupEntry[] = [];
   for (const { entry } of ordered) {
-    for (const name of splitArtistCredit(entry.name)) {
+    for (const name of splitLineupCredit(entry.name, credits)) {
       const normalizedName = normalizeArtistName(name);
       if (normalizedName === "" || seen.has(normalizedName)) continue;
       seen.add(normalizedName);

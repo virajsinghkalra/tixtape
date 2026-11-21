@@ -57,7 +57,9 @@ const step = (over: Record<string, unknown>) => ({
 
 const panel = (page: Page) => page.locator("#playlist");
 
-test("ready: Open in Spotify, Copy link and Share", async ({ page }) => {
+// UX #5: no "Copy link" button; Share (and Tickets/Info) live in the playlist card's action row,
+// and the header no longer carries "Get the playlist" or "Buy tickets".
+test("ready: Open in Spotify and Share, both in the playlist card", async ({ page }) => {
   await stubPlaylist(page, {
     status: { status: "ready", url: URL_, builtAt: "2026-11-21T10:00:00Z", stale: false },
   });
@@ -66,8 +68,13 @@ test("ready: Open in Spotify, Copy link and Share", async ({ page }) => {
     "href",
     URL_,
   );
-  await expect(panel(page).getByRole("button", { name: "Copy link" })).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: /^share /i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy link" })).toHaveCount(0);
   await expect(panel(page)).toContainText(/live on spotify/i);
+  const header = page.locator("main header").first();
+  await expect(header.getByText(/get the playlist|buy tickets/i)).toHaveCount(0);
+  // Fixtures have no source link, so there's no "🎟️ Tickets" / "ℹ️ Info ↗" link anywhere.
+  await expect(page.getByRole("link", { name: /🎟️ tickets|ℹ️ info/i })).toHaveCount(0);
 });
 
 test("none → Make playlist → named stages → confetti and Open in Spotify", async ({ page }) => {

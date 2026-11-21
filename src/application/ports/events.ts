@@ -3,6 +3,7 @@
  * Consumers: ingest and admin use cases (writes), public/admin read routes, Playlist Engine (reads).
  */
 import type { DedupeSubject } from "@/domain/events/dedupe";
+import type { EventVisual } from "@/domain/events/publish-visual";
 import type { EventVisibility } from "@/domain/events/visibility";
 import type { ArtistId, EventId, SpotifyArtistId, VenueId } from "@/domain/shared/ids";
 import type {
@@ -109,11 +110,16 @@ export type EventDetail = EventSummary & {
   updatedAt: Date;
 };
 
+/** An event with the facts the D-091 image rule reads. */
+export type EventVisualRow = { id: EventId; title: string; startsAt: Date; visual: EventVisual };
+
 /** D-056 verification state: admin reads only. */
 export type EventAdminFields = {
   visibility: EventVisibility;
   confidence: number;
   lastVerifiedAt: Date | null;
+  /** D-091: the most acts a verifying source announced, when recorded. */
+  announcedActs: number | null;
 };
 export type AdminEventSummary = EventSummary & EventAdminFields;
 export type AdminEventDetail = EventDetail & EventAdminFields;
@@ -148,6 +154,12 @@ export interface EventRepository {
    * transaction. Throws `ConflictError` when the dedupe key belongs to another event.
    */
   save(write: EventWrite): Promise<EventId>;
+  /** D-091: the poster and headliner photos the image rule looks at; null if no such event. */
+  visualOf(id: EventId): Promise<EventVisual | null>;
+  /** D-091: upcoming events of one visibility with their picture facts, soonest first. */
+  listVisuals(visibility: EventVisibility, from: Date, limit: number): Promise<EventVisualRow[]>;
+  /** Sets (or clears) the event's poster as an admin choice. False if no such event. */
+  setPoster(id: EventId, posterUrl: string | null): Promise<boolean>;
   /** Changes only `visibility` (no source row, no ownership change). False if no such event. */
   setVisibility(id: EventId, visibility: EventVisibility): Promise<boolean>;
   /** Any visibility; callers decide what to show (D-056). */

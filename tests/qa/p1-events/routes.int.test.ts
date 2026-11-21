@@ -92,10 +92,14 @@ const lineup = (n: number) =>
     billingRank: i + 1,
   }));
 
+/** D-091: publishing needs a poster or a headliner photo. */
+const POSTER = "https://example.com/poster.jpg";
+
 const valid = (over: Json = {}): Json => ({
   title: "Lollapalooza India",
-  // D-056: new events are held; public-read fixtures publish explicitly.
+  // D-056: new events are held; public-read fixtures publish explicitly (with a poster, D-091).
   visibility: "published",
+  posterUrl: POSTER,
   type: "festival",
   startsAt: "2027-01-25T10:30:00Z",
   endsAt: "2027-01-26T18:30:00Z",
@@ -220,7 +224,8 @@ describe("QA GET /api/events/:id", () => {
     const b = await j(r);
     const ev = b.event as Json;
     const lu = ev.lineup as Json[];
-    expect(lu.map((l) => l.name)).toEqual(["Headliner One", "Nucleya", "Ritviz"]);
+    // D-091: an admin lineup is kept exactly as given; the b2b credit is not split.
+    expect(lu.map((l) => l.name)).toEqual(["Headliner One", "Nucleya b2b Ritviz"]);
     for (const l of lu) {
       expect(l).toHaveProperty("tier");
       expect(l).toHaveProperty("matchStatus");
@@ -250,7 +255,9 @@ describe("QA GET /api/events/:id", () => {
       { from: NOW },
     );
     const ingested = ((await j(await adminGet())).events as Json[])[0]!.id as string;
-    expect((await patch(ingested, { visibility: "published" })).status).toBe(200);
+    expect((await patch(ingested, { visibility: "published", posterUrl: POSTER })).status).toBe(
+      200,
+    );
     const list = await listEvents();
     const text = await list.text();
     expect(text).not.toContain("RAW-MARKER-XYZ");
@@ -347,7 +354,8 @@ describe("QA PATCH /api/admin/events/:id", () => {
     const ev = (await j(await getEvent(id))).event as Json;
     expect(ev.title).toBe("New Title");
     expect(ev.genre).toBe("EDM");
-    expect((ev.lineup as Json[]).length).toBe(3);
+    // D-091: the admin lineup (2 credits, not split) is unchanged.
+    expect((ev.lineup as Json[]).length).toBe(2);
   });
 
   it("lineup replaces the whole lineup", async () => {

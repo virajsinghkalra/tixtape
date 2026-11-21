@@ -186,6 +186,7 @@ async function seed() {
         venue: { name: s.venue[0], city: s.venue[1], country: "IN" },
         lineup: s.lineup.map((name) => ({ name, tier: "headliner" })),
         visibility: "published",
+        posterUrl: "https://example.org/poster.jpg",
       }),
     );
     ids[s.title] = event.id;

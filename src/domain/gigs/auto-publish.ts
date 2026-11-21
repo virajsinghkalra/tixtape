@@ -26,6 +26,7 @@
  * The standard path is tried first, then first_party, then press.
  */
 import { findCity } from "../events/extract/places";
+import { checkPublishVisual, NO_IMAGE_MESSAGE, type EventVisual } from "../events/publish-visual";
 import { foldText } from "../events/text";
 import { normalizeCity } from "../events/venue";
 import type { MatchStatus } from "../shared/lineup";
@@ -73,6 +74,12 @@ export type GateInput = {
   confidence: number;
   /** D-089 paths, off unless enabled (`AUTO_PUBLISH_EXTRA_PATHS`): evaluated and reported only. */
   extraPaths?: { firstParty?: boolean; press?: boolean };
+  /**
+   * D-091: the stored event's poster and headliner photos. When given, a night without a
+   * picture is held (reason `no_image`). Omitted when re-checking a published night: a
+   * missing picture never unpublishes.
+   */
+  visual?: EventVisual | null;
 };
 
 export type GateRule =
@@ -85,7 +92,8 @@ export type GateRule =
   | "confidence"
   | "not_cancelled"
   | "first_party_grounded"
-  | "press_confirmed";
+  | "press_confirmed"
+  | "has_image";
 
 export type GateCheck = { rule: GateRule; ok: boolean; detail: string };
 export type GateVerdict = "publish" | "hold" | "reject";
@@ -287,7 +295,35 @@ function pressCheck(usable: readonly GateSource[], now: Date): GateCheck {
 }
 
 /** The gate's verdict for one night, with every rule's result. */
+/**
+ * D-091: the image rule as a gate check. A night that would publish without a poster or a
+ * headliner photo is held with reason `no_image` (never rejected: a picture can still come).
+ */
+export function applyImageRule(gate: GateDecision, visual: EventVisual | null): GateDecision {
+  const visualCheck = checkPublishVisual(visual);
+  const check: GateCheck = {
+    rule: "has_image",
+    ok: visualCheck.ok,
+    detail: visualCheck.ok ? `picture: ${visualCheck.via}` : `no_image: ${NO_IMAGE_MESSAGE}`,
+  };
+  const checks = [...gate.checks.filter((c) => c.rule !== "has_image"), check];
+  if (check.ok || gate.decision !== "publish") return { ...gate, checks };
+  return {
+    ...gate,
+    decision: "hold",
+    reasons: [`has_image: ${check.detail}`],
+    checks,
+    path: null,
+    confidence: null,
+  };
+}
+
 export function autoPublishDecision(input: GateInput): GateDecision {
+  const gate = decideWithoutImage(input);
+  return input.visual === undefined ? gate : applyImageRule(gate, input.visual);
+}
+
+function decideWithoutImage(input: GateInput): GateDecision {
   const usable = input.sources.filter((s) => !s.dateRange);
   const domains = new Set(usable.map((s) => s.domain));
   const officials = usable.filter((s) => s.officialKind !== null);

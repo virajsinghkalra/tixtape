@@ -10,11 +10,14 @@ vi.mock("@/server/events", () => ({ events: () => wired.current }));
 
 const { GET: list, POST } = await import("./route");
 const { GET: getOne, PATCH } = await import("./[id]/route");
+const { GET: needsImage } = await import("./needs-image/route");
 
+let world: ReturnType<typeof fakeEventsWorld>;
 beforeEach(() => {
   guard.requireAdmin.mockReset().mockResolvedValue({ role: "admin" });
+  world = fakeEventsWorld();
   wired.current = createEventsUseCases({
-    ...fakeEventsWorld(),
+    ...world,
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   });
 });
@@ -28,6 +31,7 @@ const body = {
     { name: "Martin Garrix", tier: "headliner" },
     { name: "Zaeden", tier: "support", day: 2, stage: "Main" },
   ],
+  posterUrl: "https://sunburn.in/poster.jpg",
 };
 const post = (b: unknown) =>
   POST(
@@ -111,6 +115,87 @@ describe("admin event routes", () => {
       expect(got.event.visibility).toBe(visibility);
     },
   );
+
+  it("D-091: create asked to publish without a picture is saved held, with the reason", async () => {
+    const { posterUrl: _p, ...noPoster } = body;
+    const res = await post({ ...noPoster, visibility: "published" });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.event.visibility).toBe("held");
+    expect(json.holds).toEqual([
+      { reason: "no_image", message: "Add a poster or a headliner photo first" },
+    ]);
+  });
+
+  it("D-091: PATCH to published without a picture is a 400 and changes nothing", async () => {
+    const { posterUrl: _p, ...noPoster } = body;
+    const { event } = await (await post(noPoster)).json();
+    const patch = (b: unknown) =>
+      PATCH(new Request("http://x", { method: "PATCH", body: JSON.stringify(b) }), ctx(event.id));
+    const refused = await patch({ visibility: "published" });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      error: {
+        code: "validation_failed",
+        message: "Add a poster or a headliner photo first",
+        issues: [{ path: "visibility" }],
+      },
+    });
+    expect(
+      (await (await getOne(new Request("http://x"), ctx(event.id))).json()).event.visibility,
+    ).toBe("held");
+    // A poster in the same PATCH is enough.
+    const ok = await patch({ posterUrl: "https://sunburn.in/p.jpg", visibility: "published" });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).event.visibility).toBe("published");
+  });
+
+  it("D-091: admin views flag an incomplete festival lineup and a missing picture", async () => {
+    const { posterUrl: _p, ...noPoster } = body;
+    const { event } = await (await post(noPoster)).json();
+    const got = (await (await getOne(new Request("http://x"), ctx(event.id))).json()).event;
+    expect(got.lineupCompleteness).toMatchObject({
+      status: "incomplete",
+      stored: 2,
+      reason: "a festival with only 2 act(s) stored (fewer than 8)",
+    });
+    expect(got.picture).toEqual({ ok: false, reason: "no_image" });
+    const listed = await (await list(new Request("http://x/api/admin/events"), undefined)).json();
+    expect(listed.events[0].lineupCompleteness.status).toBe("incomplete");
+  });
+
+  it("D-091: GET needs-image lists published events without a picture", async () => {
+    const { posterUrl: _p, ...noPoster } = body;
+    const { event } = await (await post(noPoster)).json();
+    const ask = async () =>
+      (
+        await (
+          await needsImage(new Request("http://x/api/admin/events/needs-image"), undefined)
+        ).json()
+      ).events;
+    expect(await ask()).toEqual([]); // held events are the retry's job, not this list
+    world.events.events.find((e) => e.id === event.id)!.visibility = "published";
+    expect(await ask()).toEqual([
+      { id: event.id, title: "Sunburn Festival 2026", startsAt: "2026-12-28T09:30:00.000Z" },
+    ]);
+    guard.requireAdmin.mockRejectedValueOnce(new UnauthorizedError("Sign in"));
+    expect((await needsImage(new Request("http://x"), undefined)).status).toBe(401);
+  });
+
+  it("D-091: publishing an unknown event is a 404, not a missing picture", async () => {
+    const res = await PATCH(
+      new Request("http://x", {
+        method: "PATCH",
+        body: JSON.stringify({ visibility: "published" }),
+      }),
+      ctx("00000000-0000-4000-8000-000000000000"),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("D-091: a poster URL must be http(s)", async () => {
+    expect((await post({ ...body, posterUrl: "javascript:alert(1)" })).status).toBe(400);
+  });
 
   it("a visibility-only PATCH adds no admin source row (QA-E-7)", async () => {
     const { event } = await (await post(body)).json();

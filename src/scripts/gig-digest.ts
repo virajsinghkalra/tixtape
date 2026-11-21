@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   const c = container();
   const now = c.clock.now();
   const since = new Date(now.getTime() - WINDOW_MS);
-  const digest = formatGigDigest(await loadGigActivity(c.db, since), since, now);
+  const digest = formatGigDigest(await loadGigActivity(c.db, since, now), since, now);
   if (digest) {
     await c.alerts.send(digest);
     console.warn(`gig digest sent: ${digest.subject}`);

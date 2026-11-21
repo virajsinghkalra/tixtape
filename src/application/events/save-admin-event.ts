@@ -18,7 +18,8 @@ import {
   type RawLineupEntry,
 } from "@/domain/events/raw-event";
 import { httpUrl } from "@/domain/events/http-url";
-import { EVENT_VISIBILITIES } from "@/domain/events/visibility";
+import { checkPublishVisual, NO_IMAGE, NO_IMAGE_MESSAGE } from "@/domain/events/publish-visual";
+import { EVENT_VISIBILITIES, type EventVisibility } from "@/domain/events/visibility";
 import type { EventId } from "@/domain/shared/ids";
 import { BILLING_TIERS, EVENT_STATUSES, EVENT_TYPES } from "@/domain/shared/lineup";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -63,6 +64,8 @@ const adminEventShape = {
   lineup: AdminLineupSchema,
   /** D-056: omitted on create means `held`; "published" must be chosen explicitly. */
   visibility: z.enum(EVENT_VISIBILITIES),
+  /** D-091: the event's poster (http/https). Null clears it. */
+  posterUrl: httpUrl().nullable(),
 };
 
 const endsAfterStart = (e: { startsAt?: Date; endsAt?: Date | null }) =>
@@ -79,6 +82,7 @@ export const AdminEventInputSchema = z
     imageUrl: adminEventShape.imageUrl.default(null),
     url: adminEventShape.url.default(null),
     visibility: adminEventShape.visibility.optional(),
+    posterUrl: adminEventShape.posterUrl.optional(),
   })
   .refine(endsAfterStart, endsAfterStartIssue);
 export type AdminEventInput = z.infer<typeof AdminEventInputSchema>;
@@ -101,21 +105,54 @@ export type AdminSaveResult = {
   event: AdminEventDetail;
   /** `merged`: an existing event (e.g. from Ticketmaster) matched and now carries the admin data. */
   outcome: "created" | "merged" | "updated";
+  /** D-091: asked to publish, but kept `held` for these reasons. */
+  holds?: { reason: typeof NO_IMAGE; message: string }[];
 };
+
+/**
+ * D-091: publish only with a poster or a headliner photo. Returns the hold when there's none.
+ * Other visibilities are applied as asked.
+ */
+async function applyVisibility(
+  events: AdminSaveDeps["events"],
+  id: EventId,
+  visibility: EventVisibility,
+): Promise<AdminSaveResult["holds"]> {
+  if (visibility === "published") {
+    const visual = await events.visualOf(id);
+    // A missing event is a 404, not a missing picture.
+    if (visual === null) throw new NotFoundError("That event doesn't exist.");
+    if (!checkPublishVisual(visual).ok) return [{ reason: NO_IMAGE, message: NO_IMAGE_MESSAGE }];
+  }
+  if (!(await events.setVisibility(id, visibility))) {
+    throw new NotFoundError("That event doesn't exist.");
+  }
+  return undefined;
+}
 
 export async function createAdminEvent(
   deps: AdminSaveDeps,
   input: AdminEventInput,
 ): Promise<AdminSaveResult> {
-  const venue = await resolveVenue(deps.venues, input.venue);
-  const outcome = await writeEvent(deps, toEventInput(input, venue));
+  const { visibility, posterUrl, ...fields } = input;
+  const venue = await resolveVenue(deps.venues, fields.venue);
+  // Saved without a visibility first: publishing must pass the image rule (D-091).
+  const outcome = await writeEvent(deps, toEventInput(fields, venue));
+  if (posterUrl !== undefined) await deps.events.setPoster(outcome.eventId, posterUrl);
+  const holds = visibility
+    ? await applyVisibility(deps.events, outcome.eventId, visibility)
+    : undefined;
   if (outcome.kind === "created_for_review") {
     // D-028/D-072: a possible duplicate (or another night of the same show) goes to the
     // review queue instead of being merged.
     await deps.events.recordMergeReview(outcome.eventId, outcome.similarTo, outcome.score);
   }
   const kind = outcome.kind === "created_for_review" ? "created" : outcome.kind;
-  return { event: await detail(deps.events, outcome.eventId), outcome: kind };
+  return {
+    event: await detail(deps.events, outcome.eventId),
+    outcome: kind,
+    ...(holds ? { holds } : {}),
+  };
 }
 
 export async function updateAdminEvent(
@@ -123,13 +160,14 @@ export async function updateAdminEvent(
   id: EventId,
   patch: AdminEventPatch,
 ): Promise<AdminSaveResult> {
-  const { visibility, ...edits } = patch;
-  // Publishing/holding/archiving is not an edit: no admin source row, so ownership and
-  // source precedence (D-026) stay as they were (QA-E-7).
+  const { visibility, posterUrl, ...edits } = patch;
+  // Publishing/holding/archiving and the poster are not edits: no admin source row, so
+  // ownership and source precedence (D-026) stay as they were (QA-E-7).
   if (Object.keys(edits).length === 0) {
-    if (visibility !== undefined && !(await deps.events.setVisibility(id, visibility))) {
+    if (posterUrl !== undefined && !(await deps.events.setPoster(id, posterUrl))) {
       throw new NotFoundError("That event doesn't exist.");
     }
+    if (visibility !== undefined) await publishOrRefuse(deps.events, id, visibility);
     return { event: await detail(deps.events, id), outcome: "updated" };
   }
   const current = await deps.events.getDetail(id);
@@ -156,13 +194,31 @@ export async function updateAdminEvent(
     imageUrl: patch.imageUrl === undefined ? current.imageUrl : patch.imageUrl,
     venue,
     lineup: patch.lineup ?? null,
-    ...(patch.visibility === undefined ? {} : { visibility: patch.visibility }),
   };
   await writeEvent(deps, merged, id);
+  if (posterUrl !== undefined) await deps.events.setPoster(id, posterUrl);
+  if (visibility !== undefined) await publishOrRefuse(deps.events, id, visibility);
   return { event: await detail(deps.events, id), outcome: "updated" };
 }
 
-function toEventInput(input: AdminEventInput, venue: Venue): EventInput {
+/** PATCH: publishing without a picture is refused with a 400 (D-091); edits already saved stay. */
+async function publishOrRefuse(
+  events: AdminSaveDeps["events"],
+  id: EventId,
+  visibility: EventVisibility,
+): Promise<void> {
+  const holds = await applyVisibility(events, id, visibility);
+  if (holds) {
+    throw new ValidationError(NO_IMAGE_MESSAGE, [
+      { path: "visibility", message: NO_IMAGE_MESSAGE },
+    ]);
+  }
+}
+
+function toEventInput(
+  input: Omit<AdminEventInput, "visibility" | "posterUrl">,
+  venue: Venue,
+): EventInput {
   const { venue: _venue, lineup, ...fields } = input;
   return { ...fields, source: "admin", externalId: null, raw: input, venue, lineup };
 }

@@ -1270,3 +1270,23 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - top events, headline artists, searches, zero-result searches (demand), wanted artists (ping/follow), cities, new devices by source, and shares by channel;
   - named people with first and last seen, source and an action timeline (`/admin/analytics/people/[id]`). Anonymous devices are only counted.
   - About 0.7–1.1 s with 1M events inside the window, on local Postgres.
+
+### D-091 · Complete lineups, a picture before publishing, and band names that are never split
+
+- **Status:** Accepted · **Owner:** Events (owner requests) · **Date:** 2026-11-22
+- **Context:** Festivals were published with headliners only (Lollapalooza India 2027: 4 of ~45 acts). Events went live with no picture. "TOMORROW X TOGETHER" was split on " X " into two fake artists.
+- **Lineup completeness** (`src/domain/events/lineup-completeness.ts`):
+  - An event is `lineup_incomplete` when a source announces more acts than we store, or when it's a festival with fewer than 8 acts.
+  - `verifyEvent` records `verification.lineupCompleteness` (stored and announced counts, plus the announcing source) and adds the `lineup_incomplete` flag. The flag is informational: it doesn't lower confidence.
+  - Admin reads (`getAdminEvent`, the admin list) compute it fresh. The admin event page shows "Lineup incomplete: N of M acts".
+  - Ingest, the collector and Data-team publishing capture the full billed lineup with tiers (the `add-event-source` skill). Tiers come from the source's billing; otherwise headliners come first and the rest follow in announced order.
+- **Image-required publishing** (`src/domain/events/publish-visual.ts`): an event becomes `published` only with a poster (`poster_url`) or at least one headliner photo (Spotify `image_url` or `alt_image_url`). "Headliner" means the `headliner` tier, or the top-billed act when nobody is tiered headliner. One rule, `checkPublishVisual`, is used everywhere:
+  - **Admin:** create with `visibility: "published"` and no picture saves the event `held` and returns `holds: [{ reason: "no_image", message }]`. A PATCH to `published` without a picture returns 400 `validation_failed` "Add a poster or a headliner photo first". Admin saves accept `posterUrl`.
+  - **Collector publish and auto-publish gate:** both go through `publishIfVisual`. The gate has a `has_image` check (`applyImageRule`; reason `no_image`, a hold, never a reject). It's evaluated on the stored event before publishing.
+  - **Retry:** events held only for `no_image` carry that flag in `verification.flags`; re-verification keeps it. `retry-image-holds.ts` runs daily in the discover-gigs workflow: it runs the image providers for that event (poster, headliner photos), then publishes once a picture exists. A Spotify match made meanwhile counts.
+  - **Already-published events without a picture stay published.** They're listed in the daily gig digest and at `GET /api/admin/events/needs-image`. Re-verification never applies the image rule.
+- **Band names are never split** (`src/domain/events/credits.ts`, `splitLineupCredit`):
+  - No split on x / ft / & / and / with / vs / + when the credit (or a run of its parts) is a known act. Known means the data allow-list `KNOWN_COMPOUND_ACTS` (Tomorrow X Together, Simon & Garfunkel, Salim & Sulaiman, Earth, Wind & Fire, Florence + The Machine, …) or an existing artist or alias.
+  - Lead- and Data-team (admin) lineups are kept exactly as given; parts are separate only when the source lists them separately.
+  - A duo credited together ("Khan & Noor") stays one row, the D-066 review case.
+  - Spotify or Wikidata exact matches count once they've made an artist or alias row; no Spotify call is made at write time.

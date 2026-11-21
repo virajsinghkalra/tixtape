@@ -12,6 +12,8 @@
  *     an audit entry and an alert.
  * Nights never become events unless they pass; everything else stays a candidate for the Lead.
  */
+import { publishIfVisual } from "@/application/events/publish-visual";
+import { NO_IMAGE_MESSAGE } from "@/domain/events/publish-visual";
 import type { IngestSummary } from "@/application/events";
 import type { CandidateStore, EventVerificationStore } from "@/application/ingestion/ports";
 import type { Alerts } from "@/application/ports/alerts";
@@ -22,6 +24,7 @@ import { verifyEvent, type Verification } from "@/domain/events/extract/verify";
 import { eventNameTokens } from "@/domain/events/dedupe";
 import { RawEventSchema, type RawEvent } from "@/domain/events/raw-event";
 import {
+  applyImageRule,
   autoPublishDecision,
   firstPartyGaps,
   groundingGaps,
@@ -74,7 +77,14 @@ export type NightOutcome = {
   confidence: number;
   sources: Array<{ source: string; url: string; official: boolean }>;
   /** What this run did: decided only, published, unpublished, or why publishing was skipped. */
-  action: "decided" | "published" | "already_published" | "held_again" | "skipped";
+  action:
+    | "decided"
+    | "published"
+    | "already_published"
+    | "held_again"
+    | "skipped"
+    /** D-091: everything passed but the event has no poster or headliner photo yet. */
+    | "held_no_image";
   detail: string | null;
   eventId: EventId | null;
 };
@@ -238,13 +248,27 @@ async function publishNight(
     outcome.detail = "event is archived";
     return;
   }
-  const withGate = withGateResult(verification, gate);
+  // D-091: the image rule needs the stored event (its poster and headliner photos).
+  const imaged =
+    stored.visibility === "published"
+      ? gate
+      : applyImageRule(gate, await deps.verification.visualOf(eventId));
+  const withGate = withGateResult(verification, imaged);
   await deps.verification.save(eventId, withGate, now);
   if (stored.visibility === "published") {
     outcome.action = "already_published";
     return;
   }
-  await deps.verification.setVisibility(eventId, "published");
+  const published =
+    imaged.decision === "publish" && (await publishIfVisual(deps.verification, eventId)).published;
+  if (!published) {
+    await deps.verification.setImageHold(eventId, true);
+    outcome.action = "held_no_image";
+    outcome.decision = "hold";
+    outcome.reasons = applyImageRule(gate, null).reasons;
+    outcome.detail = `no_image: ${NO_IMAGE_MESSAGE}; retried daily`;
+    return;
+  }
   for (const m of members) {
     if (isEventSource(m.source)) await deps.store.markPublished(m.source, m.externalId, eventId);
   }
@@ -347,11 +371,13 @@ function staticSource(raw: RawEvent): SourceAdapter {
 
 function toRecord(
   o: NightOutcome,
-  gate: GateDecision,
+  decided: GateDecision,
   sources: readonly GateSource[],
   members: readonly ValidatedGig[],
   now: Date,
 ): GateRecord {
+  // D-091: a night held for its missing picture is recorded as the hold it is.
+  const gate = o.action === "held_no_image" ? applyImageRule(decided, null) : decided;
   const [, , headliner] = o.nightKey.split("|");
   return {
     nightKey: o.nightKey,

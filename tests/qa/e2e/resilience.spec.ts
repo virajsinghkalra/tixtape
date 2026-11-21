@@ -130,7 +130,9 @@ test("lookup errors (Spotify down → 500, slow → 7 s, 429) end in a friendly 
     const main = await page.locator("main").innerText();
     expect(main, name).not.toMatch(/looking for/i);
     expect(main, name).not.toMatch(/\{"error"|rate_limited|internal/);
-    expect(main, name).toMatch(/no .* yet|try (again|these)|later|isn.t responding/i);
+    expect(main, name).toMatch(
+      /no .* yet|try (again|these)|later|isn.t responding|search down|retry/i,
+    );
   }
 });
 

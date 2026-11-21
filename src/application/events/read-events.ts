@@ -1,5 +1,7 @@
 /** Public and admin event reads (P1.7, LLD §9). */
 import { z } from "zod";
+import { lineupCompleteness, type LineupCompleteness } from "@/domain/events/lineup-completeness";
+import { checkPublishVisual, type VisualCheck } from "@/domain/events/publish-visual";
 import type {
   AdminEventDetail,
   AdminEventSummary,
@@ -62,13 +64,15 @@ export const AdminListEventsQuerySchema = z
 export type AdminListEventsQuery = z.infer<typeof AdminListEventsQuerySchema>;
 
 export type EventPage = { items: EventSummary[]; page: number; pageSize: number; total: number };
-export type AdminEventPage = Omit<EventPage, "items"> & { items: AdminEventSummary[] };
+export type AdminEventPage = Omit<EventPage, "items"> & {
+  items: (AdminEventSummary & { lineupCompleteness: LineupCompleteness })[];
+};
 
 async function listPage(
   events: EventRepository,
   query: ListEventsQuery,
   visibility: EventVisibility | null,
-): Promise<AdminEventPage> {
+): Promise<Omit<EventPage, "items"> & { items: AdminEventSummary[] }> {
   const { items, total } = await events.list({
     visibility,
     city: query.city === undefined ? undefined : canonicalCity(query.city),
@@ -95,7 +99,16 @@ export async function listAdminEvents(
   events: EventRepository,
   query: AdminListEventsQuery,
 ): Promise<AdminEventPage> {
-  return listPage(events, query, query.visibility ?? null);
+  const page = await listPage(events, query, query.visibility ?? null);
+  return {
+    ...page,
+    items: page.items.map((e) => ({ ...e, lineupCompleteness: completenessOf(e, e.artistCount) })),
+  };
+}
+
+/** D-091: stored vs announced acts, for the admin console. */
+function completenessOf(e: AdminEventSummary, stored: number): LineupCompleteness {
+  return lineupCompleteness({ type: e.type, stored, announced: e.announcedActs });
 }
 
 /** A malformed ID is a missing event, not a bad request: it can't name anything. */
@@ -139,16 +152,23 @@ export async function getEvent(events: EventRepository, id: EventId): Promise<Pu
 }
 
 /** Admin detail: any visibility, with verification state. */
-export async function getAdminEvent(
-  events: EventRepository,
-  id: EventId,
-): Promise<AdminEventDetail> {
+/** The admin view of one event: any visibility, with D-091 lineup and picture checks. */
+export type AdminEventView = AdminEventDetail & {
+  lineupCompleteness: LineupCompleteness;
+  picture: VisualCheck;
+};
+
+export async function getAdminEvent(events: EventRepository, id: EventId): Promise<AdminEventView> {
   const event = await events.getDetail(id);
   if (!event) throw new NotFoundError("That event doesn't exist.");
-  return event;
+  return {
+    ...event,
+    lineupCompleteness: completenessOf(event, event.lineup.length),
+    picture: checkPublishVisual(await events.visualOf(id)),
+  };
 }
 
 function withoutAdminFields<T extends EventAdminFields>(e: T): Omit<T, keyof EventAdminFields> {
-  const { visibility: _v, confidence: _c, lastVerifiedAt: _l, ...rest } = e;
+  const { visibility: _v, confidence: _c, lastVerifiedAt: _l, announcedActs: _a, ...rest } = e;
   return rest;
 }

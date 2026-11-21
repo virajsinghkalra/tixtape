@@ -22,7 +22,8 @@ test("lineup poster: headliners first and biggest, support last, names only (D-0
       .first()
       .evaluate((el) => parseFloat(getComputedStyle(el.firstElementChild!).fontSize));
   expect(await size("headliner")).toBeGreaterThan(await size("support"));
-  await expect(page.locator('[data-testid="lineup-artist"]')).toHaveCount(8);
+  // D-091: an admin lineup is kept as given, so "Nucleya b2b Ritviz" is one credit (7, not 8).
+  await expect(page.locator('[data-testid="lineup-artist"]')).toHaveCount(7);
   await expect(page.locator('[data-testid="lineup-artist"] [data-match]')).toHaveCount(0);
   await expect(page.getByText(/found on spotify/i)).toHaveCount(0);
 });

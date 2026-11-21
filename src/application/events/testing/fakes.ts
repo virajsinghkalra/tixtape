@@ -12,6 +12,7 @@ import type {
 } from "@/application/ports/event-search";
 import type { EventResult, SearchPlan } from "@/domain/events/search";
 import type { EngagementKind } from "@/domain/events/trend";
+import type { EventVisual } from "@/domain/events/publish-visual";
 import type { EventVisibility } from "@/domain/events/visibility";
 import type {
   DedupeCandidate,
@@ -225,6 +226,7 @@ export class FakeEventRepository implements EventRepository, EventMerge {
         visibility: "held",
         confidence: 0,
         lastVerifiedAt: null,
+        announcedActs: null,
         sources: [],
         lineup: [],
         createdAt: write.source.seenAt,
@@ -301,7 +303,42 @@ export class FakeEventRepository implements EventRepository, EventMerge {
       visibility: e.visibility,
       confidence: e.confidence,
       lastVerifiedAt: e.lastVerifiedAt,
+      announcedActs: null,
     };
+  }
+
+  /** Poster per event; headliner photos come from the fake artists' image fields. */
+  readonly posters = new Map<string, string | null>();
+  async visualOf(id: EventId): Promise<EventVisual | null> {
+    const e = this.events.find((x) => x.id === id);
+    if (!e) return null;
+    const tiered = e.lineup.filter((r) => r.tier === "headliner");
+    const top = tiered.length > 0 ? tiered : e.lineup.filter((r) => r.billingRank === 1);
+    return {
+      posterUrl: this.posters.get(id) ?? null,
+      headliners: top.map((r) => {
+        const a = this.artists.artists.find((x) => x.id === r.artistId)!;
+        return { imageUrl: a.imageUrl, altImageUrl: null };
+      }),
+    };
+  }
+  async listVisuals(visibility: EventVisibility, from: Date, limit: number) {
+    const rows = [];
+    for (const e of this.events) {
+      if (e.visibility !== visibility || (e.endsAt ?? e.startsAt) < from) continue;
+      rows.push({
+        id: e.id,
+        title: e.title,
+        startsAt: e.startsAt,
+        visual: (await this.visualOf(e.id))!,
+      });
+    }
+    return rows.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).slice(0, limit);
+  }
+  async setPoster(id: EventId, posterUrl: string | null) {
+    if (!this.events.some((e) => e.id === id)) return false;
+    this.posters.set(id, posterUrl);
+    return true;
   }
 
   async setVisibility(id: EventId, visibility: EventVisibility) {

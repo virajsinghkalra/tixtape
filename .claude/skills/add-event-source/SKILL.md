@@ -18,8 +18,13 @@ description: Add a new automatic source of concerts and lineups to concert-playl
    - `source` is a new value (adding it to the `event_source` enum is a schema change: use `change-db-schema`).
    - `fetch(opts)` yields `RawEvent`s validated by `RawEventSchema` (`src/domain/events/raw-event.ts`).
    - Inject `fetch`, `sleep`, `clock` and `logger`. Skip malformed items with a warning; never fail the whole run.
-3. **Extract artists.** For free-text lineups, pull candidate names (lines under "lineup", comma or "&"-separated lists) and keep only names that resolve on Spotify artist search (the free validator). Mark confidence.
+3. **Extract the full billed lineup (D-091).** Capture every act the source bills, not just the headliners, in billing order with tiers:
+   - Tiers from the source's own billing (poster line or font size, "headlined by", "also featuring"); otherwise headliners first, then the rest as `mid` in announced order.
+   - Record how many acts the source announces, so a short stored bill is flagged `lineup_incomplete` (a festival with fewer than 8 acts is flagged too).
+   - Keep names exactly as billed. Never split a known act on x / ft / & / and / with / vs / + ("TOMORROW X TOGETHER", "Simon & Garfunkel", "Florence + The Machine"): use `splitLineupCredit` from `src/domain/events/credits.ts`, and add new compound acts to `KNOWN_COMPOUND_ACTS`. A duo credited together ("Khan & Noor") stays one row for Matching's review (D-066).
+   - For free-text lineups, pull candidate names (lines under "lineup", comma-separated lists) and keep only names that resolve on Spotify artist search (the free validator). Mark confidence.
 4. **Set trust:** official organiser or festival = `official`, whitelisted outlet = `trusted`. An event auto-publishes only when two sources agree, or one official plus one trusted (D-024).
+   - **Pictures (D-091):** nothing is published without a poster or a headliner photo. Capture the official page's poster (og:image) where the source has one. An otherwise-ready event without a picture stays held as `no_image` and is retried daily; publish only through `publishIfVisual` (`src/application/events/publish-visual.ts`), never by setting `visibility` directly.
 5. **Register it:** add a factory in `src/infrastructure/events-module.ts` and a schedule in `.github/workflows/`. The ingest pipeline itself doesn't change (open/closed).
 6. **Test it:** fixtures saved under `src/infrastructure/sources/__fixtures__/<source>/` (trimmed real pages), msw handlers, and tests for paging, malformed items, robots or ToS stop conditions, and idempotent re-ingest.
 
@@ -27,6 +32,8 @@ description: Add a new automatic source of concerts and lineups to concert-playl
 
 - Parsing with brittle positional selectors. Prefer JSON-LD, then semantic markup.
 - Creating artists for every capitalised phrase. Validate against Spotify first.
+- Storing only the headliners of a festival. Store the whole bill with tiers (D-091).
+- Splitting a band name on "x" or "&". Use `splitLineupCredit`, never a hand-rolled split.
 
 ## Ground rules (every module)
 

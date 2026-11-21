@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { parseEventId } from "@/application/events";
-import type { AdminEventDetail } from "@/application/ports/events";
 import {
   formatAgo,
   formatConfidence,
@@ -23,6 +22,7 @@ import { Chip } from "@/components/ui/Chip";
 import { safeHttpUrl } from "@/domain/events/http-url";
 import { NotFoundError } from "@/lib/errors";
 import { adminConsole } from "@/server/admin-console";
+import type { AdminEventView } from "@/application/events";
 import { events } from "@/server/events";
 import { requireAdminPage } from "../../admin-guard";
 
@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-const loadEvent = cache(async (raw: string): Promise<AdminEventDetail | null> => {
+const loadEvent = cache(async (raw: string): Promise<AdminEventView | null> => {
   await requireAdminPage();
   try {
     return await events().getAdminEvent(parseEventId(raw));
@@ -66,7 +66,21 @@ export default async function AdminEventPage({ params }: Params) {
           <Chip>Confidence {formatConfidence(event.confidence)}</Chip>
           <Chip>{event.type}</Chip>
           <Chip>{event.status.replace(/_/gu, " ")}</Chip>
+          {/* D-091: what still keeps this event from being complete or publishable. */}
+          {event.lineupCompleteness.status === "incomplete" && (
+            <Chip>
+              Lineup incomplete: {event.lineupCompleteness.stored}
+              {event.lineupCompleteness.announced !== null
+                ? ` of ${event.lineupCompleteness.announced}`
+                : ""}{" "}
+              acts
+            </Chip>
+          )}
+          {!event.picture.ok && <Chip>Needs a poster or headliner photo</Chip>}
         </div>
+        {event.lineupCompleteness.reason && (
+          <p className="text-sm">{event.lineupCompleteness.reason}</p>
+        )}
         <VisibilityActions
           eventId={event.id}
           title={event.title}

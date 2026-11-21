@@ -11,11 +11,12 @@ import {
   type FillOutcome,
 } from "@/application/images/fill-images";
 import type { Clock } from "@/application/ports/clock";
-import type { ImageProvider } from "@/application/ports/images";
+import type { ArtistImageStore, EventPosterStore, ImageProvider } from "@/application/ports/images";
 import type { Database } from "@/db/client";
 import type { Logger } from "@/lib/logger";
 import { createGigsModule } from "@/infrastructure/gigs/gigs-module";
 import { createMemoryHostLog, PoliteFetcher } from "@/infrastructure/sources/polite-fetch";
+import type { EventId } from "@/domain/shared/ids";
 import { OfficialPosterProvider, StoredSpotifyImageProvider } from "./basic-providers";
 import { HttpImageLinkChecker } from "./link-checker";
 import { PgArtistImageStore, PgEventPosterStore } from "./pg-image-stores";
@@ -26,6 +27,11 @@ export type ImagesModule = {
   eventProviders: readonly ImageProvider[];
   fillArtistImages(opts: FillOptions): Promise<FillOutcome[]>;
   fillEventPosters(opts: FillOptions): Promise<FillOutcome[]>;
+  /**
+   * D-091 retry: the same providers and rules, for one event only (any visibility): its
+   * poster and its headliners without a Spotify photo.
+   */
+  fillForEvent(eventId: EventId): Promise<FillOutcome[]>;
 };
 
 export function createImagesModule(deps: {
@@ -74,5 +80,27 @@ export function createImagesModule(deps: {
         { providers: eventProviders, links, clock: deps.clock, store: posterStore },
         opts,
       ),
+    fillForEvent: async (eventId) => {
+      const opts = { limit: 50, dryRun: false };
+      // The same stores, with `listDue` scoped to this one event.
+      const poster: EventPosterStore = {
+        listDue: () => posterStore.getForEvent(eventId),
+        save: (id, image, at) => posterStore.save(id, image, at),
+        touch: (id, at) => posterStore.touch(id, at),
+      };
+      const headliners: ArtistImageStore = {
+        listDue: () => artistStore.listForEvent(eventId),
+        save: (id, image, at) => artistStore.save(id, image, at),
+        touch: (id, at) => artistStore.touch(id, at),
+      };
+      const shared = { links, clock: deps.clock };
+      return [
+        ...(await fillEventPosters({ ...shared, providers: eventProviders, store: poster }, opts)),
+        ...(await fillArtistImages(
+          { ...shared, providers: artistProviders, store: headliners },
+          opts,
+        )),
+      ];
+    },
   };
 }

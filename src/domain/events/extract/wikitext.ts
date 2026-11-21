@@ -13,7 +13,7 @@
 import { istDay, istMidnight } from "../ist-calendar";
 import { foldText } from "../text";
 import { knownCity } from "../venue";
-import { splitArtistCredit } from "@/domain/shared/normalize";
+import { splitLineupCredit } from "../credits";
 import { FESTIVAL_NAMES, sentences } from "./article";
 import type { ArtistMention, EventCandidate } from "./candidate";
 import { findDateRanges, parseDateRange, type DateRange } from "./dates";
@@ -103,7 +103,8 @@ const LINEUP_HEADING = /line-?up/iu;
 const LINEUP_SENTENCE = /\b(headlin\w*|line-?up|perform\w*|featur\w*|includ\w*|such as)\b/iu;
 
 function toMention(name: string, role?: "support"): ArtistMention {
-  const split = splitArtistCredit(name);
+  // D-091: a known act ("Tomorrow X Together") has no parts.
+  const split = splitLineupCredit(name);
   const parts = split.length > 1 ? split.map((n) => toMention(n, role)) : [];
   return role ? { name, parts, role } : { name, parts };
 }

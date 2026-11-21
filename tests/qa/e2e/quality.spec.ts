@@ -48,6 +48,7 @@ for (const scheme of ["light", "dark"] as const) {
       const w = watch(page);
       await open(page, p);
       await finalShot(page, info, `${scheme}-${p}`, p !== "home-search-open");
+      // BUG: QA-F-16 the event page throws React hydration error #418 (server/client HTML differ)
       await noHorizontalScroll(page);
       expect(await clippedText(page)).toEqual([]);
       w.assertClean();
@@ -58,6 +59,7 @@ for (const scheme of ["light", "dark"] as const) {
 for (const p of PAGES) {
   test(`tap targets >= 44px · ${p}`, async ({ page }) => {
     await open(page, p);
+    // BUG: QA-F-17 (low) home's "Happening this week" story dots are 24×24 px
     const small = await smallTapTargets(page, 44);
     expect(small, JSON.stringify(small)).toEqual([]);
   });
@@ -129,6 +131,8 @@ test("keyboard only: / focuses search, arrows + Enter open an event, Tab reaches
   }
   expect(reached).toBe("visible");
   await page.keyboard.press("Enter");
-  await expect(page.locator("#playlist")).toContainText(/unavailable|opens soon|try again later/i);
+  await expect(page.locator("#playlist")).toContainText(
+    /unavailable|open(s|ing) soon|try again later/i,
+  );
   w.assertClean();
 });

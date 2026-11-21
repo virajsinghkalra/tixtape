@@ -13,7 +13,9 @@ import type {
 } from "@/application/ports/events";
 import type { Database } from "@/db/client";
 import { mergeEventFields, sourceRank, topSource } from "@/domain/events/dedupe";
+import type { EventVisual } from "@/domain/events/publish-visual";
 import type { EventVisibility } from "@/domain/events/visibility";
+import { eventVisual, eventVisuals } from "./event-visual";
 import {
   artists,
   eventArtists,
@@ -62,7 +64,15 @@ const toSummary = (e: EventRow, v: VenueRow | null, count: number): AdminEventSu
   visibility: e.visibility,
   confidence: e.confidence,
   lastVerifiedAt: e.lastVerifiedAt,
+  announcedActs: announcedActs(e.verification),
 });
+
+/** D-091: `verification.lineupCompleteness.announced`, when a verification recorded it. */
+function announcedActs(verification: unknown): number | null {
+  const n = (verification as { lineupCompleteness?: { announced?: unknown } } | null)
+    ?.lineupCompleteness?.announced;
+  return typeof n === "number" ? n : null;
+}
 
 /** `%` and `_` in user search text are literals, not wildcards. */
 const escapeLike = (s: string) => s.replace(/[\\%_]/gu, (c) => `\\${c}`);
@@ -205,6 +215,33 @@ export class PgEventRepository implements EventRepository, EventMerge {
       .returning({ id: events.id });
     if (!rows[0]) throw new NotFoundError("That event no longer exists.");
     return write.id;
+  }
+
+  visualOf(id: EventId): Promise<EventVisual | null> {
+    return eventVisual(this.db, id);
+  }
+
+  listVisuals(visibility: EventVisibility, from: Date, limit: number) {
+    return eventVisuals(
+      this.db,
+      sql`e.visibility = ${visibility} and coalesce(e.ends_at, e.starts_at) >= ${from.toISOString()}::timestamptz`,
+      limit,
+    );
+  }
+
+  async setPoster(id: EventId, posterUrl: string | null): Promise<boolean> {
+    const rows = await this.db
+      .update(events)
+      .set({
+        posterUrl,
+        posterSource: posterUrl === null ? null : "admin",
+        posterCredit: null,
+        posterCheckedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(events.id, id))
+      .returning({ id: events.id });
+    return rows.length > 0;
   }
 
   async setVisibility(id: EventId, visibility: EventVisibility): Promise<boolean> {

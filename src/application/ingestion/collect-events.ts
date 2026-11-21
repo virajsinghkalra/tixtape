@@ -14,6 +14,8 @@
  *        official listing) and archive past events.
  * Publishing is a separate, Lead-only step (`publishEvents`).
  */
+import { publishIfVisual } from "@/application/events/publish-visual";
+import { NO_IMAGE_MESSAGE } from "@/domain/events/publish-visual";
 import type { IngestSummary } from "@/application/events";
 import type { SourceAdapter, SourceFetchOptions } from "@/application/ports/event-source";
 import type { Clock } from "@/application/ports/clock";
@@ -609,8 +611,11 @@ export async function publishEvents(
     else if (!e.verification) refuse("never verified");
     else if (!e.verification.passes) refuse(`fails: ${e.verification.flags.join(", ")}`);
     else {
-      await deps.verification.setVisibility(eventId, "published");
-      out.push({ eventId, published: true, reason: `confidence ${e.verification.confidence}` });
+      // D-091: no picture, no publish; it stays held and the daily retry tries again.
+      const result = await publishIfVisual(deps.verification, eventId);
+      if (result.published) {
+        out.push({ eventId, published: true, reason: `confidence ${e.verification.confidence}` });
+      } else refuse(`${result.reason}: ${NO_IMAGE_MESSAGE}`);
     }
   }
   return out;

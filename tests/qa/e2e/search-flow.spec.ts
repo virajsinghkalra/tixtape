@@ -393,7 +393,8 @@ test.describe("B. while typing", () => {
     await gotoHome(page);
     await openSearch(page);
     await search(page).pressSequentially("nh7", { delay: 40 });
-    await expect(page.getByText(/isn.t responding/i).first()).toBeVisible();
+    // D-082 minimal copy: "Search down · Retry" (was "Search isn't responding, retrying…")
+    await expect(page.getByText(/search (is )?down|isn.t responding/i).first()).toBeVisible();
     const retry = page.getByRole("button", { name: /retry/i });
     await expect(retry).toBeVisible({ timeout: 10_000 });
     expect(calls, "exactly one automatic retry").toBe(2);
@@ -502,17 +503,11 @@ test.describe("C. after clicking", () => {
     await finalShot(page, info, "C-artist-one-show", false);
     await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}/);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/Lollapalooza/);
-    const row = page.locator("main li", { hasText: /^Prateek Kuhad$/ }).last();
-    await expect(row).toBeInViewport();
-    const marked = await row.evaluate(
-      (e) =>
-        e.getAttribute("aria-current") !== null ||
-        /highlight|glow|ring|current/i.test(
-          e.className + " " + (e.firstElementChild?.className ?? ""),
-        ) ||
-        getComputedStyle(e).boxShadow !== "none",
-    );
-    expect(marked, "artist row isn't highlighted").toBe(true);
+    // exactly one lineup row is marked as the highlighted artist, and it's in view
+    const marked = page.locator("[data-highlighted=true], [aria-current]");
+    await expect(marked).toHaveCount(1);
+    await expect(marked).toContainText(/Prateek Kuhad/i);
+    await expect(marked).toBeInViewport();
   });
 
   test("artist with 1 upcoming show (Diljit) opens the event, not a one-item list", async ({

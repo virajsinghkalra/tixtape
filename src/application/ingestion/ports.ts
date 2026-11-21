@@ -2,6 +2,7 @@
  * Ports for the automatic event collector (P1.11) and live lookup (D-050).
  * Adapters in src/infrastructure/sources/ implement `CandidateSource`.
  */
+import type { EventVisual } from "@/domain/events/publish-visual";
 import type {
   CollectorSource,
   EventCandidate,
@@ -119,6 +120,15 @@ export interface EventVerificationStore {
   /** Titles of upcoming held or published events whose lineup isn't confirmed yet. */
   listMissingLineups(now: Date): Promise<string[]>;
   setVisibility(eventId: EventId, visibility: EventVisibility): Promise<void>;
+  /** D-091: the event's poster and headliner photos, for `checkPublishVisual`; null if unknown. */
+  visualOf(eventId: EventId): Promise<EventVisual | null>;
+  /**
+   * D-091: marks (or clears) "held only because it has no picture" in `verification.flags`
+   * (`no_image`), so the daily retry finds it. A no-op for an event never verified.
+   */
+  setImageHold(eventId: EventId, held: boolean): Promise<void>;
+  /** Upcoming held events marked `no_image`, soonest first. */
+  listImageHolds(now: Date, limit: number): Promise<EventId[]>;
   /** Published or held events whose date has passed become `archived`. Returns how many. */
   archivePast(now: Date): Promise<number>;
   /** Artist lineups of past events in the same series (dedupe-key title part). */
