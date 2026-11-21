@@ -3,7 +3,7 @@ name: Ingest events
 # Ticketmaster when a key is configured, then Spotify artist matching.
 on:
   schedule:
-    - cron: "17 */3 * * *"
+    - cron: "17 1 * * *" # once a day, 06:47 IST (owner: daily, not every 3 h)
   workflow_dispatch:
     inputs:
       source:
