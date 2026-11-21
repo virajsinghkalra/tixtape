@@ -52,6 +52,7 @@ jobs:
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           # Required to build the Spotify module, even though validation only uses app tokens.
           TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}

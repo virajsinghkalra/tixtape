@@ -48,6 +48,7 @@ jobs:
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           # Required to build the Spotify module, even though ingest only uses app tokens.
           TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           # Optional: Ticketmaster is skipped when this is empty.
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}

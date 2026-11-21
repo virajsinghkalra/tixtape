@@ -25,6 +25,7 @@ jobs:
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
       # Required to build the Spotify module, even though matching only uses app tokens.
       TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       # Optional: D-066 web corroboration for hard matches; without it they go to review.
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
     steps:

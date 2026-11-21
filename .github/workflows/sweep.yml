@@ -28,6 +28,7 @@ jobs:
       SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
       SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
       TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       TOKEN_ENC_KEY_VERSION: ${{ vars.TOKEN_ENC_KEY_VERSION || '1' }}
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
       # Optional: without these, alerts go to the job summary and fail the run (D-060).
