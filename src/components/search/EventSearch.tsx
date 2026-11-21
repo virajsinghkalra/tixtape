@@ -36,6 +36,7 @@ import {
 import { fetchRecommendations, logSearchClick, SEARCH_CAPABILITIES } from "./source";
 import type { EventResult, RecommendationSection } from "./types";
 import { useEventSearch } from "./useEventSearch";
+import { track } from "../analytics/track";
 
 /** One search box per page; the bottom bar focuses it by this id. */
 export const SEARCH_INPUT_ID = "event-search";
@@ -73,6 +74,13 @@ export function EventSearch({
   const initialQuery = useSearchParams().get("q") ?? fromServer;
   const reduceMotion = useReducedMotion();
   const { state, setQuery, retry } = useEventSearch();
+  // D-090: a settled search (no new keystroke for 1.5 s) counts once, with its result count.
+  useEffect(() => {
+    if (state.status !== "done" || state.query.length < MIN_CHARS) return;
+    const results = state.response.results.length;
+    const timer = setTimeout(() => track("search", { q: state.query, results }), 1500);
+    return () => clearTimeout(timer);
+  }, [state]);
   const listboxId = useId();
   const hintId = useId();
   const inputRef = useRef<HTMLInputElement>(null);

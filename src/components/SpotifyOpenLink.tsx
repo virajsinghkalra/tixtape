@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { currentEventId, track } from "./analytics/track";
 import { currentPlatform } from "./platform";
 import { spotifyOpenPlan } from "./spotify-link";
 import { buttonClass, type ButtonSize, type ButtonVariant } from "./ui/Button";
@@ -28,6 +29,7 @@ export function SpotifyOpenLink({ href, children, variant, size = "lg", classNam
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
+    track("playlist_open_spotify", { eventId: currentEventId() });
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // new tab: let it be
     const platform = currentPlatform();
     const plan = spotifyOpenPlan(href, platform);

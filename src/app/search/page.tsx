@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
 import { groupByTier } from "@/components/lineup-view";
 import { ticketLink } from "@/components/links";
+import { TrackSearch } from "@/components/analytics/TrackSearch";
 import { EventSearch } from "@/components/search/EventSearch";
 import { ZeroResults } from "@/components/search/ZeroResults";
 import { weekendRange } from "@/components/search/local-sections";
@@ -81,6 +82,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       <div className="relative z-20 max-w-2xl">
         <EventSearch initialQuery={params.q ?? ""} restoreResults={false} />
       </div>
+      {(params.q ?? params.artist) && (
+        <TrackSearch
+          q={(params.q ?? params.artist)!}
+          results={data.rows.length === 0 ? 0 : data.total}
+        />
+      )}
+
       <h1 className="mt-10 font-display text-huge font-extrabold">{heading}</h1>
       {!lookedFor && (
         <p className="mt-2 text-muted">

@@ -9,6 +9,7 @@ import {
   type NudgeState,
   type Platform,
 } from "./install-nudge";
+import { track } from "../analytics/track";
 import { sendUx } from "./ux-beacon";
 
 const KEY = "tixtape:install";
@@ -88,6 +89,7 @@ export function InstallNudge() {
     };
     const onInstalled = () => {
       sendUx({ metric: "install_accepted" });
+      track("install");
       setShow("none");
     };
 

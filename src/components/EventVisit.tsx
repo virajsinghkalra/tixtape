@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { track } from "./analytics/track";
 import { logEventView } from "./search/source";
 
 /** Scrolls the highlighted lineup artist into view (D-048 C) and logs one view per visit. */
@@ -21,6 +22,7 @@ export function EventVisit({ eventId, highlight }: { eventId: string; highlight:
       // Storage blocked: log anyway, the server rate-limits repeats.
     }
     logEventView(eventId);
+    track("event_open", { eventId });
   }, [eventId, highlight]);
   return null;
 }

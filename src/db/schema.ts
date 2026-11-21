@@ -641,3 +641,78 @@ export const uxCounters = pgTable(
   },
   (t) => [primaryKey({ columns: [t.day, t.metric] })],
 );
+
+// ── Product analytics and opt-in identity (D-090) ─────────────────────────
+
+/**
+ * A person who chose to tell us who they are (D-090): a nickname, and/or an email with explicit
+ * consent. Personal data under the DPDP Act: never logged, never returned by a public API, and
+ * deleted on request (`DELETE /api/me/data`).
+ */
+export const people = pgTable(
+  "people",
+  {
+    id: id(),
+    nickname: text("nickname"),
+    name: text("name"),
+    /** Normalised (trimmed, lower-case). */
+    email: text("email"),
+    consentAt: timestamp("consent_at", { withTimezone: true }),
+    /** The consent wording's version (`CONSENT_VERSION`). */
+    consentVersion: text("consent_version"),
+    /** Where the email ask was shown: ping_me, follow, remind or playlist. */
+    consentSource: text("consent_source"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("people_email_uq").on(t.email)],
+);
+
+/**
+ * One browser (D-090): a random UUID the browser keeps in localStorage. Never fingerprinted.
+ * `person_id` links its anonymous history to a person once they opt in.
+ */
+export const devices = pgTable(
+  "devices",
+  {
+    id: uuid("id").primaryKey(),
+    firstSeen: timestamp("first_seen", { withTimezone: true }).notNull(),
+    lastSeen: timestamp("last_seen", { withTimezone: true }).notNull(),
+    /** Traffic source label of the first visit ("whatsapp", "google", a utm_source…). */
+    firstSource: text("first_source").notNull(),
+    personId: uuid("person_id").references(() => people.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("devices_person_idx").on(t.personId),
+    index("devices_first_seen_idx").on(t.firstSeen),
+  ],
+);
+
+/**
+ * Anonymous product events (D-090), kept 180 days. Names and prop keys are an allow-list
+ * (`src/domain/analytics/beacon.ts`); no IP, user agent, path or referrer URL is stored.
+ * `device_id` is nulled when its person asks for deletion (the event stays, anonymised).
+ */
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deviceId: uuid("device_id").references(() => devices.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    props: jsonb("props").notNull().default({}),
+    /** Coarse: a known Indian city (switcher or Vercel IP city), else null. */
+    city: text("city"),
+    source: text("source").notNull(),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Active devices per window and per day (index-only scans for DAU/WAU/MAU).
+    index("analytics_events_at_device_idx").on(t.at, t.deviceId),
+    // Funnel and "top" lists filter by name first.
+    index("analytics_events_name_at_idx").on(t.name, t.at),
+    // A person's timeline, and anonymising on delete.
+    index("analytics_events_device_at_idx").on(t.deviceId, t.at),
+  ],
+);

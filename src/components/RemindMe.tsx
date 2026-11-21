@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
+import { track } from "./analytics/track";
 import { REMINDED } from "./device/device-lists";
 import { useDeviceList } from "./device/use-device-list";
 import { currentPlatform, remindRoute } from "./platform";
@@ -43,6 +44,7 @@ export function RemindMe({
 
   function mark() {
     reminded.add(eventId);
+    track("remind", { eventId });
     haptic("success");
     toast.show(COPY.remindAdded);
   }

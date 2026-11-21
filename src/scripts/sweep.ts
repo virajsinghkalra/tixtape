@@ -9,7 +9,8 @@
  *    Work goes through the Playlist Engine's `step` use case, so leases and budgets apply.
  * 2. Housekeeping: archives past events (D-060), deletes collector candidates not seen for
  *    30 days (D-060), search logs older than 90 days (D-047), expired sessions and rate-limit
- *    windows older than a day (D-070).
+ *    windows older than a day (D-070), and analytics events older than 180 days with the idle
+ *    anonymous devices they leave behind (D-090).
  *    The scheduled ingest runs in candidates-only mode (D-055), which does neither archiving
  *    nor candidate cleanup, so the sweep owns them.
  * 3. Alerts (D-060): held events waiting for review, and a publisher that needs reauth.
@@ -24,6 +25,7 @@ import { ACTIVE_JOB_STATUSES } from "@/application/ports/playlists";
 import type { PlaylistJobId } from "@/domain/shared/ids";
 import { ThrottledAlerts } from "@/infrastructure/alerts";
 import { AUTO_PUBLISH_SPIKE_LIMIT, countAutoPublished } from "@/infrastructure/alerts/gig-digest";
+import { PgAnalyticsStore } from "@/infrastructure/db/analytics-store";
 import { PgAutoPublishPause } from "@/infrastructure/db/auto-publish-pause";
 import { deleteExpiredRateLimits } from "@/infrastructure/db/pg-rate-limiter";
 import { PgPlaylistJobRepository } from "@/infrastructure/db/playlist-job-repository";
@@ -37,6 +39,8 @@ import { playlists } from "@/server/playlists";
 
 const DAY_MS = 86_400_000;
 const CANDIDATE_TTL_MS = 30 * DAY_MS;
+/** D-090: raw analytics events are kept 180 days. */
+const ANALYTICS_TTL_MS = 180 * DAY_MS;
 const MAX_JOBS = 20;
 /** Leaves headroom inside the workflow's 25-minute timeout. */
 const BUDGET_MS = 20 * 60_000;
@@ -270,6 +274,10 @@ async function main(): Promise<void> {
   await task("rate limits", async () => {
     const n = await deleteExpiredRateLimits(c.db, new Date(now.getTime() - DAY_MS));
     return `${n} old windows deleted`;
+  });
+  await task("analytics retention", async () => {
+    const r = await new PgAnalyticsStore(c.db).prune(new Date(now.getTime() - ANALYTICS_TTL_MS));
+    return `${r.events} events, ${r.devices} idle devices deleted`;
   });
   await task("held events", () => alertHeldEvents(alerts));
   await task("auto-publish spike", () => guardAutoPublishSpike(alerts));

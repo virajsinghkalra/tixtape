@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { track } from "./analytics/track";
+import { valueMoment } from "./identity/value-moment";
 import { previewPending, type PlaylistPreview } from "./playlist-preview";
 import {
   activeJob,
@@ -60,7 +62,10 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
 
   const start = useCallback(async () => {
     const refreshing = viewRef.current.kind === "ready";
-    if (!refreshing) setView({ kind: "starting" });
+    if (!refreshing) {
+      setView({ kind: "starting" });
+      track("playlist_make", { eventId });
+    }
     try {
       const res = await fetch(`/api/events/${eventId}/playlist`, { method: "POST" });
       const body: unknown = await res.json().catch(() => null);
@@ -95,7 +100,9 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
   // UX #9: a success tick the moment a first build lands (with the confetti).
   const justMade = view.kind === "ready" && view.justMade;
   useEffect(() => {
-    if (justMade) haptic("success");
+    if (!justMade) return;
+    haptic("success");
+    valueMoment("playlist"); // D-090: may offer "Email me too? ✉️"
   }, [justMade]);
 
   // Lineup changed since the last build: refresh into the same playlist, once.

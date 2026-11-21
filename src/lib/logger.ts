@@ -1,6 +1,6 @@
 import pino from "pino";
 
-/** Structured JSON logs to stdout (Twelve-Factor). Secrets are redacted at the top level and up to 3 levels deep (QA-S-5). */
+/** Structured JSON logs to stdout (Twelve-Factor). Secrets and personal data (D-090) are redacted at the top level and up to 3 levels deep (QA-S-5). */
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
   redact: {
@@ -73,6 +73,23 @@ export const logger = pino({
       "*.token",
       "*.*.token",
       "*.*.*.token",
+      // D-090: personal data from the opt-in identity layer.
+      "email",
+      "*.email",
+      "*.*.email",
+      "*.*.*.email",
+      "nickname",
+      "*.nickname",
+      "*.*.nickname",
+      "*.*.*.nickname",
+      "personName",
+      "*.personName",
+      "*.*.personName",
+      "*.*.*.personName",
+      "person",
+      "*.person",
+      "*.*.person",
+      "*.*.*.person",
     ],
     censor: "[redacted]",
   },

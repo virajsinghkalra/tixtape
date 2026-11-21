@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "./analytics/track";
 import { ARTISTS, artistKey } from "./device/device-lists";
 import { useDeviceList } from "./device/use-device-list";
 import { ChipButton } from "./ui/Chip";
@@ -32,6 +33,7 @@ export function WatchArtistButton({ artist, kind = "ping", keepFocus = false }: 
       return;
     }
     list.add({ name: artist.trim(), followedAt: new Date().toISOString() });
+    track(kind === "ping" ? "ping_me" : "follow", { artist: artist.trim() });
     haptic("success");
     if (kind === "ping") toast.show(COPY.pingToast);
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "./analytics/track";
 import type { StoryPlan } from "./story-plan";
 import { renderStory } from "./StorySlides";
 import { StoryRing } from "./ui/StoryRing";
@@ -44,6 +45,7 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
               onClick={() => {
                 setOpenId(e.id);
                 setSeen((s) => new Set(s).add(e.id));
+                track("story_open", { eventId: e.id });
               }}
             />
           </li>

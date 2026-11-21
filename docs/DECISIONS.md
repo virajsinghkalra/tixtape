@@ -1228,3 +1228,45 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - Split the container to cut cold start (Platform).
   - Stop the event page loading the event 3× and estimate reading the cache 2× (Engine, UI).
   - Filter-then-score in suggest, plus a stored phonetic key (Events).
+
+### D-090 · Who uses Tixtape: anonymous product analytics, opt-in identity, DPDP-aware
+
+- **Status:** Accepted · **Owner:** Analytics and Identity (owner request, Lead-decided) · **Date:** 2026-11-22. Extends D-081 and D-084; shared-file changes (`src/db/schema.ts`, `src/lib/logger.ts`, `src/scripts/sweep.ts`, layout, footer, `ButtonLink`) are recorded here.
+- **No popup on first open.** Nothing asks anything on a first visit.
+- **Layer 1: anonymous product analytics.**
+  - **Device ID:** a random UUID in localStorage (`tixtape.did`). It is never derived from the device (no fingerprinting).
+  - **Beacon:** `POST /api/t` takes `{did, src?, ev[≤20]}` as text (`sendBeacon`, fetch keepalive fallback) and is capped at 8 KB.
+    - Event names and prop keys are an allow-list with strict, size-capped Zod schemas (`src/domain/analytics/beacon.ts`): `page_view` (path group), `search` (query ≤ 100, results), `event_open`, `playlist_make`, `playlist_open_spotify`, `share` (native/copy/story), `remind`, `save`, `ping_me`, `follow`, `city_change`, `install`, `story_open` and `ticket_click`.
+    - Search queries are scrubbed: email-like and phone-like text becomes `[email]` / `[number]`.
+  - **Processing:** answers 204 at once and stores after the response (`after`).
+    - Dropped silently: bots (User-Agent list, `src/domain/analytics/bots.ts`), `DNT: 1` / `Sec-GPC: 1`, and clients over the limit.
+    - The limit is 120 per minute, per client, through `PgRateLimiter` (the key is an HMAC; the IP is never stored).
+  - **Stored per event:** device_id, name, props (jsonb), a coarse city (`visitorCity` → `demandCity`, known Indian cities only, else null), a traffic source label, the cleaned utm medium and campaign, and a timestamp.
+  - **Source:** UTM first; then the referrer **host** classified as whatsapp, instagram, google, facebook, twitter, direct or other; then our `?via=` share tag (Share now appends `via=native|copy`, which arrives as "share"); else direct. Full referrer URLs and query strings never leave the page.
+  - **Client:** `track()` (`src/components/analytics/track.ts`) batches (2 s, or 10 events), flushes on pagehide or hidden, and is skipped entirely under DNT, GPC or `navigator.webdriver`. It's called with one line at search (settled type-ahead, and the results page), event open, Make playlist, Open in Spotify, Share, Remind me, Save, Ping me, Follow, city switch, story ring, install and ticket links (`ButtonLink ticketFor`, caught by a delegated listener). Admin pages are never tracked.
+- **Layer 2: identity, only when there's value.**
+  - **Nickname:** "What should we call you? 👋", a tiny non-modal bottom sheet.
+    - Shown at most once, on a later visit: a new tab session, or a return after 30 idle minutes, that starts on a different IST day or more than 30 min after the first visit. It appears after a 4 s dwell.
+    - Skip dismisses it forever. Rules: `src/components/identity/prompt-rules.ts`, which is tested.
+  - **Email:** "Email me too? ✉️" right after Ping me, Follow, Remind me or a playlist landing (2.8 s later, after the action's toast).
+    - At most twice ever, 7 days apart, and never once saved.
+    - Fields: name (optional), email, and an **unticked** consent box with "Email me about gigs. Unsubscribe anytime." Save stays disabled until it's ticked, and the server requires `consent: true`.
+    - Nothing promises an email now: sending isn't built. The consent covers future gig updates.
+  - **Storage:** `people(nickname, name, email unique normalised, consent_at, consent_version = CONSENT_VERSION, consent_source)`, linked through `devices.person_id`. The device's earlier anonymous events become the person's history.
+  - **No hijacking:** there's no email verification yet. An email already held by another person is **never re-linked or changed** (the answer is still 204), so nobody can attach to, overwrite or delete someone else's record by typing their email. A second device of the same person stays anonymous until verification exists.
+  - **API:** `POST /api/me/identity` and `DELETE /api/me/data` are rate limited (10 per hour per client), answer 204 and never echo personal data.
+- **DPDP Act 2023 notes:**
+  - **Notice:** `/privacy` says, in plain words, what we collect, why, for how long, the choices and the contact (lineupmixes@gmail.com). It's linked from the footer as "Privacy".
+  - **Consent:** specific (gig emails), explicit (unticked box), versioned and timestamped, with its source recorded.
+  - **Purpose limitation:** analytics is anonymous; email is only for gig updates. Nothing is sold or shared, and there are no third-party trackers.
+  - **Erasure:** "Delete my data" calls `DELETE /api/me/data {did}`. It deletes the person, every linked device and the links, and **anonymises** their events (sets `device_id` to null). The browser then forgets its device ID and prompt state.
+  - **Minimisation:** no IP, user agent, path, referrer URL or exact location is stored. Personal fields are redacted from logs (`email`, `nickname`, `personName`, `person`).
+  - **Before any email is sent (open):** add double opt-in confirmation plus a one-click unsubscribe, and name a grievance contact. Children's data: the app isn't aimed at under-18s; verifiable parental consent isn't built.
+- **Retention:** raw `analytics_events` are kept 180 days. The sweep (`analytics retention` task) deletes older events and anonymous devices idle over 180 days. People stay until they delete themselves.
+- **Schema:** migration **0018** (pure add): `people`, `devices` and `analytics_events`.
+  - Indexes: `(at, device_id)`, `(name, at)` and `(device_id, at)` on events; `person_id` and `first_seen` on devices; unique `email` on people.
+- **Dashboard:** `/admin/analytics` (behind `requireAdminPage`, so a 404 for others), server-rendered SQL over 30 days:
+  - DAU, WAU and MAU and new vs returning (from `devices.last_seen`), a 30-day sparkline, and the funnel (visit → search → event open → playlist);
+  - top events, headline artists, searches, zero-result searches (demand), wanted artists (ping/follow), cities, new devices by source, and shares by channel;
+  - named people with first and last seen, source and an action timeline (`/admin/analytics/people/[id]`). Anonymous devices are only counted.
+  - About 0.7–1.1 s with 1M events inside the window, on local Postgres.

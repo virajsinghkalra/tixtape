@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/admin/events", label: "Events" },
   { href: "/admin/artists", label: "Artists" },
   { href: "/admin/jobs", label: "Jobs" },
+  { href: "/admin/analytics", label: "Analytics" },
 ] as const;
 
 /** True for the section the path is in ("/admin" only matches itself). */

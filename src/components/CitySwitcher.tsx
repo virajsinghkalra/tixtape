@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { ALL_INDIA_CITY } from "@/domain/events/venue";
+import { track } from "./analytics/track";
 import { cx } from "./ui/cx";
 import { SPRING } from "./ui/motion";
 
@@ -53,6 +54,7 @@ export function CitySwitcher({ city, cities }: Props) {
     // "All India" is stored as "all" so it wins over the IP city (an empty cookie wouldn't).
     document.cookie = `city=${encodeURIComponent(next ?? ALL_INDIA_CITY)}; Max-Age=${YEAR_S}; Path=/; SameSite=Lax`;
     setOpen(false);
+    track("city_change", { city: next ?? ALL_INDIA_CITY });
     startTransition(() => router.refresh());
   }
 

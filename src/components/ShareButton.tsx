@@ -1,5 +1,6 @@
 "use client";
 
+import { currentEventId, track } from "./analytics/track";
 import { Button, type ButtonSize, type ButtonVariant } from "./ui/Button";
 import { useToast } from "./ui/Toast";
 import { copyText } from "./ui/copy-text";
@@ -27,7 +28,10 @@ export function ShareButton({
   const toast = useToast();
 
   async function share() {
-    const url = target ?? window.location.href.split("#")[0]!;
+    const channel = "share" in navigator ? "native" : "copy";
+    // D-090: `?via=` lets an arrival from a shared link count as "share" (or the app's name).
+    const url = withVia(target ?? window.location.href.split("#")[0]!, channel);
+    track("share", { channel, eventId: currentEventId() });
     try {
       if (navigator.share) {
         await navigator.share({ title, text, url });
@@ -56,4 +60,14 @@ export function ShareButton({
       <span aria-hidden>↗</span> Share
     </Button>
   );
+}
+
+function withVia(raw: string, via: string): string {
+  try {
+    const url = new URL(raw, window.location.href);
+    url.searchParams.set("via", via);
+    return url.toString();
+  } catch {
+    return raw;
+  }
 }

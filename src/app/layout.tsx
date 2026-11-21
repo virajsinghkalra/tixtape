@@ -3,6 +3,8 @@ import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
+import { Analytics } from "@/components/analytics/Analytics";
+import { IdentityPrompts } from "@/components/identity/IdentityPrompts";
 import { NavShell } from "@/components/nav/NavShell";
 import { InstallNudge } from "@/components/pwa/InstallNudge";
 import { NetworkBanner } from "@/components/pwa/NetworkBanner";
@@ -89,6 +91,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <ServiceWorker />
             <ImageGuard />
             <WebVitals />
+            <Analytics />
+            <IdentityPrompts />
           </ToastProvider>
         </MotionProvider>
       </body>

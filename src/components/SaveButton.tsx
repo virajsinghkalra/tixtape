@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
+import { track } from "./analytics/track";
 import { SAVED, type SavedShow } from "./device/device-lists";
 import { useDeviceList } from "./device/use-device-list";
 import { buttonClass, type ButtonSize, type ButtonVariant } from "./ui/Button";
@@ -22,7 +23,10 @@ export function SaveButton({ show, variant = "secondary", size = "md" }: Props) 
 
   function toggle() {
     if (on) saved.remove(show.id);
-    else saved.add({ ...show, savedAt: new Date().toISOString() });
+    else {
+      saved.add({ ...show, savedAt: new Date().toISOString() });
+      track("save", { eventId: show.id });
+    }
     haptic("tap");
   }
 
