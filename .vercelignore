@@ -1,0 +1,15 @@
+# Upload source only; Vercel installs deps and builds itself.
+node_modules
+.next
+.next-*
+.vercel/output
+.vitest
+.git
+test-results
+playwright-report
+tests/e2e/screenshots
+tests/qa/e2e/screenshots
+tests/qa/e2e/.results
+*.log
+.env*
+!.env.example
