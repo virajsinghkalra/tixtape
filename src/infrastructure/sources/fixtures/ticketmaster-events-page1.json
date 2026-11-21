@@ -1,0 +1,35 @@
+{
+  "_embedded": {
+    "events": [
+      {
+        "name": "Divine - Gunehgar Tour (Cancelled)",
+        "type": "event",
+        "id": "G5diZ9cDivine",
+        "url": "https://www.ticketmaster.com/divine/event/G5diZ9cDivine",
+        "dates": {
+          "start": {
+            "localDate": "2026-05-02",
+            "localTime": "20:00:00",
+            "dateTime": "2026-05-02T14:30:00Z"
+          },
+          "timezone": "Asia/Kolkata",
+          "status": { "code": "cancelled" }
+        },
+        "classifications": [{ "segment": { "name": "Music" }, "genre": { "name": "Hip-Hop/Rap" } }],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Jawaharlal Nehru Stadium",
+              "city": { "name": "New Delhi" },
+              "state": { "name": "Delhi", "stateCode": "DL" },
+              "country": { "name": "India", "countryCode": "IN" },
+              "location": { "longitude": "not-a-number", "latitude": "28.58" }
+            }
+          ],
+          "attractions": [{ "name": "DIVINE" }]
+        }
+      }
+    ]
+  },
+  "page": { "size": 5, "totalElements": 6, "totalPages": 2, "number": 1 }
+}

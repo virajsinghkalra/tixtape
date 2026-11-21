@@ -1,0 +1,200 @@
+<title>Concert Playlist Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: build tracker — summary strip on top, then one block per phase with its pointers as rows; state shown as a pill + tick */
+:root {
+  --bg: #f7f7fa; --surface: #ffffff; --fg: #1b1d2a; --muted: #5d6178; --line: #e1e2ea; --track: #eceef4;
+  --accent: #c2255c; --accent-soft: #fbe7ee;
+  --done: #1f7a4d; --done-soft: #e3f4ea; --doing: #1d5fbf; --doing-soft: #e4eefc; --test: #9a5b00; --test-soft: #fdf1dc; --todo: #6b6f85; --todo-soft: #eff0f5; --blocked: #b42318; --blocked-soft: #fde8e6;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12131b; --surface: #1a1c27; --fg: #e7e8f0; --muted: #a0a3b8; --line: #2c2f3e; --track: #262938;
+    --accent: #f06595; --accent-soft: #3a1c2a;
+    --done: #63c58f; --done-soft: #173326; --doing: #7aa7f0; --doing-soft: #18253d; --test: #f0b44c; --test-soft: #3a2c12; --todo: #a0a3b8; --todo-soft: #232634; --blocked: #f97066; --blocked-soft: #3d1a17;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12131b; --surface: #1a1c27; --fg: #e7e8f0; --muted: #a0a3b8; --line: #2c2f3e; --track: #262938;
+  --accent: #f06595; --accent-soft: #3a1c2a;
+  --done: #63c58f; --done-soft: #173326; --doing: #7aa7f0; --doing-soft: #18253d; --test: #f0b44c; --test-soft: #3a2c12; --todo: #a0a3b8; --todo-soft: #232634; --blocked: #f97066; --blocked-soft: #3d1a17;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14.5px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 36px 64px;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+.eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+h1 { font: 700 clamp(26px, 4vw, 34px)/1.1 var(--font-display); margin: 0 0 8px; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0; max-width: 70ch; }
+.summary { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.stat .k { font: 600 11px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font: 700 26px/1.1 var(--font-display); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.stat .v small { font: 500 13px var(--font-body); color: var(--muted); }
+.bar { height: 8px; background: var(--track); border-radius: 999px; overflow: hidden; margin-top: 10px; }
+.bar > span { display: block; height: 100%; background: var(--done); border-radius: 999px; width: 0; transition: width .4s ease; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; color: var(--muted); font-size: 12.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.phase-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.phase-head h2 { font: 600 17px/1.3 var(--font-display); margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.phase-head h2 .n { font: 500 13px var(--font-mono); color: var(--accent); }
+.phase-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; grid-column: 1 / -1; }
+.phase-head .count { font: 500 13px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.phase-head .bar { grid-column: 1 / -1; margin-top: 4px; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.row { display: grid; grid-template-columns: 26px 52px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.tick { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); display: grid; place-items: center; margin-top: 1px; }
+.row.done .tick { background: var(--done); border-color: var(--done); }
+.row.done .tick svg { display: block; }
+.tick svg { display: none; width: 12px; height: 12px; }
+.tick svg path { fill: none; stroke: var(--surface); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.pid { font: 500 12.5px/1.6 var(--font-mono); color: var(--muted); }
+.title { font-weight: 500; min-width: 0; }
+.row.done .title { color: var(--muted); }
+.detail { grid-column: 3 / 4; color: var(--muted); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.meta { grid-column: 3 / 4; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); }
+.meta .tests { font-family: var(--font-mono); }
+.pill { font: 600 11px/1 var(--font-body); padding: 5px 9px; border-radius: 999px; white-space: nowrap; justify-self: end; }
+.s-todo { color: var(--todo); background: var(--todo-soft); }
+.s-doing { color: var(--doing); background: var(--doing-soft); }
+.s-testing { color: var(--test); background: var(--test-soft); }
+.s-done { color: var(--done); background: var(--done-soft); }
+.s-blocked { color: var(--blocked); background: var(--blocked-soft); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.note { font-size: 13px; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 14px 16px; }
+.note[hidden] { display: none; }
+footer { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 720px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary .stat:first-child { grid-column: 1 / -1; }
+  .row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .pid { grid-column: 2 / 3; grid-row: 1; }
+  .title { grid-column: 2 / -1; }
+  .pill { grid-column: 3 / 4; grid-row: 1; }
+  .detail, .meta { grid-column: 2 / -1; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">MVP build tracker</p>
+    <h1>Concert Playlist: build progress</h1>
+    <p class="lede">Every pointer in the plan, grouped by phase. A pointer is ticked only after its code is written <strong>and</strong> its tests pass. Claude updates this page as work lands.</p>
+  </header>
+
+  <div class="summary" aria-live="polite">
+    <div class="stat"><div class="k">Overall</div><div class="v" id="overall-v">–<small> done</small></div><div class="bar"><span id="overall-bar"></span></div></div>
+    <div class="stat"><div class="k">In progress</div><div class="v" id="doing-v">–</div></div>
+    <div class="stat"><div class="k">In testing</div><div class="v" id="testing-v">–</div></div>
+    <div class="stat"><div class="k">Blocked</div><div class="v" id="blocked-v">–</div></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--todo)"></i>To do</span>
+    <span><i class="dot" style="background:var(--doing)"></i>Building</span>
+    <span><i class="dot" style="background:var(--test)"></i>Testing</span>
+    <span><i class="dot" style="background:var(--done)"></i>Done and tested</span>
+    <span><i class="dot" style="background:var(--blocked)"></i>Waiting on you</span>
+  </div>
+
+  <p class="note" id="status-note">Loading pointers…</p>
+
+  <div id="phases"></div>
+
+  <footer>Design reference: the Concert Playlist LLD. Code lives in <code>concert-playlist-app/</code>.</footer>
+</div>
+
+<script>
+const PHASES = [
+  { n: 0, name: "Foundation", blurb: "Project skeleton, engineering rules, database and CI. Built first by the lead so every agent follows the same conventions." },
+  { n: 1, name: "Core modules", blurb: "Three agents in parallel: Spotify integration, events and ingestion, and artist matching." },
+  { n: 2, name: "Playlist engine", blurb: "Track selection, the step-based job runner, and idempotent playlist writes." },
+  { n: 3, name: "Web UI", blurb: "The pages people use, plus admin screens for curation." },
+  { n: 4, name: "Schedules & launch", blurb: "GitHub Actions jobs, deployment on free tiers, and the closed beta." },
+];
+const STATUS = {
+  todo: { label: "To do", cls: "s-todo" },
+  doing: { label: "Building", cls: "s-doing" },
+  testing: { label: "Testing", cls: "s-testing" },
+  done: { label: "Done ✓", cls: "s-done" },
+  blocked: { label: "Waiting on you", cls: "s-blocked" },
+};
+const TICK = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg>';
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function render(tasks) {
+  const root = $("phases");
+  root.replaceChildren();
+  const total = tasks.length;
+  const count = (s) => tasks.filter((t) => t.status === s).length;
+  const done = count("done");
+  $("overall-v").innerHTML = "";
+  $("overall-v").append(String(done), Object.assign(el("small"), { textContent: ` / ${total} done` }));
+  $("overall-bar").style.width = total ? `${(done / total) * 100}%` : "0";
+  $("doing-v").textContent = count("doing");
+  $("testing-v").textContent = count("testing");
+  $("blocked-v").textContent = count("blocked");
+
+  for (const ph of PHASES) {
+    const items = tasks.filter((t) => t.phase === ph.n).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (!items.length) continue;
+    const pDone = items.filter((t) => t.status === "done").length;
+    const sec = el("section", "phase");
+    const head = el("div", "phase-head");
+    const h2 = el("h2");
+    h2.append(el("span", "n", `Phase ${ph.n}`), document.createTextNode(ph.name));
+    head.append(h2, el("span", "count", `${pDone}/${items.length}`), el("p", null, ph.blurb));
+    const bar = el("div", "bar"); const fill = el("span"); fill.style.width = `${(pDone / items.length) * 100}%`; bar.append(fill); head.append(bar);
+    const ul = el("ul", "rows");
+    for (const t of items) {
+      const st = STATUS[t.status] || STATUS.todo;
+      const li = el("li", `row ${t.status === "done" ? "done" : ""}`);
+      const tick = el("span", "tick"); tick.innerHTML = TICK; tick.setAttribute("aria-label", t.status === "done" ? "Done" : "Not done");
+      li.append(tick, el("span", "pid", t.id), el("span", "title", t.title), el("span", `pill ${st.cls}`, st.label));
+      if (t.detail) li.append(el("span", "detail", t.detail));
+      const meta = el("span", "meta");
+      if (t.owner) meta.append(el("span", null, `Owner: ${t.owner}`));
+      if (t.tests) meta.append(el("span", "tests", `Tests: ${t.tests}`));
+      if (t.updated) meta.append(el("span", null, `Updated ${t.updated}`));
+      if (meta.childNodes.length) li.append(meta);
+      ul.append(li);
+    }
+    sec.append(head, ul);
+    root.append(sec);
+  }
+}
+
+(async () => {
+  const note = $("status-note");
+  const db = await claude.use("db");
+  if (!db) { note.textContent = "Progress data isn't available in this view. Open the artifact on claude.ai while signed in."; return; }
+  const timer = setTimeout(() => { note.hidden = false; note.textContent = "Can't reach the progress data yet. It will appear once the connection comes back."; }, 10000);
+  db.collection("tasks").onSnapshot((snap) => {
+    if (!snap.metadata.fromCache) clearTimeout(timer);
+    const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!tasks.length) { note.hidden = false; note.textContent = "No pointers yet. Claude adds the build plan here when work starts."; render([]); return; }
+    note.hidden = true;
+    render(tasks);
+  }, (err) => { clearTimeout(timer); note.hidden = false; note.textContent = `Progress data stopped updating (${err.code}). Reload the page to try again.`; });
+})();
+</script>

@@ -1,0 +1,40 @@
+{
+  "skill_name": "ship-pointer",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "Start P2.1 track selection with a dev team and QA",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "Assign the playlist engine pointers to subagents",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Explain how the rate gate works",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Build P2.2 and tick it when QA passes",
+      "should_trigger": true,
+      "assertions": [
+        "follows the module's layer and ownership rules",
+        "adds colocated tests",
+        "lint, typecheck and targeted tests pass"
+      ]
+    }
+  ],
+  "_meta": {
+    "schema_version": "1"
+  }
+}

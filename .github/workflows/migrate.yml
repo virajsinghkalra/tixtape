@@ -1,0 +1,29 @@
+name: Migrate database
+# Applies Drizzle migrations to production (docs/DEPLOY.md). Run by hand before promoting a
+# deploy that includes a new migration. Uses Neon's direct (non-pooler) connection string.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate

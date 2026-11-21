@@ -1,0 +1,35 @@
+{
+  "feed": {
+    "title": "Top Songs",
+    "id": "https://rss.marketingtools.apple.com/api/v2/in/music/most-played/100/songs.json",
+    "country": "in",
+    "updated": "Sat, 21 Nov 2026 10:00:00 +0000",
+    "results": [
+      {
+        "artistName": "Arijit Singh & Pritam",
+        "id": "1001",
+        "name": "Kesariya (From \"Brahmastra\")",
+        "releaseDate": "2022-07-17",
+        "kind": "songs",
+        "artistId": "1",
+        "artistUrl": "https://music.apple.com/in/artist/1",
+        "contentAdvisoryRating": "",
+        "artworkUrl100": "https://example.invalid/a.jpg",
+        "genres": [],
+        "url": "https://music.apple.com/in/album/1"
+      },
+      {
+        "artistName": "Ritviz",
+        "id": "1002",
+        "name": "Udd Gaye",
+        "releaseDate": "2017-01-01",
+        "kind": "songs",
+        "artistId": "2",
+        "artistUrl": "https://music.apple.com/in/artist/2",
+        "artworkUrl100": "https://example.invalid/b.jpg",
+        "genres": [],
+        "url": "https://music.apple.com/in/album/2"
+      }
+    ]
+  }
+}

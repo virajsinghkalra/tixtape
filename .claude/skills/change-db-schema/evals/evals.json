@@ -1,0 +1,38 @@
+{
+  "skill_name": "change-db-schema",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "Add the artist_match_candidates table from D-016",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "Add a unique constraint so venue aliases can't map to two venues",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Query the events table to see how many events we have",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Add items_merged and items_failed columns to ingest_runs with a migration",
+      "should_trigger": true,
+      "assertions": [
+        "new migration file generated, none edited",
+        "repository and int test updated",
+        "lint, typecheck and tests pass"
+      ]
+    }
+  ],
+  "_meta": { "schema_version": "1" }
+}

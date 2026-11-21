@@ -1,0 +1,192 @@
+import { describe, expect, it } from "vitest";
+import {
+  activeJob,
+  MAX_STALLED_STEPS,
+  formatClock,
+  nextStepDelay,
+  stageLabel,
+  viewFromStart,
+  viewFromStatus,
+  viewFromStep,
+  type PlaylistView,
+} from "./playlist-state";
+
+const URL_ = "https://open.spotify.com/playlist/abc";
+const step = (over: Record<string, unknown>) => ({
+  jobId: "j",
+  status: "running",
+  stage: "select",
+  progress: 30,
+  artistsDone: 8,
+  artistsTotal: 13,
+  unresolved: [],
+  ...over,
+});
+const building: PlaylistView = {
+  kind: "building",
+  joined: false,
+  jobId: "j",
+  progress: 0,
+  label: "",
+  waitUntil: null,
+  stalled: 0,
+};
+
+describe("viewFromStatus (GET)", () => {
+  it("none, building (join), ready, ready+stale, garbage", () => {
+    expect(viewFromStatus({ status: "none" })).toEqual({ kind: "idle" });
+    expect(viewFromStatus({ status: "building", jobId: "j1" })).toMatchObject({
+      kind: "building",
+      joined: true,
+      jobId: "j1",
+    });
+    expect(
+      viewFromStatus({ status: "ready", url: URL_, builtAt: "2026-11-21T10:00:00Z" }),
+    ).toMatchObject({
+      kind: "ready",
+      builtAt: "2026-11-21T10:00:00Z",
+      refresh: null,
+    });
+    expect(viewFromStatus({ status: "ready", url: URL_, stale: true })).toMatchObject({
+      refresh: "pending",
+    });
+    expect(viewFromStatus({ nonsense: true })).toEqual({ kind: "idle" });
+  });
+});
+
+describe("viewFromStart (POST)", () => {
+  it("ready and building", () => {
+    expect(viewFromStart(200, { status: "ready", url: URL_ }, null)).toMatchObject({
+      kind: "ready",
+      justMade: true,
+    });
+    expect(viewFromStart(202, { status: "building", jobId: "j" }, null)).toMatchObject({
+      kind: "building",
+      joined: false,
+    });
+  });
+
+  it("maps 503, 422, 429 and anything else to friendly states", () => {
+    expect(viewFromStart(503, {}, null)).toEqual({ kind: "unavailable" });
+    expect(viewFromStart(422, {}, null)).toMatchObject({
+      message: expect.stringMatching(/on Spotify yet/),
+    });
+    expect(viewFromStart(429, {}, "120")).toMatchObject({
+      message: expect.stringContaining("2 min"),
+    });
+    expect(viewFromStart(500, { error: { message: "boom" } }, null)).toMatchObject({
+      kind: "problem",
+      message: expect.not.stringContaining("boom"),
+    });
+  });
+});
+
+describe("viewFromStep", () => {
+  it("names each stage while building", () => {
+    expect(viewFromStep(step({}), building)).toMatchObject({
+      kind: "building",
+      label: "Picking songs · 8/13 artists",
+    });
+  });
+
+  it("finishes with confetti for a first build, listing skipped artists when partial", () => {
+    expect(
+      viewFromStep(
+        step({ status: "partial", progress: 100, playlistUrl: URL_, unresolved: ["A", "B"] }),
+        building,
+      ),
+    ).toMatchObject({
+      kind: "ready",
+      justMade: true,
+      skipped: ["A", "B"],
+    });
+  });
+
+  it("a refresh of a stale playlist keeps it open and shows progress, without confetti at the end", () => {
+    const stale: PlaylistView = {
+      kind: "ready",
+      url: URL_,
+      builtAt: null,
+      justMade: false,
+      skipped: [],
+      refresh: "pending",
+    };
+    const mid = viewFromStep(step({}), stale);
+    expect(mid).toMatchObject({
+      kind: "ready",
+      refresh: { label: "Picking songs · 8/13 artists" },
+    });
+    expect(
+      viewFromStep(step({ status: "succeeded", progress: 100, playlistUrl: URL_ }), mid),
+    ).toMatchObject({
+      kind: "ready",
+      justMade: false,
+      refresh: null,
+    });
+  });
+
+  it("paused keeps polling until resumeAfter", () => {
+    const v = viewFromStep(
+      step({ status: "paused", resumeAfter: "2026-11-21T13:10:00Z" }),
+      building,
+    );
+    const job = activeJob(v)!;
+    expect(job.waitUntil).toBe("2026-11-21T13:10:00Z");
+    expect(nextStepDelay(job, new Date("2026-11-21T13:09:30Z"))).toBe(30_000);
+    expect(formatClock("2026-11-21T13:10:00Z")).toBe("6:40 pm");
+  });
+
+  it("a failed first build shows the job's safe message", () => {
+    expect(
+      viewFromStep(step({ status: "failed", error: "Spotify is down" }), building),
+    ).toMatchObject({
+      kind: "problem",
+      message: "Spotify is down",
+    });
+  });
+});
+
+describe("stageLabel", () => {
+  it.each([
+    [
+      { status: "queued", stage: null, progress: 0, artistsDone: 0, artistsTotal: 0 },
+      "Matching artists…",
+    ],
+    [
+      { status: "running", stage: "create", progress: 82, artistsDone: 13, artistsTotal: 13 },
+      "Creating the playlist…",
+    ],
+    [
+      { status: "running", stage: "write", progress: 92, artistsDone: 13, artistsTotal: 13 },
+      "Adding songs · 92%",
+    ],
+  ])("%j", (p, label) => {
+    expect(stageLabel(p)).toBe(label);
+  });
+});
+
+describe("never an endless wait", () => {
+  it("stops after several steps with no progress and says it keeps going in the background", () => {
+    let view: PlaylistView = building;
+    for (let i = 0; i <= MAX_STALLED_STEPS; i++)
+      view = viewFromStep(step({ status: "queued", stage: null, progress: 0 }), view);
+    expect(view).toMatchObject({
+      kind: "problem",
+      message: expect.stringMatching(/longer than usual/),
+    });
+  });
+
+  it("a Spotify pause is a known wait, not a stall", () => {
+    let view: PlaylistView = building;
+    for (let i = 0; i < MAX_STALLED_STEPS + 2; i++) {
+      view = viewFromStep(step({ status: "paused", resumeAfter: "2026-11-21T13:10:00Z" }), view);
+    }
+    expect(view.kind).toBe("building");
+  });
+
+  it("a 503 while stepping means playlist making isn't open yet", () => {
+    expect(viewFromStep({ error: { code: "playlist_unavailable" } }, building, 503)).toEqual({
+      kind: "unavailable",
+    });
+  });
+});

@@ -1,0 +1,62 @@
+/**
+ * Calendar windows in India Standard Time (UTC+05:30, no DST) for date words in search
+ * ("tonight", "this weekend", "december"). Each window is [from, to] with `to` inclusive.
+ */
+const IST_OFFSET_MS = 330 * 60_000;
+const DAY_MS = 86_400_000;
+
+export type DateWindow = { from: Date; to: Date };
+
+type IstDay = { year: number; month: number; day: number; weekday: number };
+
+/** The IST calendar date of an instant. `month` is 0-based; `weekday` 0 = Sunday. */
+export function istDay(at: Date): IstDay {
+  const wall = new Date(at.getTime() + IST_OFFSET_MS);
+  return {
+    year: wall.getUTCFullYear(),
+    month: wall.getUTCMonth(),
+    day: wall.getUTCDate(),
+    weekday: wall.getUTCDay(),
+  };
+}
+
+/** 00:00 IST on the given calendar date (overflowing days/months roll over, like Date.UTC). */
+export function istMidnight(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day) - IST_OFFSET_MS);
+}
+
+const span = (from: Date, days: number): DateWindow => ({
+  from,
+  to: new Date(from.getTime() + days * DAY_MS - 1),
+});
+
+export function dayWindow(now: Date, offsetDays: number): DateWindow {
+  const d = istDay(now);
+  return span(istMidnight(d.year, d.month, d.day + offsetDays), 1);
+}
+
+/**
+ * Friday 00:00 to Sunday 23:59:59.999 IST. During a weekend (Fri–Sun) that's the current
+ * one; otherwise the coming one. `weeksAhead` 1 gives "next weekend".
+ */
+export function weekendWindow(now: Date, weeksAhead = 0): DateWindow {
+  const d = istDay(now);
+  const sinceFriday = (d.weekday + 2) % 7; // Fri 0, Sat 1, Sun 2, Mon 3 … Thu 6
+  const toFriday = sinceFriday <= 2 ? -sinceFriday : 7 - sinceFriday;
+  return span(istMidnight(d.year, d.month, d.day + toFriday + 7 * weeksAhead), 3);
+}
+
+export function monthWindow(year: number, month: number): DateWindow {
+  const from = istMidnight(year, month, 1);
+  return { from, to: new Date(istMidnight(year, month + 1, 1).getTime() - 1) };
+}
+
+export function yearWindow(year: number): DateWindow {
+  return { from: istMidnight(year, 0, 1), to: new Date(istMidnight(year + 1, 0, 1).getTime() - 1) };
+}
+
+/** The next time `month` comes round: this year if it hasn't passed, else next year. */
+export function upcomingMonthWindow(now: Date, month: number): DateWindow {
+  const d = istDay(now);
+  return monthWindow(month >= d.month ? d.year : d.year + 1, month);
+}

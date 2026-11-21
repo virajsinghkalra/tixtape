@@ -1,0 +1,40 @@
+{
+  "skill_name": "run-qa-signoff",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "The events team handed back P1.6, run QA on it",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "Test the playlist flow like a real user in a browser",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Write unit tests for my new normalize function as I build it",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Run QA sign-off for P2.1 and P2.2 and report bugs",
+      "should_trigger": true,
+      "assertions": [
+        "follows the module's layer and ownership rules",
+        "adds colocated tests",
+        "lint, typecheck and targeted tests pass"
+      ]
+    }
+  ],
+  "_meta": {
+    "schema_version": "1"
+  }
+}

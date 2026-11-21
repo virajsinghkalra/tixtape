@@ -1,0 +1,181 @@
+{
+  "_embedded": {
+    "events": [
+      {
+        "name": "Lollapalooza India 2026 - 2 Day Pass",
+        "type": "event",
+        "id": "Z7r9jZ1A7fF8k",
+        "test": false,
+        "url": "https://www.ticketmaster.com/lollapalooza-india-2026/event/Z7r9jZ1A7fF8k",
+        "locale": "en-us",
+        "images": [
+          {
+            "ratio": "3_2",
+            "url": "https://s1.ticketm.net/dam/a/lolla_RETINA_PORTRAIT_3_2.jpg",
+            "width": 640,
+            "height": 427,
+            "fallback": false
+          },
+          {
+            "ratio": "16_9",
+            "url": "https://s1.ticketm.net/dam/a/lolla_TABLET_LANDSCAPE_16_9.jpg",
+            "width": 1024,
+            "height": 576,
+            "fallback": false
+          },
+          {
+            "ratio": "16_9",
+            "url": "https://s1.ticketm.net/dam/a/lolla_RETINA_LANDSCAPE_16_9.jpg",
+            "width": 1136,
+            "height": 639,
+            "fallback": false
+          },
+          {
+            "ratio": "4_3",
+            "url": "https://s1.ticketm.net/dam/a/lolla_CUSTOM.jpg",
+            "width": 2048,
+            "height": 1536,
+            "fallback": false
+          }
+        ],
+        "sales": {
+          "public": {
+            "startDateTime": "2025-10-01T06:30:00Z",
+            "endDateTime": "2026-03-08T16:30:00Z"
+          }
+        },
+        "dates": {
+          "start": {
+            "localDate": "2026-03-07",
+            "localTime": "14:00:00",
+            "dateTime": "2026-03-07T08:30:00Z",
+            "dateTBD": false,
+            "dateTBA": false,
+            "timeTBA": false,
+            "noSpecificTime": false
+          },
+          "end": {
+            "localDate": "2026-03-08",
+            "localTime": "22:00:00",
+            "dateTime": "2026-03-08T16:30:00Z"
+          },
+          "timezone": "Asia/Kolkata",
+          "status": { "code": "onsale" },
+          "spanMultipleDays": true
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAeA", "name": "Rock" },
+            "subGenre": { "id": "KZazBEonSMnZfZ7v6dt", "name": "Alternative Rock" }
+          }
+        ],
+        "promoter": { "id": "4911", "name": "BOOKMYSHOW LIVE" },
+        "_links": { "self": { "href": "/discovery/v2/events/Z7r9jZ1A7fF8k?locale=en-us" } },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Mahalakshmi Race Course",
+              "type": "venue",
+              "id": "Z7r9jZadyb",
+              "locale": "en-us",
+              "postalCode": "400034",
+              "timezone": "Asia/Kolkata",
+              "city": { "name": "Mumbai" },
+              "state": { "name": "Maharashtra", "stateCode": "MH" },
+              "country": { "name": "India", "countryCode": "IN" },
+              "address": { "line1": "Keshavrao Khadye Marg, Mahalakshmi" },
+              "location": { "longitude": "72.8205", "latitude": "18.9827" }
+            }
+          ],
+          "attractions": [
+            { "name": "Linkin Park", "type": "attraction", "id": "K8vZ9171ob7" },
+            { "name": "Glass Animals", "type": "attraction", "id": "K8vZ9179Gf0" },
+            { "name": "Green Day", "type": "attraction", "id": "K8vZ9171o-f" },
+            { "name": "Anuv Jain", "type": "attraction", "id": "K8vZ917uc57" },
+            { "name": "Nucleya b2b Ritviz", "type": "attraction", "id": "K8vZ917_hb7" }
+          ]
+        }
+      },
+      {
+        "name": "Prateek Kuhad: Silhouettes Tour",
+        "type": "event",
+        "id": "G5diZ9kQb3e0X",
+        "url": "https://www.ticketmaster.com/prateek-kuhad/event/G5diZ9kQb3e0X",
+        "images": [
+          {
+            "ratio": "3_2",
+            "url": "https://s1.ticketm.net/dam/a/kuhad_3_2.jpg",
+            "width": 305,
+            "height": 203,
+            "fallback": true
+          }
+        ],
+        "dates": {
+          "start": { "localDate": "2026-03-14", "localTime": "19:30:00" },
+          "timezone": "Asia/Kolkata",
+          "status": { "code": "onsale" }
+        },
+        "classifications": [
+          { "primary": true, "segment": { "name": "Music" }, "genre": { "name": "Undefined" } }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Phoenix Marketcity",
+              "city": { "name": "Bangalore" },
+              "state": { "name": "Karnataka" },
+              "country": { "name": "India", "countryCode": "IN" }
+            }
+          ],
+          "attractions": [
+            { "name": "Prateek Kuhad", "id": "K8vZ917KWo0" },
+            { "id": "K8vZ9170000" },
+            { "name": "When Chai Met Toast", "id": "K8vZ917pD87" }
+          ]
+        }
+      },
+      {
+        "name": "Event With No Venue",
+        "id": "G5noVenue0001",
+        "dates": { "start": { "localDate": "2026-04-01" }, "status": { "code": "onsale" } },
+        "_embedded": { "attractions": [{ "name": "Someone" }] }
+      },
+      {
+        "id": "G5noName00001",
+        "dates": { "start": { "dateTime": "2026-04-02T14:00:00Z" } },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "NSCI Dome",
+              "city": { "name": "Mumbai" },
+              "country": { "countryCode": "IN" }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Date To Be Announced",
+        "id": "G5noDate00001",
+        "dates": { "start": { "dateTBA": true, "dateTBD": true }, "status": { "code": "offsale" } },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "NSCI Dome",
+              "city": { "name": "Mumbai" },
+              "country": { "countryCode": "IN" }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "_links": {
+    "first": { "href": "/discovery/v2/events.json?page=0&size=2" },
+    "self": { "href": "/discovery/v2/events.json?page=0&size=2" },
+    "next": { "href": "/discovery/v2/events.json?page=1&size=2" },
+    "last": { "href": "/discovery/v2/events.json?page=1&size=2" }
+  },
+  "page": { "size": 5, "totalElements": 6, "totalPages": 2, "number": 0 }
+}

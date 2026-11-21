@@ -1,0 +1,54 @@
+name: Weekly checks
+# P4.2 (D-009): re-check artist Spotify ids older than 30 days, then a read-only data audit
+# (P1.10). The audit never runs with --fix here.
+on:
+  schedule:
+    - cron: "41 3 * * 1" # Mondays 03:41 UTC (09:11 IST)
+  workflow_dispatch:
+
+concurrency:
+  group: revalidate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+      # Required to build the Spotify module, even though matching only uses app tokens.
+      TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      # Optional: D-066 web corroboration for hard matches; without it they go to review.
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx tsx src/scripts/revalidate.ts
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Read-only report (READ ONLY transaction). Never pass --fix in CI.
+      - run: npx tsx src/scripts/audit-data.ts

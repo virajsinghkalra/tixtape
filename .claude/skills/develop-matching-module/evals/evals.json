@@ -1,0 +1,40 @@
+{
+  "skill_name": "develop-matching-module",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "Ritviz got matched to the wrong Spotify artist, fix matching",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "Add 'Anirudh' to the ambiguous names list with a test",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Why is the playlist missing tracks for headliners",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Make splitArtistCredit handle 'A B3B B B3B C' with tests",
+      "should_trigger": true,
+      "assertions": [
+        "follows the module's layer and ownership rules",
+        "adds colocated tests",
+        "lint, typecheck and targeted tests pass"
+      ]
+    }
+  ],
+  "_meta": {
+    "schema_version": "1"
+  }
+}

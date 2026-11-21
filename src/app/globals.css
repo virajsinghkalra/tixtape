@@ -1,26 +1,237 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Design tokens: the one place for colour, radius, type scale and motion.
+ * Mood: Gen Z gig culture. Loud colour blocks, chunky type, stickers, springy motion.
+ * Text on every block colour passes WCAG AA (ink on lime/pink/orange/sky, white on violet).
+ */
+
+/* Light theme values. `.theme-light` forces them (used by /design). */
+:root,
+.theme-light {
+  --bg: #f3f3f7;
+  --surface: #ffffff;
+  --surface-2: #e8e8ef;
+  --ink: #0b0b0f;
+  --muted: #55556a;
+  --line: rgb(11 11 15 / 0.12);
+  --accent-text: #3f5c00;
+  --matched: #15803d;
+  --pending: #55556a;
+  --review: #1d4ed8;
+  --missing: #be123c;
+  --focus: #6a4df5;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark theme values (the default feel). Kept in sync with `.theme-dark` below. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0b0b0f;
+    --surface: #16161d;
+    --surface-2: #22222b;
+    --ink: #f5f5f7;
+    --muted: #a9a9b8;
+    --line: rgb(245 245 247 / 0.1);
+    --accent-text: #c6f432;
+    --matched: #4ade80;
+    --pending: #a9a9b8;
+    --review: #7cc4ff;
+    --missing: #ff7a90;
+    --focus: #c6f432;
+    color-scheme: dark;
   }
 }
 
+.theme-dark {
+  --bg: #0b0b0f;
+  --surface: #16161d;
+  --surface-2: #22222b;
+  --ink: #f5f5f7;
+  --muted: #a9a9b8;
+  --line: rgb(245 245 247 / 0.1);
+  --accent-text: #c6f432;
+  --matched: #4ade80;
+  --pending: #a9a9b8;
+  --review: #7cc4ff;
+  --missing: #ff7a90;
+  --focus: #c6f432;
+  color-scheme: dark;
+}
+
+@theme inline {
+  /* Surfaces and text (switch with the theme). */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent-text: var(--accent-text);
+  --color-matched: var(--matched);
+  --color-pending: var(--pending);
+  --color-review: var(--review);
+  --color-missing: var(--missing);
+  --color-focus: var(--focus);
+
+  /* Loud blocks: the same in both themes. `on-block` is the text colour for all but violet. */
+  --color-lime: #c6f432;
+  --color-pink: #ff5fa2;
+  --color-violet: #6a4df5;
+  --color-orange: #ff8a3d;
+  --color-sky: #5cc8ff;
+  --color-night: #0b0b0f;
+  --color-on-block: #0b0b0f;
+  --color-accent: #c6f432;
+  --color-accent-ink: #0b0b0f;
+
+  /* Type. */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --text-mega: clamp(2.75rem, 10vw, 7rem);
+  --text-mega--line-height: 0.92;
+  --text-huge: clamp(2.25rem, 7vw, 4.5rem);
+  --text-huge--line-height: 0.95;
+  --text-big: clamp(1.6rem, 4vw, 2.5rem);
+  --text-big--line-height: 1.05;
+
+  /* Radius: chunky and friendly. */
+  --radius-chip: 999px;
+  --radius-tile: 28px;
+  --radius-card: 22px;
+  --radius-field: 18px;
+
+  /* Motion (TS mirrors these in src/components/ui/motion.ts). */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 500ms;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow-x: clip;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: var(--color-lime);
+    color: var(--color-night);
+  }
+}
+
+/* ---------- Motion: CSS for entrances so content paints without waiting for JS ---------- */
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    rotate: var(--tilt, -4deg);
+  }
+  50% {
+    rotate: calc(var(--tilt, -4deg) * -1);
+  }
+}
+
+@keyframes ring-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes story-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Staggered entrance: set --i on each item. */
+.pop-in {
+  animation: pop-in var(--duration-slow) var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+.marquee-track {
+  animation: marquee 40s linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    color-mix(in oklab, var(--surface-2), var(--ink) 7%) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.sticker-wiggle:hover {
+  animation: wiggle 0.5s var(--ease-spring);
+}
+
+.ring-spin {
+  animation: ring-spin 6s linear infinite;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop-in,
+  .marquee-track,
+  .skeleton,
+  .sticker-wiggle:hover,
+  .ring-spin {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,0 +1,27 @@
+{
+  "toptracks": {
+    "track": [
+      {
+        "name": "Udd Gaye",
+        "playcount": "1523401",
+        "listeners": "201345",
+        "mbid": "",
+        "url": "https://www.last.fm/music/Ritviz/_/Udd+Gaye",
+        "streamable": "0",
+        "artist": { "name": "Ritviz", "mbid": "", "url": "https://www.last.fm/music/Ritviz" },
+        "@attr": { "rank": "1" }
+      },
+      {
+        "name": "Liggi",
+        "playcount": "987001",
+        "listeners": "150002",
+        "mbid": "",
+        "url": "https://www.last.fm/music/Ritviz/_/Liggi",
+        "streamable": "0",
+        "artist": { "name": "Ritviz", "mbid": "", "url": "https://www.last.fm/music/Ritviz" },
+        "@attr": { "rank": "2" }
+      }
+    ],
+    "@attr": { "artist": "Ritviz", "page": "1", "perPage": "20", "totalPages": "1", "total": "2" }
+  }
+}

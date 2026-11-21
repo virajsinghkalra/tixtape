@@ -1,0 +1,40 @@
+{
+  "skill_name": "develop-web-ui",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "Build the type-ahead search box for events",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "The event page looks broken on my phone, fix the layout",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Spotify returns 429 during playlist creation",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Build the Concerts for you section on the home page with an E2E test",
+      "should_trigger": true,
+      "assertions": [
+        "follows the module's layer and ownership rules",
+        "adds colocated tests",
+        "lint, typecheck and targeted tests pass"
+      ]
+    }
+  ],
+  "_meta": {
+    "schema_version": "1"
+  }
+}

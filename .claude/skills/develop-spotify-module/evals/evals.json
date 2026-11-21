@@ -1,0 +1,40 @@
+{
+  "skill_name": "develop-spotify-module",
+  "evals": [
+    {
+      "id": 1,
+      "category": "trigger-positive",
+      "prompt": "Add the Spotify top artists endpoint for Concerts for you",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 2,
+      "category": "trigger-positive",
+      "prompt": "Spotify returns 429 with Retry-After 3000, what should our client do and fix it",
+      "should_trigger": true,
+      "assertions": ["skill auto-loads without manual invocation"]
+    },
+    {
+      "id": 3,
+      "category": "trigger-negative",
+      "prompt": "Change the lineup tier rules for Ticketmaster",
+      "should_trigger": false,
+      "assertions": ["skill does NOT auto-load"]
+    },
+    {
+      "id": 4,
+      "category": "functional",
+      "prompt": "Implement GET /me/following?type=artist behind a port with msw tests",
+      "should_trigger": true,
+      "assertions": [
+        "follows the module's layer and ownership rules",
+        "adds colocated tests",
+        "lint, typecheck and targeted tests pass"
+      ]
+    }
+  ],
+  "_meta": {
+    "schema_version": "1"
+  }
+}

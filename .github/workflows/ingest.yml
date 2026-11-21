@@ -1,0 +1,70 @@
+name: Ingest events
+# D-050: collect events every 3 hours (and on demand). Runs the automatic collector (P1.11),
+# Ticketmaster when a key is configured, then Spotify artist matching.
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "rollingstone | pollstar | wikipedia | sunburn | teaminnovation | ticketmaster | all"
+        required: false
+        default: all
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Keeps robots.txt, crawl-delay timestamps and Spotify artist verdicts between runs.
+      # Also keeps consecutive source failures for the D-060 alert. Restore and save are split
+      # so the state is saved even when the run fails (a failing source exits 1).
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules/.cache/lineupmixes
+          key: collector-state-${{ github.run_id }}
+          restore-keys: collector-state-
+      - name: Run ingest
+        env:
+          SOURCE: ${{ github.event.inputs.source || 'all' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          # Required to build the Spotify module, even though ingest only uses app tokens.
+          TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          # Optional: Ticketmaster is skipped when this is empty.
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          # D-059: the app mailbox in the collector's User-Agent. Not secret; a repository variable.
+          APP_CONTACT_EMAIL: ${{ vars.APP_CONTACT_EMAIL }}
+        run: npx tsx src/scripts/ingest.ts "--source=$SOURCE" --report=ingest-report.json
+      # D-060: alert when a source has failed 3 runs in a row. Only the alert secrets.
+      - name: Source health alerts
+        if: always()
+        env:
+          # Config validation requires a value; this step never connects to the database.
+          DATABASE_URL: postgres://unused/alerts
+          ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+          ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
+        run: npx tsx src/scripts/ingest-alerts.ts ingest-report.json
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/lineupmixes
+          key: collector-state-${{ github.run_id }}

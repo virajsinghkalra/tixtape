@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Pollstar News</title>
+	<atom:link href="https://news.pollstar.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://news.pollstar.com</link>
+	<description>The Voice of Live Entertainment</description>
+	<lastBuildDate>Fri, 20 Nov 2026 22:45:55 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=7.1.5</generator>
+
+<image>
+	<url>https://static.pollstar.com/wp-content/uploads/2025/01/ps-favicon-150x150.png</url>
+	<title>Pollstar News</title>
+	<link>https://news.pollstar.com</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+			<item>
+		<title>Carín León&#8217;s La Cura Fest To Return In 2027 With Kacey Musgraves, Reik, Intocable &#038; Hombres G</title>
+		<link>https://news.pollstar.com/2026/11/20/carin-leons-la-cura-fest-to-return-in-2027-with-kacey-musgraves-reik-intocable-hombres-g/</link>
+		
+		<dc:creator><![CDATA[Oscar Areliz]]></dc:creator>
+		<pubDate>Fri, 20 Nov 2026 20:23:04 +0000</pubDate>
+				<category><![CDATA[News]]></category>
+		<category><![CDATA[Festival]]></category>
+		<guid isPermaLink="false">https://news.pollstar.com/?p=1230815</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image size-full"><img decoding="async" width="1200" height="1500" src="https://static.pollstar.com/wp-content/uploads/2026/11/la-cura.jpg" alt="la cura" class="wp-image-1230816" srcset="https://static.pollstar.com/wp-content/uploads/2026/11/la-cura.jpg 1200w, https://static.pollstar.com/wp-content/uploads/2026/11/la-cura-240x300.jpg 240w, https://static.pollstar.com/wp-content/uploads/2026/11/la-cura-819x1024.jpg 819w, https://static.pollstar.com/wp-content/uploads/2026/11/la-cura-768x960.jpg 768w" sizes="(max-width: 1200px) 100vw, 1200px" /></figure>
+
+
+
+<p class="wp-block-paragraph">Carín León is bringing La Cura Fest back in 2027, announcing dates and the first wave of artists performing at the festival that bridges Mexican and country music. León will headline the two-day festival alongside Reik and Kacey Musgraves.</p>
+
+
+
+<p class="wp-block-paragraph">La Cura Fest takes place March 13 and 14 at Expogan Hermosillo in Sonora, Mexico. Other acts on the bill include Tejano standouts Intocable, rock legends Hombres G and Remmy Valenzuela. Additional artists will be announced. Visit <a href="https://www.lacurafest.com/" target="_blank" rel="noopener">lacurafest.com</a> for more information and to sign up for news about the onsale.</p>
+
+
+
+<p class="wp-block-paragraph">León, a global star who became the first Latin act to headline a residency at Sphere in Las Vegas, launched La Cura Fest earlier this year, drawing more than 70,000 fans across both days. The inaugural festival featured Spanish pop icon Alejandro Sanz, Grupo Frontera, indie-folk star Kevin Kaarl, Puerto Rican singer Kany García, Matisse, Gabito Ballesteros, Silvestre Dangond, Xavi, Bobby Pulido and more.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Top Tours: Ed Sheeran&#8217;s &#8216;Loop Tour&#8217; Grosses More Than $120M In North America</title>
+		<link>https://news.pollstar.com/2026/11/20/top-tours-ed-sheerans-loop-tour-grosses-more-than-120m-in-north-america/</link>
+		
+		<dc:creator><![CDATA[Bob Allen]]></dc:creator>
+		<pubDate>Fri, 20 Nov 2026 15:37:00 +0000</pubDate>
+				<category><![CDATA[Premium]]></category>
+		<category><![CDATA[News]]></category>
+		<category><![CDATA[Top Tours]]></category>
+		<guid isPermaLink="false">https://news.pollstar.com/?p=1230700</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[<p><strong>Please login to your Pollstar subscriber account to view this content.</strong></p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+	</channel>
+</rss>

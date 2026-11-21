@@ -1,0 +1,562 @@
+<title>Concert Playlist LLD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: technical spec — sticky contents rail on the left, one reading column; lineup "poster" block as the subject detail */
+:root {
+  --bg: #f7f7fa;
+  --surface: #ffffff;
+  --fg: #1b1d2a;
+  --muted: #5d6178;
+  --line: #e1e2ea;
+  --accent: #c2255c;
+  --accent-soft: #fbe7ee;
+  --code-bg: #f0f1f6;
+  --ok: #1f7a4d;
+  --ok-soft: #e3f4ea;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dc;
+  --bad: #b42318;
+  --bad-soft: #fde8e6;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12131b; --surface: #1a1c27; --fg: #e7e8f0; --muted: #a0a3b8; --line: #2c2f3e;
+    --accent: #f06595; --accent-soft: #3a1c2a; --code-bg: #20222f;
+    --ok: #63c58f; --ok-soft: #173326; --warn: #f0b44c; --warn-soft: #3a2c12; --bad: #f97066; --bad-soft: #3d1a17;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12131b; --surface: #1a1c27; --fg: #e7e8f0; --muted: #a0a3b8; --line: #2c2f3e;
+  --accent: #f06595; --accent-soft: #3a1c2a; --code-bg: #20222f;
+  --ok: #63c58f; --ok-soft: #173326; --warn: #f0b44c; --warn-soft: #3a2c12; --bad: #f97066; --bad-soft: #3d1a17;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.shell { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; max-height: 100vh; overflow-y: auto; }
+nav.toc p { font: 600 11px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: s -1; }
+nav.toc li { counter-increment: s; }
+nav.toc a { display: flex; gap: 10px; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 13.5px; }
+nav.toc a::before { content: counter(s); font-family: var(--font-mono); font-size: 12px; min-width: 16px; color: var(--muted); opacity: .7; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--code-bg); color: var(--fg); outline: none; }
+main { min-width: 0; padding-top: 40px; }
+header.doc { padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+h1 { font: 700 clamp(28px, 4vw, 40px)/1.1 var(--font-display); margin: 0 0 12px; text-wrap: balance; letter-spacing: -.01em; }
+.lede { color: var(--muted); max-width: 68ch; margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.chip { font: 500 12px/1 var(--font-body); padding: 6px 10px; border-radius: 999px; background: var(--code-bg); color: var(--muted); }
+section { padding-top: 40px; scroll-margin-top: 16px; }
+h2 { font: 600 22px/1.25 var(--font-display); margin: 0 0 14px; display: flex; gap: 12px; align-items: baseline; text-wrap: balance; }
+h2 .n { font-family: var(--font-mono); font-size: 14px; color: var(--accent); font-weight: 500; }
+h3 { font: 600 16px/1.3 var(--font-display); margin: 24px 0 8px; }
+p, li { max-width: 72ch; }
+ul, ol { padding-left: 20px; }
+li { margin: 4px 0; }
+a { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+pre code { background: none; padding: 0; overflow-wrap: normal; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--line); text-align: center; }
+.tbl { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px/1.3 var(--font-body); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+.unv { font: 600 10.5px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--warn); background: var(--warn-soft); padding: 3px 6px; border-radius: 4px; white-space: nowrap; }
+.constraints { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 8px; }
+.con { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--bad); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.con h3 { margin: 0 0 6px; font-size: 15px; }
+.con p { margin: 0 0 8px; font-size: 14px; }
+.con .then { color: var(--fg); font-weight: 500; margin: 0; }
+.con .then::before { content: "→ "; color: var(--accent); }
+.poster { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; text-align: center; display: grid; gap: 10px; margin: 12px 0; }
+.poster .tier { display: grid; gap: 2px; }
+.poster .names { font-family: var(--font-display); font-weight: 700; letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.poster .t1 .names { font-size: clamp(20px, 3.2vw, 30px); }
+.poster .t2 .names { font-size: clamp(16px, 2.4vw, 21px); }
+.poster .t3 .names { font-size: 15px; font-weight: 600; }
+.poster .t4 .names { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.poster .count { font: 500 12px/1 var(--font-mono); color: var(--accent); }
+.pill { display: inline-block; font: 600 11px/1 var(--font-body); padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: var(--ok-soft); }
+.pill.no { color: var(--bad); background: var(--bad-soft); }
+.pill.mid { color: var(--warn); background: var(--warn-soft); }
+.callout { background: var(--accent-soft); border-radius: 8px; padding: 14px 16px; margin: 16px 0; }
+.callout p { margin: 0; }
+.steps { list-style: none; padding: 0; display: grid; gap: 10px; counter-reset: w; }
+.steps li { counter-increment: w; display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; max-width: none; margin: 0; }
+.steps li::before { content: "Week " counter(w); font: 600 13px/1.4 var(--font-display); color: var(--accent); }
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  nav.toc { position: static; max-height: none; padding-top: 24px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+  nav.toc ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  main { padding-top: 24px; }
+  .constraints { grid-template-columns: minmax(0, 1fr); }
+  .steps li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="shell">
+<nav class="toc" aria-label="Contents">
+  <p>Contents</p>
+  <ol>
+    <li><a href="#constraints">Hard constraints</a></li>
+    <li><a href="#scope">Scope</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#stack">Tech stack</a></li>
+    <li><a href="#data-model">Data model</a></li>
+    <li><a href="#ingestion">Event ingestion</a></li>
+    <li><a href="#resolution">Artist matching</a></li>
+    <li><a href="#generation">Playlist generation</a></li>
+    <li><a href="#spotify-client">Spotify client</a></li>
+    <li><a href="#api">HTTP API</a></li>
+    <li><a href="#frontend">Pages</a></li>
+    <li><a href="#schedules">Schedules</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#repo">Repo layout</a></li>
+    <li><a href="#testing">Testing</a></li>
+    <li><a href="#risks">Risks</a></li>
+    <li><a href="#milestones">Milestones</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="doc">
+  <p class="eyebrow">Low-level design · Draft v1</p>
+  <h1>Concert &amp; festival lineup → Spotify playlist</h1>
+  <p class="lede">A user picks an upcoming concert or festival, mostly in India. The app turns its lineup into a playlist in the user's Spotify account. This draft merges three research passes: web app architecture, event data sources, and the Spotify API as of November 2026.</p>
+  <div class="meta">
+    <span class="chip">21 Nov 2026</span>
+    <span class="chip">MVP: 4 weeks · ≤5 users</span>
+    <span class="chip">TypeScript · Postgres · $0 hosting</span>
+  </div>
+</header>
+
+<section id="constraints">
+  <h2><span class="n">0</span>Hard constraints</h2>
+  <p>These four facts drive most of the decisions below.</p>
+  <div class="constraints">
+    <div class="con">
+      <h3>Spotify caps new apps at 5 users</h3>
+      <p>Development Mode allows 5 allow-listed users, and the owner needs Premium. Extended Quota needs a registered business with about 250k monthly users. (<a href="https://developer.spotify.com/documentation/web-api/concepts/quota-modes">quota modes</a>, <a href="https://developer.spotify.com/blog/2025-04-15-updating-the-criteria-for-web-api-extended-access">criteria</a>)</p>
+      <p class="then">The MVP is a closed beta. A public launch needs a product decision (§15).</p>
+    </div>
+    <div class="con">
+      <h3>Top tracks and popularity are gone</h3>
+      <p>New apps lost <code>/artists/{id}/top-tracks</code>, batch gets, and the <code>popularity</code> and <code>followers</code> fields. Search is capped at <code>limit=10</code>. Use <code>POST /me/playlists</code> and <code>/playlists/{id}/items</code>. (<a href="https://developer.spotify.com/documentation/web-api/references/changes/february-2026">Feb 2026 changelog</a>)</p>
+      <p class="then">We build our own "top tracks" list from search (§7).</p>
+    </div>
+    <div class="con">
+      <h3>No API covers Indian lineups</h3>
+      <p>BookMyShow and District have no public API and restrict scraping. Instagram and Facebook collection breaches Meta Terms §3.2.3. Ticketmaster doesn't operate in India.</p>
+      <p class="then">For India, admins enter events and users can submit lineups. Nothing is scraped.</p>
+    </div>
+    <div class="con">
+      <h3>Spotify blocks can last hours</h3>
+      <p>Developers report <code>Retry-After</code> values of up to about 19 hours, and calling during a block reportedly extends it. The quota is shared across the whole developer account.</p>
+      <p class="then">One shared throttle. Long blocks pause the job and resume it later (§8).</p>
+    </div>
+    <div class="con">
+      <h3>Hosting must cost $0</h3>
+      <p>The app is free, so every piece has to fit in a free tier. That rules out always-on worker processes and a separate Redis server. One cost remains: the Spotify app owner needs a Premium subscription.</p>
+      <p class="then">Serverless web app, Postgres as the job queue, scheduled jobs on GitHub Actions (§2).</p>
+    </div>
+  </div>
+</section>
+
+<section id="scope">
+  <h2><span class="n">1</span>Scope</h2>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>MVP (≈4 weeks)</th><th>Phase 2</th><th>Phase 3</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Events</strong></td><td>Admin manual entry (India) + Ticketmaster Discovery (global)</td><td>User-submitted lineups with poster OCR/LLM prefill and moderation; RSS/sitemap "new event" flags; JamBase if India coverage is confirmed</td><td>BookMyShow / District partner feeds, if a deal happens</td></tr>
+      <tr><td><strong>Artist matching</strong></td><td>Auto-match + admin review queue</td><td>User confirms low-confidence matches while generating</td><td>MusicBrainz cross-check</td></tr>
+      <tr><td><strong>Tracks</strong></td><td>"Hits" mode (search-based)</td><td>"Likely setlist" mode (setlist.fm)</td><td>Separate playlists per day or stage</td></tr>
+      <tr><td><strong>Playlists</strong></td><td>Create and update, idempotent</td><td>Re-sync on lineup change; cover image</td><td>Apple Music / YouTube export</td></tr>
+      <tr><td><strong>Users</strong></td><td>≤5 (Development Mode)</td><td>—</td><td>Depends on the §15 decision</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="architecture">
+  <h2><span class="n">2</span>Architecture</h2>
+  <p>One repo, no servers to keep running, and $0 a month. The web app runs on Vercel's free plan, the database is Neon's free Postgres, and scheduled jobs run on free GitHub Actions. There is no Redis and no always-on worker: Postgres holds the job queue and the Spotify pause flag.</p>
+<pre class="mermaid">
+flowchart LR
+  B[Browser] -- "start job, then call /step every ~1.5s" --> W["Next.js on Vercel<br/>(free Hobby plan)"]
+  W --- DB[("Neon Postgres (free)<br/>jobs · pause flag · data")]
+  GH["GitHub Actions cron<br/>ingest · resolve · revalidate · sweep"] --- DB
+  W --> G{{"SpotifyClient<br/>shared rate gate"}}
+  GH --> G
+  G --> S["Spotify Web API"]
+  GH --> E["Ticketmaster · setlist.fm · MusicBrainz"]
+</pre>
+  <ul>
+    <li><strong>Playlist jobs run in short steps.</strong> Serverless functions can't run for minutes, so the browser calls <code>POST /api/playlist-jobs/:id/step</code> every ~1.5 seconds while the page is open. Each call does up to ~8 seconds of work, saves a checkpoint, and returns progress. A short lease (<code>locked_until</code>) stops two steps running at once. If the user closes the tab, the job continues when they come back, or the next scheduled sweep finishes it.</li>
+    <li><strong>Background work runs on a schedule.</strong> Event sync, artist matching and re-checks run as Node scripts in GitHub Actions and write straight to Postgres. They're free and unlimited for a public repo; a private repo gets 2,000 minutes a month, and a daily 5-minute run uses about 150.</li>
+    <li>Every Spotify call goes through one <code>SpotifyClient</code> whose pause flag lives in Postgres, because the quota is counted per developer account.</li>
+    <li><strong>Artists are matched to Spotify when the event comes in</strong>, not when someone generates a playlist. A cached festival then costs about 80 track searches plus 6 write calls instead of about 180.</li>
+  </ul>
+</section>
+
+<section id="stack">
+  <h2><span class="n">3</span>Tech stack</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Concern</th><th>Choice</th><th>Rejected, and why</th></tr></thead>
+    <tbody>
+      <tr><td>Language</td><td>TypeScript everywhere</td><td>TS + FastAPI: two runtimes and duplicated models; Python's scraping advantage doesn't matter because we don't scrape</td></tr>
+      <tr><td>Web</td><td>Next.js 15 App Router, TanStack Query, Tailwind</td><td>SPA + separate API: one more thing to deploy</td></tr>
+      <tr><td>ORM / validation</td><td>Drizzle + Zod</td><td>Prisma: heavier, less control over upserts</td></tr>
+      <tr><td>Database</td><td>Neon free Postgres with <code>pg_trgm</code> and JSONB (0.5 GB is plenty for events and artists)</td><td>Supabase free: pauses the project after a week of inactivity. MongoDB: we need joins and unique constraints</td></tr>
+      <tr><td>Queue</td><td><code>playlist_jobs</code> table, run in steps driven by the browser + a scheduled sweep</td><td>BullMQ + Redis: needs an always-on worker and a Redis host, neither free</td></tr>
+      <tr><td>OAuth</td><td><code>arctic</code>: Authorization Code + PKCE + <code>state</code>, server-side</td><td>Auth.js: stores tokens in plaintext, awkward refresh rotation</td></tr>
+      <tr><td>Hosting</td><td>Vercel Hobby (free, personal/non-commercial use) + GitHub Actions for scheduled jobs. <strong>$0/month</strong></td><td>Railway: ~$10–25/month. Cloudflare Workers (free, allows commercial use) is the fallback if the app ever earns money</td></tr>
+      <tr><td>Observability</td><td>Sentry free tier, Vercel logs, an admin page listing jobs and ingest runs</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="data-model">
+  <h2><span class="n">4</span>Data model</h2>
+<pre><code>venues(id, name, normalized_name, city, state, country, lat, lng,
+       UNIQUE(normalized_name, city))
+venue_aliases(venue_id, alias)          -- "Mahalakshmi Race Course" = "Mahalaxmi Racecourse"
+
+events(id, title, type ENUM(concert,festival), venue_id, starts_at, ends_at,
+       status ENUM(announced,partial_lineup,full_lineup,cancelled),
+       image_url, lineup_hash, dedupe_key UNIQUE, created_at, updated_at)
+event_sources(event_id, source ENUM(admin,ticketmaster,jambase,user_submission),
+              external_id, url, raw JSONB, last_seen_at, UNIQUE(source, external_id))
+
+artists(id, name, normalized_name /*trgm idx*/, spotify_id UNIQUE NULL,
+        match_score, match_status ENUM(auto,needs_review,manual,not_found),
+        mbid, image_url, spotify_resolved_at)
+artist_aliases(artist_id, alias_normalized UNIQUE)
+event_artists(event_id, artist_id, billing_rank,
+              tier ENUM(headliner,sub,mid,support), day, stage,
+              PRIMARY KEY(event_id, artist_id))
+artist_track_cache(artist_id, mode ENUM(hits,setlist), spotify_track_ids text[],
+                   fetched_at)                    -- 7-day TTL
+
+users(id, spotify_user_id UNIQUE, display_name, market DEFAULT 'IN', role, created_at)
+spotify_tokens(user_id PK, access_token_enc, refresh_token_enc, key_version,
+               scope, expires_at, needs_reauth bool)   -- AES-256-GCM
+sessions(id_hash PK, user_id, expires_at)
+
+playlists(id, user_id, event_id, options_hash, spotify_playlist_id, track_ids text[],
+          snapshot_id, lineup_hash_at_build, UNIQUE(user_id, event_id, options_hash))
+playlist_jobs(id, idempotency_key UNIQUE, user_id, event_id, options JSONB,
+              status ENUM(queued,running,paused,succeeded,partial,failed),
+              stage, progress, artists_done, artists_total, checkpoint JSONB,
+              resume_after timestamptz, locked_until timestamptz,
+              error, playlist_id, timestamps)
+spotify_gate(id SMALLINT PK DEFAULT 1, paused_until timestamptz)   -- one row, replaces Redis
+
+submissions(id, user_id, payload JSONB, poster_url,
+            status ENUM(pending,approved,rejected))          -- phase 2
+ingest_runs(id, source, started_at, finished_at, status, items_seen, items_new, error)</code></pre>
+  <ul>
+    <li>In Development Mode <code>/me</code> no longer returns <code>country</code>, so the user sets <code>users.market</code> (default <code>IN</code>).</li>
+    <li>Spotify IDs are re-checked every 30 days, because Spotify's terms don't allow storing its content indefinitely (IV.3.1.1).</li>
+    <li>When a user disconnects, delete their tokens and personal rows within 5 days (Terms Appendix A §5(c)).</li>
+  </ul>
+</section>
+
+<section id="ingestion">
+  <h2><span class="n">5</span>Event ingestion</h2>
+  <h3>Sources</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Source</th><th>Status</th><th>How</th><th>Cadence</th></tr></thead>
+    <tbody>
+      <tr><td>Admin console</td><td><span class="pill ok">MVP</span></td><td>Form for event, venue, dates and an ordered lineup (paste one name per line, with tier)</td><td>Manual; ~30–60 India events a year</td></tr>
+      <tr><td>Ticketmaster Discovery</td><td><span class="pill ok">MVP</span></td><td><code>classificationName=music</code> by country; performers from <code>_embedded.attractions</code>, whose order roughly matches billing</td><td>Daily for the next 12 months; every 6h for events within 30 days. Limit 5k calls/day, 5 req/s</td></tr>
+      <tr><td>User submissions</td><td><span class="pill mid">Phase 2</span></td><td>Event + lineup + link or poster; OCR/LLM prefills names; moderation queue</td><td>On submit</td></tr>
+      <tr><td>RSS / District sitemap</td><td><span class="pill mid">Phase 2</span></td><td>Only flags a possible new event for the admin. Never republishes content</td><td>Every 6–12h</td></tr>
+      <tr><td>Instagram, Facebook, BookMyShow, District scraping</td><td><span class="pill no">Excluded</span></td><td>Terms prohibit automated collection; bot protection</td><td>—</td></tr>
+      <tr><td>Songkick, Bandsintown, X</td><td><span class="pill no">Excluded</span></td><td>Songkick is paid and partner-only; Bandsintown gives keys to artists only; X is pay-per-read and low-yield</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Adapter contract</h3>
+<pre><code>interface SourceAdapter {
+  source: SourceName;
+  fetch(since?: Date): AsyncIterable&lt;RawEvent&gt;;   // RawEvent validated with Zod
+}
+// fetch → normalize → dedupe/merge → upsert → enqueue artist-resolve for new artists</code></pre>
+  <h3>Deduplication</h3>
+  <ul>
+    <li><strong>Candidates:</strong> events with the same country and city whose start dates are within a day of each other.</li>
+    <li><strong>Score:</strong> 0.4 × venue similarity (Jaro-Winkler after alias lookup) + 0.3 × event-name token overlap (year and edition removed) + 0.3 × overlap of matched artists (Jaccard).</li>
+    <li><strong>Decision:</strong> at 0.85 or above, merge automatically. Between 0.6 and 0.85, send to the admin queue.</li>
+    <li><strong>When sources disagree:</strong> admin beats JamBase, which beats Ticketmaster, which beats a user submission.</li>
+    <li><strong>Lineup changes:</strong> recompute <code>lineup_hash</code>. A change marks existing playlists as stale.</li>
+  </ul>
+</section>
+
+<section id="resolution">
+  <h2><span class="n">6</span>Artist matching</h2>
+  <p>The <code>artist-resolve</code> job uses an app token (client credentials) and goes through the same rate gate at low priority.</p>
+  <ol>
+    <li><strong>Normalize the name:</strong> NFKD, strip diacritics, casefold, and map <code>&amp;</code>/<code>and</code>/<code>+</code> to one form. Strip a leading "the" or "DJ ", and suffixes like "(live)", "(DJ set)", "[hybrid]".</li>
+    <li><strong>Split</strong> <code>b2b</code> and <code>vs</code> entries into separate artists. Split on <code>&amp;</code> only if the full name doesn't match, because many bands have "&amp;" in their name.</li>
+    <li><strong>Check</strong> <code>artist_aliases</code> first. If the name is there, stop.</li>
+    <li><strong>Search</strong> <code>type=artist&amp;limit=10</code> twice: once with <code>q=artist:"&lt;raw&gt;"</code> and once with the normalized name.</li>
+    <li><strong>Score</strong> each candidate (popularity is no longer available):</li>
+  </ol>
+  <div class="tbl"><table>
+    <thead><tr><th>Signal</th><th>Points</th></tr></thead>
+    <tbody>
+      <tr><td>Exact match after normalizing</td><td>+50</td></tr>
+      <tr><td>Differs only in accents</td><td>+30</td></tr>
+      <tr><td>Matches after removing "DJ"</td><td>+25</td></tr>
+      <tr><td>Search position (rank 0 is the top result)</td><td>up to +15, as <code>15 − 1.5 × rank</code></td></tr>
+      <tr><td>Has images</td><td>+10</td></tr>
+      <tr><td>Genre overlaps the event's genre <span class="unv">unverified</span></td><td>+10</td></tr>
+      <tr><td>MusicBrainz links to the same Spotify artist (phase 3)</td><td>+20</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Decision:</strong> accept automatically if the top score is at least 70 and beats the runner-up by at least 15. Otherwise mark it <code>needs_review</code>, and the admin picks from the top 3 with images and albums. Always send for review: names of 3 characters or fewer, common words, and names shared by several artists.</p>
+</section>
+
+<section id="generation">
+  <h2><span class="n">7</span>Playlist generation</h2>
+  <h3>Tracks per billing tier (default)</h3>
+  <div class="poster" aria-label="Example lineup showing tracks per tier">
+    <div class="tier t1"><span class="names">Headliners</span><span class="count">10 tracks each</span></div>
+    <div class="tier t2"><span class="names">Sub-headliners</span><span class="count">5 tracks each</span></div>
+    <div class="tier t3"><span class="names">Mid-card</span><span class="count">3 tracks each</span></div>
+    <div class="tier t4"><span class="names">Support · DJs · Openers</span><span class="count">2 tracks each</span></div>
+  </div>
+<pre><code>options = { tracksPerTier: {headliner:10, sub:5, mid:3, support:2},
+            artistFilter: 'all' | 'headliners' | ids[],
+            mode: 'hits' | 'setlist', order: 'billing' | 'shuffle', public: false }</code></pre>
+
+  <h3>Track selection</h3>
+  <ul>
+    <li><strong>Hits mode (MVP):</strong>
+      <ul>
+        <li>Search <code>type=track&amp;q=artist:"&lt;exact name&gt;"&amp;limit=10&amp;market=&lt;user.market&gt;</code>.</li>
+        <li>Keep only tracks whose <code>artists[]</code> includes the matched Spotify artist ID.</li>
+        <li>If that gives too few, take the first tracks of the newest albums and singles.</li>
+        <li><span class="unv">unverified</span> Whether search results come back roughly in popularity order. Test this on day 1.</li>
+      </ul>
+    </li>
+    <li><strong>Setlist mode (phase 2):</strong>
+      <ul>
+        <li>Count how often each song appears in the artist's recent setlists on setlist.fm.</li>
+        <li>Search <code>track:"&lt;song&gt;" artist:"&lt;name&gt;"</code>, prefer studio versions over live or karaoke ones, and match on artist ID plus title.</li>
+        <li>Requires a commercial agreement with setlist.fm once the app makes money.</li>
+      </ul>
+    </li>
+    <li><strong>Dedupe</strong> by track ID, then ISRC (<code>external_ids.isrc</code>, restored in March 2026), then title + artist.</li>
+    <li><strong>Cache</strong> each artist's track picks in <code>artist_track_cache</code> for 7 days.</li>
+  </ul>
+
+  <h3>Job lifecycle</h3>
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --> queued
+  queued --> running
+  running --> succeeded
+  running --> partial: some artists unmatched
+  running --> paused: long 429 / quota exceeded
+  paused --> running: resume_after passed
+  running --> failed: Spotify login expired
+</pre>
+  <ul>
+    <li>A running job moves through the stages resolve → select → create → add → cover, a few calls per <code>/step</code> request.</li>
+    <li>Each step claims the job with <code>UPDATE … SET locked_until = now() + 15s WHERE id = $1 AND (locked_until IS NULL OR locked_until &lt; now())</code>. If no row comes back, another step is already running and this one just returns progress.</li>
+    <li><code>checkpoint</code> stores <code>{selectedTrackIds, playlistId, chunksDone}</code>, so a resumed job never repeats work.</li>
+    <li>The Spotify playlist ID is saved right after <code>POST /me/playlists</code>, before any tracks are added.</li>
+    <li>Tracks are added in chunks of 100 via <code>POST /playlists/{id}/items</code>, saving progress after each chunk. When updating an existing playlist, the first chunk uses <code>PUT</code> to replace its contents.</li>
+  </ul>
+
+  <h3>Call budget for an 80-artist festival (~305 tracks)</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Step</th><th>First time</th><th>Cached</th></tr></thead>
+    <tbody>
+      <tr><td>Artist search (done when the event is added)</td><td>~92</td><td>0</td></tr>
+      <tr><td>Track search (hits mode)</td><td>80</td><td>0–80</td></tr>
+      <tr><td>Create + 4 add chunks + cover</td><td>6</td><td>6</td></tr>
+      <tr><td><strong>Calls when the user clicks Generate</strong></td><td><strong>~86</strong></td><td><strong>6–86</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>Setlist mode adds about 300 more track searches, which is one more reason it waits for phase 2.</p>
+</section>
+
+<section id="spotify-client">
+  <h2><span class="n">8</span>Spotify client layer</h2>
+  <h3>Tokens</h3>
+  <ul>
+    <li>Reuse the stored access token while it has more than 60 seconds left.</li>
+    <li>Otherwise lock on the user (Postgres advisory lock), refresh it, and save any new refresh token Spotify returns.</li>
+    <li>If Spotify answers <code>invalid_grant</code>, mark the user as needing to reconnect and fail the job with a "Reconnect Spotify" message.</li>
+    <li>Access tokens last 1 hour. Refresh tokens expire 6 months after issue, and refreshing doesn't extend them.</li>
+    <li>Scopes: <code>playlist-modify-private</code> and <code>playlist-modify-public</code>, plus <code>ugc-image-upload</code> once covers ship.</li>
+  </ul>
+  <h3>Rate gate: the only path to Spotify</h3>
+<pre><code>async function call(req, { priority }) {
+  const pausedUntil = await gate.pausedUntil();   // spotify_gate row, cached ~2s per instance
+  if (pausedUntil &gt; now) throw new SpotifyPaused(pausedUntil);   // step returns; browser retries later
+  await bucket.take();      // ~2–3 req/s, max 3 in flight per step (tunable; Spotify publishes no numbers)
+  const r = await fetch(req);
+  if (r.status === 429) {
+    const body = await r.json().catch(() =&gt; ({}));
+    const ra = parseRetryAfter(r.headers.get('Retry-After'));  // seconds or HTTP-date; NaN-safe
+    if (body?.error?.reason === 'QUOTA_EXCEEDED' || (ra ?? 0) &gt; 120)
+      throw new SpotifyBlocked(ra);          // job → paused(resume_after); no retry
+    await setMaxPausedUntil(now + (ra ?? fullJitter(attempt, 1, 60)) + rand(0, 0.5));
+    return retry();                          // ≤5 attempts
+  }
+  if (r.status &gt;= 500) return retryWithFullJitter();
+  return r;
+}</code></pre>
+  <ul>
+    <li><code>setMaxPausedUntil</code> is one SQL statement, <code>UPDATE spotify_gate SET paused_until = GREATEST(paused_until, $1)</code>, so the later deadline always wins.</li>
+    <li>No calls go out during a pause, because developers report that calling during a block extends it.</li>
+    <li>Playlists users are waiting for run before background ingest and matching work.</li>
+  </ul>
+  <h3>Idempotency</h3>
+  <ul>
+    <li><code>POST /api/playlist-jobs</code> requires an <code>Idempotency-Key</code> header, so a double-click starts only one job.</li>
+    <li>If a playlist already exists for the same user, event and options, the UI offers "Update existing" instead of creating a duplicate.</li>
+  </ul>
+</section>
+
+<section id="api">
+  <h2><span class="n">9</span>HTTP API</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /api/events?city=&amp;from=&amp;to=&amp;q=&amp;type=</code></td><td>List and search events</td></tr>
+      <tr><td><code>GET /api/events/:id</code></td><td>Event with its lineup, tiers and match status</td></tr>
+      <tr><td><code>GET /api/auth/spotify/login</code>, <code>/callback</code>, <code>POST /api/auth/logout</code>, <code>GET /api/me</code></td><td>Spotify login and session</td></tr>
+      <tr><td><code>PATCH /api/me</code></td><td>Set market</td></tr>
+      <tr><td><code>POST /api/playlist-jobs</code></td><td><code>{eventId, options}</code> → <code>202 {jobId}</code>; limited to 5 per user per hour</td></tr>
+      <tr><td><code>POST /api/playlist-jobs/:id/step</code></td><td>Does up to ~8s of work, then returns <code>{status, stage, progress, artistsDone, artistsTotal, unresolved[], resumeAfter, playlistUrl}</code></td></tr>
+      <tr><td><code>GET /api/playlist-jobs/:id</code></td><td>Same status without doing any work</td></tr>
+      <tr><td><code>GET /api/playlists</code></td><td>The user's playlists, flagged when stale</td></tr>
+      <tr><td><code>DELETE /api/me</code></td><td>Disconnect Spotify and delete the user's data</td></tr>
+      <tr><td><code>GET/PATCH /api/admin/artists?status=needs_review</code>, <code>POST/PATCH /api/admin/events</code>, <code>POST /api/admin/ingest/:source/run</code></td><td>Admin curation</td></tr>
+    </tbody>
+  </table></div>
+  <p>While the event page is open, it calls <code>/step</code> every 1.5 seconds and stops at a final status. That one request both moves the job forward and reports progress, so no background worker is needed.</p>
+</section>
+
+<section id="frontend">
+  <h2><span class="n">10</span>Pages</h2>
+  <ul>
+    <li><code>/</code>: upcoming events, filtered by city.</li>
+    <li><code>/events/[id]</code>: the lineup by tier, a "Generate playlist" panel, and live progress.</li>
+    <li><code>/playlists</code>: past playlists, with a "Re-sync" button when the lineup has changed.</li>
+    <li><code>/admin/events</code>, <code>/admin/artists</code> (review queue), <code>/admin/jobs</code> (playlist jobs and ingest runs).</li>
+    <li>Credit Spotify and link to it wherever tracks or artists appear (Spotify Policy II.4). The app name must not start with "Spot".</li>
+  </ul>
+</section>
+
+<section id="schedules">
+  <h2><span class="n">11</span>Background schedules</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Job</th><th>Runs on</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><code>ingest:ticketmaster</code></td><td>GitHub Actions</td><td>Daily at 03:10 IST; every 6h for events within 30 days</td></tr>
+      <tr><td><code>artist-resolve</code></td><td>GitHub Actions</td><td>Right after each ingest run, and when an admin saves an event</td></tr>
+      <tr><td><code>artist-revalidate</code></td><td>GitHub Actions</td><td>Weekly; re-checks Spotify IDs older than 30 days</td></tr>
+      <tr><td><code>track-cache-expire</code></td><td>GitHub Actions</td><td>Daily; drops cached track picks older than 7 days</td></tr>
+      <tr><td><code>playlist-sweep</code></td><td>GitHub Actions</td><td>Every 30 minutes; finishes jobs left unfinished when users closed the tab, and resumes paused jobs whose wait is over</td></tr>
+      <tr><td><code>stale-playlists</code></td><td>Inside the ingest run</td><td>When a lineup changes; marks affected playlists stale</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="security">
+  <h2><span class="n">12</span>Security &amp; compliance</h2>
+  <ul>
+    <li>Spotify tokens are encrypted with AES-256-GCM, with a key version so keys can rotate. They never reach the browser.</li>
+    <li>Session cookie: httpOnly, Secure, SameSite=Lax, holding a random ID that is stored hashed.</li>
+    <li>The GitHub Actions jobs get only the secrets they need (database URL for a restricted role, Spotify client ID and secret). They never get the token encryption key, so they can't read user tokens; the playlist sweep, which does need it, runs as a separate workflow.</li>
+    <li>Every external payload is validated with Zod. Raw HTML from outside is never rendered.</li>
+    <li>Spotify Policy: no app about a single artist (II.1), credit Spotify (II.4), no machine learning on Spotify content (III.13–14), easy disconnect (I.1.2).</li>
+    <li><span class="unv">unverified</span> Whether Policy III.5, which bans products "integrated with content from another service", covers setlist.fm data. Check before shipping setlist mode.</li>
+    <li>Redirect URIs must use HTTPS. For local development use <code>http://127.0.0.1:3000/api/auth/spotify/callback</code>, because <code>localhost</code> is rejected.</li>
+  </ul>
+</section>
+
+<section id="repo">
+  <h2><span class="n">13</span>Repo layout</h2>
+<pre><code>concert-playlist-app/
+├─ src/
+│  ├─ app/                                  # Next.js routes + api/*/route.ts
+│  ├─ components/
+│  ├─ server/{events,artists,playlists,auth}/   # domain logic, no framework imports
+│  ├─ lib/spotify/{client,limiter,tokens,resolve,tracks}.ts
+│  ├─ lib/{crypto,jobs,logger,env}.ts         # jobs.ts: claim / step / checkpoint
+│  ├─ db/{schema.ts,client.ts,migrations/}
+│  ├─ ingest/{sources/{ticketmaster,admin,submission}.ts, normalize.ts, dedupe.ts, types.ts}
+│  └─ scripts/{ingest,resolve,revalidate,sweep}.ts   # run by GitHub Actions
+├─ .github/workflows/{ingest,revalidate,sweep}.yml
+├─ tests/{unit,integration}/
+├─ docker-compose.yml                       # local postgres only
+└─ drizzle.config.ts · .env.example</code></pre>
+</section>
+
+<section id="testing">
+  <h2><span class="n">14</span>Testing</h2>
+  <ul>
+    <li><strong>Unit tests:</strong> name normalization and B2B splitting; match scoring (table-driven, with Indian names and DJ aliases); dedupe scoring; <code>parseRetryAfter</code> with seconds, a date, garbage and a missing header.</li>
+    <li><strong>Rate gate:</strong> a fake Spotify server returns 429 with <code>Retry-After: 2</code>, <code>Retry-After: 5000</code>, and a <code>QUOTA_EXCEEDED</code> body. Check that all workers pause together, nothing is sent during the pause, and the job ends up paused.</li>
+    <li><strong>Resume:</strong> abort a step partway through adding tracks, and fire two steps at once. Check there's no duplicate playlist and no duplicate tracks.</li>
+    <li><strong>Day-1 check against the real API:</strong> are search results roughly in popularity order, and is <code>genres</code> filled in for Development Mode apps?</li>
+  </ul>
+</section>
+
+<section id="risks">
+  <h2><span class="n">15</span>Risks &amp; open decisions</h2>
+  <div class="callout"><p><strong>Decision needed before a public launch:</strong> with Spotify's 5-user cap, choose between a personal or invite-only tool; users bringing their own Spotify developer credentials (whether Spotify's terms allow this is unverified); a public track-list page where only invited users can save to Spotify; or adding Apple Music, which has an official way to create playlists.</p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Risk</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>R1</td><td>The 5-user cap blocks a public launch</td><td>Product decision above; worth a dedicated research pass</td></tr>
+      <tr><td>R2</td><td>No API for Indian lineups</td><td>Admin curation now; pursue BookMyShow and District affiliate or partner deals</td></tr>
+      <tr><td>R3</td><td>Search results aren't true "top tracks"</td><td>Day-1 check; setlist mode in phase 2</td></tr>
+      <tr><td>R4</td><td>Spotify blocks lasting hours</td><td>Pause and resume (§8); fewer calls thanks to matching artists at ingest</td></tr>
+      <tr><td>R5</td><td>Wrong artist matched</td><td>Review queue, alias table, user confirmation in phase 2</td></tr>
+      <tr><td>R6</td><td>setlist.fm and JamBase commercial terms</td><td>Stay non-commercial until agreements are signed. JamBase's paid plans are out of scope for a free app</td></tr>
+      <tr><td>R7</td><td>Free-tier limits and terms change, and Vercel Hobby is for non-commercial use only</td><td>Check current limits before launch; keep the app non-commercial, or move to Cloudflare Workers if it ever earns money</td></tr>
+      <tr><td>R8</td><td>Not fully $0: the Spotify app owner needs Premium</td><td>Use your own existing Premium account</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="milestones">
+  <h2><span class="n">16</span>Milestones</h2>
+  <ol class="steps">
+    <li><span>Repo scaffold, database schema and migrations, environment checks. Spotify login and token storage. Rate gate with tests. Day-1 API check.</span></li>
+    <li><span>Admin event entry. Ticketmaster import and dedupe. Artist matching and review queue.</span></li>
+    <li><span>Playlist job pipeline (hits mode) with idempotency and resume. Event page and progress UI.</span></li>
+    <li><span>Deploy to Vercel, wire up GitHub Actions schedules and Sentry. Closed beta with 5 users.</span></li>
+  </ol>
+</section>
+
+<footer>
+  Merged from three research reports. Spotify facts were checked against developer.spotify.com on 21 Nov 2026; items marked <span class="unv">unverified</span> still need checking. Hosting revised to free tiers only.
+</footer>
+</main>
+</div>

@@ -1,0 +1,87 @@
+name: Discover gigs
+# D-073/D-074 (Gig Coverage): listings and discovery, the strict auto-publish gate, publishing,
+# then re-verification; held items go to review. Once a day: discovery shares the Tavily budget
+# (DOUBT_SEARCHES_PER_DAY) with the doubt resolver, and the free credits are small.
+on:
+  schedule:
+    - cron: "41 2 * * *" # 08:11 IST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report only; write nothing"
+        type: boolean
+        default: false
+      max_artists:
+        description: "Artists to search this run (blank = GIG_ARTISTS_PER_RUN)"
+        required: false
+        default: ""
+
+# Shares the ingest group: both write candidates and the collector state, so they never overlap.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Same collector state as ingest.yml (crawl delays, robots.txt, Spotify verdicts, search
+      # budget). Restore and save are split so the state is saved even when the run fails.
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules/.cache/lineupmixes
+          key: collector-state-${{ github.run_id }}
+          restore-keys: collector-state-
+      - name: Discover and publish gigs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          # Required to build the Spotify module, even though validation only uses app tokens.
+          TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}
+          # Optional: without these, alerts go to the job summary and fail the run (D-060).
+          ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+          ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
+          # D-059: the app mailbox in the User-Agent. Not secret; a repository variable.
+          APP_CONTACT_EMAIL: ${{ vars.APP_CONTACT_EMAIL }}
+          GIG_ARTISTS_PER_RUN: "8"
+          # Kill switch: only "true" publishes; unset or anything else holds everything for review.
+          AUTO_PUBLISH_ENABLED: ${{ vars.AUTO_PUBLISH_ENABLED || 'false' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          MAX_ARTISTS: ${{ github.event.inputs.max_artists || '' }}
+        run: |
+          args=(--report=gigs-report.json)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ -n "$MAX_ARTISTS" ]; then
+            case "$MAX_ARTISTS" in (*[!0-9]*) echo "max_artists must be a number" >&2; exit 1;; esac
+            args+=("--max-artists=$MAX_ARTISTS")
+          fi
+          npx tsx src/scripts/discover-gigs.ts "${args[@]}"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigs-report
+          path: gigs-report.json
+          if-no-files-found: warn
+          retention-days: 14
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/lineupmixes
+          key: collector-state-${{ github.run_id }}

@@ -1,0 +1,98 @@
+/**
+ * Copy that depends on how many artists play (one source of truth, DRY). A solo show reads
+ * "Bhuwin, all night.", never "Headliners first, openers last" or "1 artists".
+ */
+import type { BillingTier } from "@/domain/shared/lineup";
+
+/** "1 artist", "2 artists", "1 show". */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+export type LineupShape = "empty" | "solo" | "duo" | "trio" | "festival";
+
+export function lineupShape(artistCount: number): LineupShape {
+  if (artistCount <= 0) return "empty";
+  if (artistCount === 1) return "solo";
+  if (artistCount === 2) return "duo";
+  if (artistCount === 3) return "trio";
+  return "festival";
+}
+
+/** "A", "A and B", "A, B and C". */
+export function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** The one-line "who's playing", sized to the lineup. */
+export function whoLine(names: readonly string[], total = names.length): string {
+  switch (lineupShape(total)) {
+    case "empty":
+      return "Lineup coming soon.";
+    case "solo":
+      return `${names[0]}, all night.`;
+    case "duo":
+      return `${joinNames(names.slice(0, 2))}. One night.`;
+    case "trio":
+      return `${joinNames(names.slice(0, 3))}. One night.`;
+    case "festival":
+      return `${plural(total, "artist")}. Here's who to know.`;
+  }
+}
+
+const TIER_NAMES: Record<BillingTier, [string, string]> = {
+  headliner: ["Headliner", "Headliners"],
+  sub: ["Sub-headliner", "Sub-headliners"],
+  mid: ["Mid-card", "Mid-card"],
+  support: ["Support", "Support"],
+};
+
+/** "Headliner" for one, "Headliners" for more. */
+export function tierLabel(tier: BillingTier, count: number): string {
+  const [one, many] = TIER_NAMES[tier];
+  return count === 1 ? one : many;
+}
+
+/** The order the playlist plays in, or null when there's nothing to order (a solo show). */
+export function orderLine(artistCount: number, tiersWithArtists: number): string | null {
+  if (artistCount <= 1) return null;
+  if (tiersWithArtists <= 1) return "In billing order.";
+  return "Headliners first, openers last.";
+}
+
+/** How many artists Spotify knows, worded for the lineup size. */
+export function spotifyMatchLine(matched: number, total: number, soloName?: string): string {
+  if (total === 0) return "";
+  if (total === 1) {
+    const name = soloName ?? "This artist";
+    return matched > 0 ? `${name} is on Spotify.` : `${name} isn't matched on Spotify yet.`;
+  }
+  if (matched === 0) return `None of the ${total} artists are matched on Spotify yet.`;
+  return `${matched} of ${plural(total, "artist")} matched on Spotify so far.`;
+}
+
+/** What the share sheet says. */
+export function shareText(title: string, names: readonly string[]): string {
+  if (names.length === 1) return `${names[0]} live: ${title}. One playlist to get ready.`;
+  return `${title}: the lineup and one playlist`;
+}
+
+export type TitleSize = "xl" | "lg" | "md";
+
+/** Long titles get smaller type so they never stack into four giant lines. */
+export function titleSize(title: string): TitleSize {
+  const length = title.trim().length;
+  if (length <= 16) return "xl";
+  if (length <= 30) return "lg";
+  return "md";
+}
+
+/** Card teaser: "Martin Garrix, all night", "A and B", "A, B + 6 more", or a count. */
+export function lineupTeaser(headliners: readonly string[], artistCount: number): string {
+  if (headliners.length === 0) return plural(artistCount, "artist");
+  if (artistCount === 1) return `${headliners[0]}, all night`;
+  const shown = headliners.slice(0, 2);
+  const more = artistCount - shown.length;
+  return more > 0 ? `${shown.join(", ")} + ${more} more` : joinNames(shown);
+}

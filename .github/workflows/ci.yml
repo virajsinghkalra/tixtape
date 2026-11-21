@@ -1,0 +1,106 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: "Also run the Playwright suite against a production build"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: concert
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d concert" --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      # Unit tests never touch it; integration tests create and migrate their own DB (D-067).
+      DATABASE_URL: postgres://app:app@127.0.0.1:54329/concert
+      TEST_DB_NAME: concert_test
+      NODE_ENV: test
+      LOG_LEVEL: silent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc # Node 24 (D-003)
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+
+  # Optional (manual run, or a PR labelled "e2e"): Playwright against `next build && next start`,
+  # with its own database (D-049). Never on every push: it's slow and the suite runs one at a time.
+  e2e:
+    needs: check
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.e2e) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: concert
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d concert" --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://app:app@127.0.0.1:54329/concert_e2e
+      E2E_DATABASE_URL: postgres://app:app@127.0.0.1:54329/concert_e2e
+      APP_URL: http://127.0.0.1:3100
+      NEXT_DIST_DIR: .next-e2e
+      NODE_ENV: production
+      LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - run: npx next build
+      # Playwright's webServer reuses a server already on :3100, so the suite runs on this
+      # production build instead of `next dev`. Global setup creates and seeds concert_e2e.
+      - name: Start production server
+        run: |
+          npx next start -H 127.0.0.1 -p 3100 > next-start.log 2>&1 &
+          npx --yes wait-on@8.0.1 -t 60000 http://127.0.0.1:3100/design
+      - run: npx playwright test
+      - if: failure()
+        run: cat next-start.log
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/.report
+          retention-days: 7

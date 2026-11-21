@@ -1,0 +1,54 @@
+name: Sweep
+# P4.1 (D-005, D-060, D-070, D-076): finish playlist builds left behind when a tab closed, archive past
+# events, clean up old candidates, search logs and sessions, and alert on held events or a
+# publisher that needs reauth.
+on:
+  schedule:
+    # Hourly (D-076): each run keeps Neon awake ~6 min, so this keeps CU-hours near a quarter of
+    # the free allowance. Browsers step jobs live; the sweep only rescues abandoned ones.
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Playlist steps call Spotify as the publisher: client credentials plus the token key.
+      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+      SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+      TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      TOKEN_ENC_KEY_VERSION: ${{ vars.TOKEN_ENC_KEY_VERSION || '1' }}
+      LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+      # Optional: without these, alerts go to the job summary and fail the run (D-060).
+      ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+      ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Remembers which alerts were sent, so a lasting condition alerts at most daily.
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules/.cache/lineupmixes/alerts-sweep.json
+          key: sweep-alerts-${{ github.run_id }}
+          restore-keys: sweep-alerts-
+      - run: npx tsx src/scripts/sweep.ts
+      - if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/lineupmixes/alerts-sweep.json
+          key: sweep-alerts-${{ github.run_id }}
