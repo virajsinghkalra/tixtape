@@ -7,20 +7,25 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await warmUp(browser, baseURL);
 });
 
-test("home: bento hero with search, upcoming soonest first, a quiet Sign in", async ({ page }) => {
+test("home: hero with search, the big ones ranked, See all links, a quiet Sign in", async ({
+  page,
+}) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/every lineup/i);
   await expect(search(page)).toBeVisible();
 
-  const upcoming = page.getByRole("region", { name: /upcoming/i });
-  const titles = (await upcoming.getByRole("heading", { level: 3 }).allInnerTexts()).map((t) =>
+  const big = page.getByRole("region", { name: /the big ones/i });
+  await expect(big.getByRole("link", { name: /see all/i })).toHaveAttribute(
+    "href",
+    /\/search\?from=/,
+  );
+  const titles = (await big.getByRole("heading", { level: 3 }).allInnerTexts()).map((t) =>
     t.toUpperCase(),
   );
   const order = ["NH7", "LOLLAPALOOZA", "DILJIT"].map((t) =>
     titles.findIndex((x) => x.includes(t)),
   );
   expect(order.every((i) => i >= 0)).toBe(true);
-  expect(order).toEqual([...order].sort((a, b) => a - b));
 
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
     "href",
@@ -84,7 +89,7 @@ test("city switcher: All India by default; choosing Pune remembers it and focuse
   await expect(switcher).toBeVisible();
   await switcher.click();
   await page.getByRole("button", { name: "Pune", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 2, name: /upcoming in pune/i })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 2, name: /near you · pune/i })).toBeVisible({
     timeout: 15_000,
   });
   const cookie = (await context.cookies()).find((c) => c.name === "city");
@@ -92,7 +97,7 @@ test("city switcher: All India by default; choosing Pune remembers it and focuse
   expect(cookie?.sameSite).toBe("Lax");
   await page.getByRole("button", { name: /city: pune/i }).click();
   await page.getByRole("button", { name: "All India" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: /^\W*upcoming$/i })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 2, name: /near you/i })).toHaveCount(0, {
     timeout: 15_000,
   });
 });
@@ -107,7 +112,7 @@ test("a city with no gigs says so once and falls back to all of India", async ({
   await expect(page.getByRole("button", { name: /city: goa/i })).toBeVisible();
   await expect(page.getByText("No gigs in Goa yet. Here's what's on across India.")).toHaveCount(1);
   await expect(
-    page.getByRole("region", { name: /upcoming/i }).getByTestId("event-card"),
+    page.getByRole("region", { name: /the big ones/i }).getByTestId("event-card"),
   ).toHaveCount(3);
 });
 
@@ -134,7 +139,9 @@ test("empty catalogue: one message, try-searching chips, how it works; no empty 
   await page.goto(emptyBase!);
   await expect(page.getByText(/new gigs land here soon/i)).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible();
-  await expect(page.getByRole("region", { name: /^\W*upcoming/i })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /the big ones|near you|this week/i })).toHaveCount(
+    0,
+  );
   await page.getByRole("button", { name: "Sunburn" }).first().click();
   await expect(search(page)).toHaveValue("Sunburn");
 });

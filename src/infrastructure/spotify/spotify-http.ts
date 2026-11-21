@@ -2,6 +2,7 @@
  * The only path to api.spotify.com (LLD §8.2, D-006). Every call passes the shared gate, the
  * per-process rate limiter, and the 429/5xx/401 policy below. Tokens are never logged.
  */
+import { callClassOr, type SpotifyCallBudget, type SpotifyCallClass } from "./call-budget";
 import { z, type ZodType } from "zod";
 import type { Clock, Random } from "@/application/ports/clock";
 import {
@@ -51,6 +52,10 @@ export type SpotifyHttpDeps = {
   tokens: AccessTokenSource;
   logger?: { warn(obj: object, msg: string): void };
   config?: Partial<SpotifyHttpConfig>;
+  /** D-080: the app-wide call budget. Absent in unit tests of this class. */
+  budget?: SpotifyCallBudget;
+  /** D-080: this instance's class when no `runAsSpotifyClass` context says otherwise. */
+  callClass?: SpotifyCallClass;
 };
 
 export type SpotifyRequest<T> = {
@@ -89,11 +94,16 @@ export class SpotifyHttp {
     const state: CallState = { token: await this.tokenFor(req.auth), refreshed: false };
     for (let attempt = 1; attempt <= this.config.maxAttempts; attempt++) {
       await this.gate.assertOpen();
+      await this.deps.budget?.acquire(this.callClass());
       const res = await this.send(req, state.token);
       if (res?.ok) return this.parse(req, res);
       await this.handleFailure(req, res, attempt, state);
     }
     throw new UpstreamError(UPSTREAM, "Spotify kept failing. Try again in a moment.");
+  }
+
+  private callClass(): SpotifyCallClass {
+    return callClassOr(this.deps.callClass ?? "build");
   }
 
   private async tokenFor(auth: SpotifyAuth, rejected?: string): Promise<string> {
@@ -158,6 +168,7 @@ export class SpotifyHttp {
     const body = RATE_LIMIT_BODY.safeParse(await res.json().catch(() => null));
     const quotaExceeded = body.success && body.data.error.reason === "QUOTA_EXCEEDED";
     const retryAfter = parseRetryAfter(res.headers.get("Retry-After"), new Date(now));
+    await this.deps.budget?.recordRateLimited(this.callClass(), retryAfter);
 
     if (quotaExceeded || (retryAfter ?? 0) > this.config.maxWaitSeconds) {
       const seconds = retryAfter ?? this.config.quotaPauseSeconds;

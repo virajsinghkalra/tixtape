@@ -48,8 +48,16 @@ export interface ArtistCatalog {
 }
 
 export interface TrackCatalog {
-  /** `type=track`, limit ≤ 10, with an explicit market (D-007). */
-  searchTracks(query: string, market: string, caller: SpotifyCaller): Promise<SpotifyTrack[]>;
+  /**
+   * `type=track`, limit ≤ 10, with an explicit market (D-007). `offset` pages through results
+   * (Spotify's advice for the 10-item limit since February 2026; D-080).
+   */
+  searchTracks(
+    query: string,
+    market: string,
+    caller: SpotifyCaller,
+    opts?: { offset?: number },
+  ): Promise<SpotifyTrack[]>;
   getArtistAlbums(
     artistId: SpotifyArtistId,
     market: string,

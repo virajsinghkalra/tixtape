@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { ListEventsQuerySchema, SuggestParamsSchema } from "@/application/events";
-import type { EventDetail, EventSummary } from "@/application/ports/events";
+import { SuggestParamsSchema } from "@/application/events";
+import type { FeedRow } from "@/application/ports/event-feed";
+import type { Tour } from "@/domain/events/front-page";
+import type { EventSummary } from "@/application/ports/events";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CitySwitcher } from "@/components/CitySwitcher";
-import { EventCard } from "@/components/EventCard";
 import { toneSequence } from "@/components/event-color";
 import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
+import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
-import { groupByTier } from "@/components/lineup-view";
-import { ticketUrl } from "@/components/links";
 import { EventSearch } from "@/components/search/EventSearch";
 import { localSections, toEventResult } from "@/components/search/local-sections";
 import { POPULAR_SEARCHES } from "@/components/search/run-search";
@@ -25,13 +25,12 @@ import { Tile } from "@/components/ui/Tile";
 import { cookies, headers } from "next/headers";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
+import { frontPage } from "@/server/front-page";
 
 export const dynamic = "force-dynamic";
 
-const UPCOMING_LIMIT = 12;
-const JUST_ANNOUNCED_LIMIT = 6;
 const WEEK_MS = 7 * 86_400_000;
-/** Up to this many events, Just announced would repeat Upcoming; How it works shows instead. */
+/** Up to this many events, "How it works" helps more than more sections would. */
 const SMALL_CATALOGUE = 4;
 
 /**
@@ -57,45 +56,21 @@ type Props = { searchParams: Promise<{ auth_error?: string; q?: string }> };
 export default async function Home({ searchParams }: Props) {
   const { auth_error: authError, q } = await searchParams;
   const now = new Date();
-  const page = await events().listEvents(
-    ListEventsQuerySchema.parse({ from: now.toISOString(), pageSize: String(UPCOMING_LIMIT) }),
-  );
-  const upcoming = page.items;
-  // Summaries carry neither ticket URLs, headliners nor "first seen", so read this bounded page's
-  // details. A suggest/feed endpoint with these fields would remove it (see hand-back).
-  const details = await Promise.all(upcoming.map((e) => events().getEvent(e.id)));
-  const byId = new Map<string, EventDetail>(details.map((d) => [d.id, d]));
-  const soloImageOf = (id: string) => {
-    const lineup = byId.get(id)?.lineup ?? [];
-    return lineup.length === 1 ? lineup[0]!.imageUrl : null;
-  };
-  const headlinersOf = (id: string) =>
-    groupByTier(byId.get(id)?.lineup ?? [])[0]?.artists.map((a) => a.name) ?? [];
-  const justAnnounced = [...details]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, JUST_ANNOUNCED_LIMIT);
-  const thisWeek = upcoming.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS);
-  const next = upcoming[0];
-  const cities = new Set(upcoming.flatMap((e) => (e.venue ? [e.venue.city] : [])));
   const jar = await cookies();
   // D-050: chosen city (cookie) or IP city in production; null locally → "All India".
   const city =
     visitorCity({ headers: await headers(), cookie: jar.get(CITY_COOKIE)?.value })?.city ?? null;
-  const inCity = city
-    ? (
-        await events().listEvents(
-          ListEventsQuerySchema.parse({
-            city,
-            from: now.toISOString(),
-            pageSize: String(UPCOMING_LIMIT),
-          }),
-        )
-      ).items
-    : [];
-  const feed = city && inCity.length > 0 ? inCity : upcoming;
-  const popular = await popularSearches();
-  const empty = upcoming.length === 0;
-  const nearIds = new Set(inCity.map((e) => e.id));
+  // D-079: one feed read, ranked by size × proximity × timing (pure, in the domain).
+  const [{ rows, page: front }, popular] = await Promise.all([
+    frontPage({ now, city }),
+    popularSearches(),
+  ]);
+  const empty = rows.length === 0;
+  const next = rows[0];
+  const cities = new Set(rows.flatMap((e) => (e.city ? [e.city] : [])));
+  const thisWeek = rows.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS);
+  const nearRows = front.nearYou.map((i) => (i.kind === "event" ? i.event : i.tour.featured));
+  const nearIds = new Set(nearRows.map((e) => e.id));
   const popularSection: RecommendationSection = {
     id: "popular_searches",
     title: "Popular searches",
@@ -104,22 +79,24 @@ export default async function Home({ searchParams }: Props) {
   const sections: RecommendationSection[] = empty
     ? [popularSection]
     : [
-        ...(inCity.length > 0
+        ...(nearRows.length > 0
           ? [
               {
                 id: "near_you" as const,
                 title: `Near you · ${city}`,
-                items: inCity.slice(0, 5).map(toEventResult),
+                items: nearRows.slice(0, 5).map(toEventResult),
               },
             ]
           : []),
         ...localSections(
-          upcoming.filter((e) => !nearIds.has(e.id)),
+          rows.filter((e) => !nearIds.has(e.id)),
           now,
         ),
         popularSection,
       ];
-  const marquee = [...new Set(details.flatMap((d) => headlinersOf(d.id)))];
+  const marquee = [...new Set(rows.flatMap((r) => r.headliners.slice(0, 1)))].slice(0, 16);
+  const today = now.toISOString().slice(0, 10);
+  const weekEnd = new Date(now.getTime() + WEEK_MS).toISOString().slice(0, 10);
 
   return (
     <>
@@ -158,8 +135,8 @@ export default async function Home({ searchParams }: Props) {
               <Tile tone="sky" className="pop-in [--i:2]">
                 <p className="text-sm font-bold">On the board</p>
                 <p className="mt-2 flex items-baseline gap-3 font-display font-extrabold">
-                  <span className="text-huge">{page.total}</span>
-                  <span className="text-xl">{page.total === 1 ? "gig" : "gigs"}</span>
+                  <span className="text-huge">{rows.length}</span>
+                  <span className="text-xl">{rows.length === 1 ? "gig" : "gigs"}</span>
                 </p>
                 <p className="flex items-baseline gap-3 font-display font-extrabold">
                   <span className="text-huge">{cities.size}</span>
@@ -175,6 +152,7 @@ export default async function Home({ searchParams }: Props) {
         </div>
       </section>
 
+      {/* The story strip may repeat cards from the sections below. */}
       {thisWeek.length > 0 && (
         <Section
           id="rings"
@@ -182,66 +160,66 @@ export default async function Home({ searchParams }: Props) {
           title="Happening this week"
           blurb="Tap a ring for the 10-second story."
         >
-          <UpNextRings
-            events={thisWeek.slice(0, 10).map((e) => ringEvent(e, byId.get(e.id), now))}
-          />
+          <UpNextRings events={thisWeek.slice(0, 10).map((e) => ringEvent(e, now))} />
         </Section>
       )}
 
-      {!empty && (
-        <Section
-          id="upcoming"
-          emoji="🗓️"
-          title={city && inCity.length > 0 ? `Upcoming in ${city}` : "Upcoming"}
-          blurb={
-            city && inCity.length === 0
-              ? `No gigs in ${city} yet. Here's what's on across India.`
-              : "Soonest first."
-          }
-        >
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {feed.map((e, i) => (
-              <li key={e.id}>
-                <EventCard
-                  event={e}
-                  now={now}
-                  index={i}
-                  headliners={headlinersOf(e.id)}
-                  image={soloImageOf(e.id)}
-                  ticketUrl={ticketUrl(byId.get(e.id)?.sources ?? [])}
-                />
-              </li>
-            ))}
-          </ul>
-        </Section>
+      {city && (
+        <FrontSection
+          id="near-you"
+          emoji="📍"
+          title={`Near you · ${city}`}
+          items={front.nearYou}
+          now={now}
+          city={city}
+          seeAll={`/search?city=${encodeURIComponent(city)}`}
+        />
       )}
+
+      <FrontSection
+        id="big-ones"
+        emoji="🔥"
+        title="The big ones"
+        blurb={
+          city && front.nearYou.length === 0 && !empty
+            ? `No gigs in ${city} yet. Here's what's on across India.`
+            : "The biggest shows across India."
+        }
+        items={front.bigOnes}
+        now={now}
+        city={city}
+        seeAll={`/search?from=${today}`}
+      />
 
       {marquee.length > 0 && (
         <Marquee label="Artists coming up" items={marquee} tone="violet" className="mt-12" />
       )}
 
-      {/* Only when it adds something: with a handful of events it would repeat Upcoming. */}
-      {upcoming.length > SMALL_CATALOGUE && (
-        <Section id="just-announced" emoji="🆕" title="Just announced" blurb="Fresh on the board.">
-          <ul className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pt-1 pb-3 [contain:paint] sm:-mx-6 sm:px-6">
-            {justAnnounced.map((e, i) => (
-              <li key={e.id} className="w-[78%] shrink-0 snap-start sm:w-[20rem]">
-                <EventCard
-                  event={e}
-                  now={now}
-                  index={i}
-                  variant="compact"
-                  headliners={headlinersOf(e.id)}
-                  image={soloImageOf(e.id)}
-                  ticketUrl={ticketUrl(e.sources)}
-                />
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+      <FrontSection
+        id="this-week"
+        emoji="⚡"
+        title="This week"
+        items={front.thisWeek}
+        now={now}
+        city={city}
+        seeAll={`/search?from=${today}&to=${weekEnd}`}
+      />
 
-      {upcoming.length <= SMALL_CATALOGUE && <HowItWorks />}
+      <FrontSection
+        id="just-announced"
+        emoji="🆕"
+        title="Just announced"
+        blurb="Fresh on the board."
+        items={front.justAnnounced}
+        now={now}
+        city={city}
+        layout="row"
+        seeAll={`/search?from=${today}`}
+      />
+
+      {front.tours.length > 0 && <ToursList tours={front.tours} />}
+
+      {rows.length <= SMALL_CATALOGUE && <HowItWorks />}
 
       <BottomBar label="Quick actions">
         <SearchLauncher />
@@ -270,7 +248,7 @@ function NextUpTile({ event, now }: { event: EventSummary; now: Date }) {
   );
 }
 
-function ringEvent(e: EventSummary, detail: EventDetail | undefined, now: Date): RingEvent {
+function ringEvent(e: FeedRow, now: Date): RingEvent {
   const { day, month } = istParts(e.startsAt);
   return {
     id: e.id,
@@ -282,17 +260,67 @@ function ringEvent(e: EventSummary, detail: EventDetail | undefined, now: Date):
       id: e.id,
       title: e.title,
       dateLine: formatDateRange(e.startsAt, e.endsAt),
-      city: e.venue?.city ?? null,
+      city: e.city,
       badge: countdownBadge(e.startsAt, e.endsAt, now),
-      artists: (detail?.lineup ?? []).map((a) => ({
-        name: a.name,
-        imageUrl: a.imageUrl,
-        tier: a.tier,
-        billingRank: a.billingRank,
+      // The feed carries the top-billed names (and a solo photo), enough for the story.
+      artists: e.headliners.map((name, i) => ({
+        name,
+        imageUrl: e.artistCount === 1 ? e.soloImage : null,
+        tier: "headliner" as const,
+        billingRank: i + 1,
       })),
       preview: null,
       playlistHref: `/events/${e.id}#playlist`,
       eventHref: `/events/${e.id}`,
     }),
   };
+}
+
+/** Tours, collapsed: one line each, opening to every city (D-079). */
+function ToursList({ tours }: { tours: Tour<FeedRow>[] }) {
+  return (
+    <section aria-labelledby="tours-title" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+      <h2 id="tours-title" className="mb-4 font-display text-big font-extrabold tracking-tight">
+        <span aria-hidden className="mr-2">
+          🗺️
+        </span>
+        Tours
+      </h2>
+      <ul className="space-y-3">
+        {tours.map((t) => {
+          const info = tourInfo(t, null);
+          return (
+            <li key={t.key}>
+              <details className="group/t rounded-card border-2 border-night bg-surface dark:border-line">
+                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2">
+                  <span className="font-display text-lg font-bold">{t.title}</span>
+                  <span className="shrink-0 text-sm font-semibold text-accent-text">
+                    {info.count}{" "}
+                    <span
+                      aria-hidden
+                      className="inline-block transition-transform group-open/t:rotate-180"
+                    >
+                      ▾
+                    </span>
+                  </span>
+                </summary>
+                <ul className="grid gap-1 px-2 pb-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {info.stops.map((s) => (
+                    <li key={s.id}>
+                      <Link
+                        href={`/events/${s.id}`}
+                        className="flex min-h-11 items-center justify-between rounded-field px-3 hover:bg-surface-2"
+                      >
+                        {s.label} <span aria-hidden>→</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }

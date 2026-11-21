@@ -6,7 +6,7 @@ Everything here is on free tiers (D-002, D-076). Nothing is deployed yet: follow
 Browser ──> Vercel functions (sin1) ──┐
                                       ├──> Neon Postgres, Singapore (pooled URL)
 GitHub Actions (ingest 3 h, sweep 1 h,┘
-  gigs 6 h, weekly, keepalive monthly)
+  gigs daily, weekly, keepalive monthly)
         └──> alerts: Gmail SMTP → lineupmixes@gmail.com (or job summary + failed-run email)
 ```
 
@@ -102,30 +102,30 @@ Repository → Settings → Secrets and variables → Actions. The repo is publi
 
 **Secrets**
 
-| Secret                                                            | Used by                                       |
-| ----------------------------------------------------------------- | --------------------------------------------- |
-| `DATABASE_URL` (pooled)                                           | ingest, sweep, weekly checks, discover gigs   |
-| `DATABASE_URL_UNPOOLED` (direct; in the `production` environment) | migrate                                       |
-| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `TOKEN_ENC_KEY`     | ingest, sweep, revalidate                     |
-| `LASTFM_API_KEY`                                                  | ingest, sweep (playlist steps), discover gigs |
-| `TAVILY_API_KEY`                                                  | discover gigs; revalidate (optional, D-066)   |
-| `GITHUB_MODELS_TOKEN`                                             | discover gigs                                 |
-| `TICKETMASTER_API_KEY`                                            | ingest (optional)                             |
-| `ALERT_SMTP_USER`, `ALERT_SMTP_PASS`                              | sweep and ingest alert step (optional, see 7) |
+| Secret                                                            | Used by                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| `DATABASE_URL` (pooled)                                           | ingest, sweep, weekly checks, discover gigs               |
+| `DATABASE_URL_UNPOOLED` (direct; in the `production` environment) | migrate                                                   |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `TOKEN_ENC_KEY`     | ingest, sweep, revalidate, discover gigs                  |
+| `LASTFM_API_KEY`                                                  | ingest, sweep (playlist steps), discover gigs             |
+| `TAVILY_API_KEY`                                                  | discover gigs; revalidate (optional, D-066)               |
+| `GITHUB_MODELS_TOKEN`                                             | discover gigs                                             |
+| `TICKETMASTER_API_KEY`                                            | ingest (optional)                                         |
+| `ALERT_SMTP_USER`, `ALERT_SMTP_PASS`                              | sweep, ingest alert step, discover gigs (optional, see 7) |
 
 **Variables:** `APP_CONTACT_EMAIL` (ingest and discover-gigs User-Agent), `AUTO_PUBLISH_ENABLED` (see 7a), `TOKEN_ENC_KEY_VERSION` if not 1.
 
 Each job gets only the secrets it uses. Workflows default to `permissions: contents: read` (keepalive alone gets `actions: write`), and each has a `concurrency` group and a timeout.
 
-| Workflow            | Schedule                | What                                                                                                                                                                                  |
-| ------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ingest.yml`        | every 3 h at :17        | collector in candidates-only mode (D-055), then the source-health alert step                                                                                                          |
-| `sweep.yml`         | hourly at :07 (D-076)   | finish abandoned playlist builds; archive past events; delete candidates > 30 days, search logs > 90 days, expired sessions, old rate-limit windows; held-events and publisher alerts |
-| `discover-gigs.yml` | every 6 h at :43        | Gig Coverage discovery, strict auto-publish gate, publishing; held items go to review (7a)                                                                                            |
-| `revalidate.yml`    | Mondays 03:41 UTC       | re-check artist Spotify ids older than 30 days; read-only data audit (never `--fix`)                                                                                                  |
-| `keepalive.yml`     | 1st of month, 04:23 UTC | re-enables every scheduled workflow, which resets GitHub's 60-day inactivity timer                                                                                                    |
-| `migrate.yml`       | manual                  | apply migrations                                                                                                                                                                      |
-| `ci.yml`            | push / PR               | format, lint, typecheck, unit, integration (Postgres service); optional Playwright on a production build (manual run with `e2e`, or a PR labelled `e2e`)                              |
+| Workflow            | Schedule                | What                                                                                                                                                                                                      |
+| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ingest.yml`        | every 3 h at :17        | collector in candidates-only mode (D-055), then the source-health alert step                                                                                                                              |
+| `sweep.yml`         | hourly at :07 (D-076)   | finish abandoned playlist builds; archive past events; delete candidates > 30 days, search logs > 90 days, expired sessions, old rate-limit windows; held-events, publisher and auto-publish spike alerts |
+| `discover-gigs.yml` | daily 02:41 UTC         | Gig Coverage discovery, strict auto-publish gate, publishing, re-verification; then the daily gig digest (7a). Shares the `ingest` concurrency group                                                      |
+| `revalidate.yml`    | Mondays 03:41 UTC       | re-check artist Spotify ids older than 30 days; read-only data audit (never `--fix`)                                                                                                                      |
+| `keepalive.yml`     | 1st of month, 04:23 UTC | re-enables every scheduled workflow, which resets GitHub's 60-day inactivity timer                                                                                                                        |
+| `migrate.yml`       | manual                  | apply migrations                                                                                                                                                                                          |
+| `ci.yml`            | push / PR               | format, lint, typecheck, unit, integration (Postgres service); optional Playwright on a production build (manual run with `e2e`, or a PR labelled `e2e`)                                                  |
 
 Notes:
 
@@ -153,12 +153,15 @@ Alerts go to **lineupmixes@gmail.com**: a source failing 3 runs in a row (then a
 
 ## 7a. Gig Coverage auto-publish (D-073/D-074)
 
-`discover-gigs.yml` runs `npx tsx src/scripts/discover-gigs.ts` every 6 hours (01:43, 07:43, 13:43, 19:43 UTC). It discovers gigs, passes them through the strict auto-publish gate, publishes what passes, and holds the rest for review.
+`discover-gigs.yml` runs `npx tsx src/scripts/discover-gigs.ts --report=gigs-report.json` **once a day at 02:41 UTC** (08:11 IST). It reads listings, discovers gigs for `GIG_ARTISTS_PER_RUN` (8) artists, passes every upcoming night through the strict auto-publish gate, publishes what passes, re-verifies earlier auto-published events, and holds the rest for review. It runs daily because discovery shares the Tavily budget (`DOUBT_SEARCHES_PER_DAY`) with the doubt resolver, and the free credits are small.
 
-- **Kill switch:** the repository variable `AUTO_PUBLISH_ENABLED` (Settings → Secrets and variables → Actions → Variables). Only `true` turns auto-publish on; unset or anything else means everything is held for review. Changing it takes effect on the next run, with no deploy.
-- **Automatic pause:** the `settings` row `auto_publish_paused_until` stops auto-publish until that time; the script checks it before publishing. Delete the row to resume early.
-- **Manual run:** Actions → _Discover gigs_ → _Run workflow_, with **dry run** (writes nothing) and an optional **limit**.
-- **Secrets used** (scoped to the one step): `DATABASE_URL`, `TAVILY_API_KEY`, `LASTFM_API_KEY`, `GITHUB_MODELS_TOKEN`; variable `APP_CONTACT_EMAIL`.
+- **Kill switch:** the repository variable `AUTO_PUBLISH_ENABLED` (Settings → Secrets and variables → Actions → Variables). Only `true` turns auto-publish on; unset or anything else means nights are still discovered and judged but held for review. Changing it takes effect on the next run, with no deploy.
+- **Spike guard (automatic pause):** the hourly sweep counts `publish_audit` rows from the auto-gate. Over 30 in 24 hours, it writes `settings.auto_publish_paused_until` = now + 24 h and sends an alert; the script won't auto-publish while that is in the future. An existing pause isn't extended. To resume early, delete that `settings` row.
+- **Daily digest:** right after the run, `src/scripts/gig-digest.ts` emails lineupmixes@gmail.com (or writes the job summary) with the last 24 hours: auto-published events (title, date, city, sources), nights held or rejected and why, re-verification changes, and new leads to check by hand. Nothing is sent on a quiet day.
+- **Report:** each run uploads `gigs-report.json` as the `gigs-report` artifact (kept 14 days).
+- **Manual run:** Actions → _Discover gigs_ → _Run workflow_, with **dry run** (writes nothing; no digest) and an optional **max artists**.
+- **Concurrency and state:** it shares the `ingest` concurrency group with `ingest.yml`, so the two never overlap, and it restores and saves the same collector-state cache.
+- **Secrets used** (scoped to the step that needs them): discovery uses `DATABASE_URL`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `TOKEN_ENC_KEY`, `TAVILY_API_KEY`, `LASTFM_API_KEY`, `GITHUB_MODELS_TOKEN` and the alert secrets; the digest uses only `DATABASE_URL` and the alert secrets. Variable: `APP_CONTACT_EMAIL`.
 - **Before turning it on:** run a dry run, read the report, and confirm the D-060 rule (14 clean days of manual review) is met.
 
 ## 7b. Monitoring (optional, free, D-076)

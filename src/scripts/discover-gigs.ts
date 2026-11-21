@@ -40,6 +40,7 @@ import { env } from "@/lib/env";
 import { spotifyModule } from "@/server/auth/spotify-auth";
 import { container } from "@/server/container";
 import { events } from "@/server/events";
+import { runAsSpotifyClass } from "@/infrastructure/spotify";
 
 const line = (s: string) => console.warn(s);
 const arg = (argv: readonly string[], name: string) =>
@@ -207,7 +208,8 @@ async function main(): Promise<void> {
   await c.db.$close();
 }
 
-main().catch((e: unknown) => {
+// D-080: every Spotify call in this script counts as `discovery` (background, capped).
+runAsSpotifyClass("discovery", main).catch((e: unknown) => {
   console.error(e);
   process.exit(1);
 });

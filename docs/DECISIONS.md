@@ -938,9 +938,54 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - Footer tagline: "every ticket gets a mixtape ✦".
   - Production URL: `tixtape.vercel.app`.
   - The owner renames the Spotify publisher account's display name to Tixtape.
-- **Unchanged:** the npm package and GitHub repo are renamed `tixtape` (local folder stays `concert-playlist-app`), and the bot User-Agent token and contact mailbox (`lineupmixes@gmail.com`) stay as they are. Changing them adds risk and no user-visible value.
+- **Names:** the npm package and GitHub repo are `tixtape` (renamed 2026-11-21; the local folder stays `concert-playlist-app`). Unchanged: the bot User-Agent token and contact mailbox (`lineupmixes@gmail.com`) stay as they are. Changing them adds risk and no user-visible value.
 - **Also fixed:** `clip()` in `src/domain/playlists/naming.ts` could cut an emoji (surrogate pair) in half. The rename moved the cut point and exposed it. It now never splits a pair.
 - **Addendum (2026-11-21):**
   - Neon created the project on **Postgres 18.7**; local and CI run 16. All migrations 0000–0009 apply cleanly, and pg_trgm and unaccent are present. Move local Docker and the CI service to 18 so all environments match.
   - The first catalogue copy took only published and archived events plus their venues, artists, sources, lineups and shared playlists. The `published` content fingerprint (md5 of id, title, starts_at) matches local.
   - **Reset the Neon `neondb_owner` password before go-live.** It was pasted in chat.
+
+### D-078 · Collector clustering doesn't join different club nights
+
+- **Status:** Accepted · **Owner:** Events · **Date:** 2026-11-21
+- **Context:** The Gig Coverage team's HighApe dry run found that `clusterCandidates` (`src/domain/events/extract/corroborate.ts`) joined separate club nights. "CROSS/OVER Ft Nikhil Chinapa" and "CROSS/OVER Ft <another DJ>" share "cross", "over" and "ft", which gives a title overlap of 0.6 (≥ 0.5). HighApe was taken out of `ingest.ts` because of this (D-073).
+- **Decision** (`sameEvent` and `clusterCandidates`):
+  - **Generic words carry no title similarity:** night, presents, ft/feat/featuring, live, party, club, show, concert, gig, tour, music, festival/fest, dj, b2b, x, vs, and connecting words. The event's own venue and city words are dropped from titles too.
+  - **Recurring brands carry no title similarity:** a title word that appears in one city's listings on ≥ 3 different IST dates spanning ≥ 7 days (a weekly series, venue or promoter brand) is ignored for that clustering run. One festival weekend (many articles, dates within days) is not a brand.
+  - **Different headliners in the titles never cluster.** Headliners are read from "ft/feat/featuring X", "X live (at …)", and the candidate's own artists that appear in the title. If both titles name headliners and they share none, the candidates are separate.
+  - **Same venue, same IST date, different headliner = separate show**, unless the sources agree on artists (≥ 70% overlap, or each one's headliner is on the other's bill).
+  - **One listing source, two items, consecutive IST nights, same venue = two nights** (the D-072 residency rule for candidates). The ±1 day window stays for date slips _between_ sources.
+  - A title made only of ignored words gives no title evidence. Artist overlap ≥ 70% can still cluster.
+  - D-072 (event dedupe in `dedupe.ts`) is unchanged.
+- **Tests:** domain cases built from the HighApe fixture titles, plus an end-to-end test that runs the real HighApe adapter over its fixtures and clusters the output, including with every night moved onto one date and venue.
+
+### D-079 · Ranked, location-aware home page
+
+- **Status:** Accepted · **Owner:** Lead (decisions), UI (implementation) · **Date:** 2026-11-21
+- **Context:** With ~200 events, "the 12 soonest" let a 10-city tour fill the page and hid big festivals a few months out.
+- **Decision:**
+  - **Score = size × proximity × timing** (pure: `src/domain/events/front-page.ts`).
+    - _Size_ = 1 + 3 × popularity + festival 0.6 + lineup (≤ 0.3, log of artist count) + extra sources (0.05 each, ≤ 0.15) + engagement (views + 5 × playlist opens, log-scaled, capped at 0.15).
+    - _Popularity_ = the best-known top-billed artist's Last.fm listeners, `(log10 − 3) / 4` clamped to 0–1 (1k → 0, 100k → 0.5, 10M → 1). No regional bias. Unknown = 0.35 (neutral, about 25k listeners).
+    - _Proximity:_ same city 1.0, same metro cluster 0.7 (static map: Mumbai/Navi Mumbai/Thane/Pune, Delhi NCR, Bengaluru, Hyderabad/Secunderabad, Chennai, Kolkata, Goa, Ahmedabad/Gandhinagar, Chandigarh/Mohali/Panchkula, and more), elsewhere 0.3. With no city known, everything is 1.0.
+    - _Timing:_ this week 1.0, ≤ 30 days 0.9, ≤ 90 days 0.75, beyond 0.55. Past events are never shown. One still running counts as this week.
+  - **Sections, in order:**
+    - Near you · {city} (city known and has events; top 6 by score; no city cap here, since the city is the point);
+    - The big ones (top 5 India-wide by size × timing);
+    - This week;
+    - Just announced (newest `created_at`);
+    - Tours (collapsed).
+    - A card appears in one section only. The story strip ("Happening this week") may repeat them.
+  - **Diversity:**
+    - One card per tour: same top-billed names and title stem (text before " – ") within 90 days. The card shows "10 cities" (or "3 dates" for a residency) and the visitor's city, else their metro, else the next date, and lists every stop.
+    - At most 2 cards per city (exact) or per headliner in a section.
+  - **"See all" on every section:** `/search?city=` for Near you; `/search?from=today` (and `&to=` for This week) for the rest.
+  - **Performance:**
+    - One feed query (`EventFeedReader` → `PgEventFeed`) returns up to 300 published, upcoming rows with summary, top-billed names, cached listeners, solo photo, ticket URL, source count and engagement. No per-card `getEvent`.
+    - Rows are cached for 5 minutes per server instance (`src/server/front-page.ts`). Ranking runs per request because the visitor's city comes from a cookie.
+- **Schema:** migration 0011 adds `artists.lastfm_listeners` and `lastfm_listeners_at` (nullable, pure add).
+  - They're filled by `refreshArtistPopularity`, through the Playlist Engine's `LastfmPopularity` (D-065, no second client): `npx tsx src/scripts/refresh-popularity.ts`, and at the end of the weekly `revalidate.ts`.
+  - Values are refreshed after 7 days. A missing value stays neutral.
+- **Tests:**
+  - Unit tests for every factor, metro clustering, tour grouping, featured dates and the diversity caps.
+  - A seeded 200-event scenario (a 10-city tour, a far-away mega festival, a tiny local gig, a past event) asserting what Mumbai, Kolkata and no-city visitors see.

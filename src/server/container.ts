@@ -47,6 +47,10 @@ import {
 } from "@/infrastructure/playlists-module";
 import {
   createSpotifyModule,
+  PgCallCounterStore,
+  runAsSpotifyClass,
+  SpotifyCallBudget,
+  type SpotifyCallClass,
   type SpotifyHttpConfig,
   type SpotifyModule,
 } from "@/infrastructure/spotify";
@@ -59,7 +63,16 @@ export type Container = {
   logger: Logger;
   clock: Clock;
   random: Random;
-  /** App-wide Spotify module: auth, artist matching, lookup, ingest validation. */
+  /**
+   * D-080: every Spotify call in every instance draws from this one budget (Postgres
+   * counters), by class: build > match > prewarm > discovery/revalidate.
+   */
+  readonly spotifyBudget: SpotifyCallBudget;
+  /**
+   * App-wide Spotify module: auth, artist matching, lookup, ingest validation. Its calls count
+   * as `match` unless wrapped in `runAsSpotifyClass` (sign-in runs as `build`; scripts declare
+   * `discovery`, `revalidate` or `prewarm`).
+   */
   readonly spotify: SpotifyModule;
   /**
    * D-043: the Playlist Engine's own Spotify instance, with retry settings that fit the 8 s
@@ -87,7 +100,8 @@ function lazy<K extends keyof Container>(c: Container, key: K, build: () => Cont
 }
 
 function spotifyFor(
-  base: Pick<Container, "db" | "clock" | "random" | "logger">,
+  base: Pick<Container, "db" | "clock" | "random" | "logger" | "spotifyBudget">,
+  callClass: SpotifyCallClass,
   overrides: { http?: Partial<SpotifyHttpConfig>; fetch?: typeof fetch } = {},
 ): SpotifyModule {
   return createSpotifyModule({
@@ -95,6 +109,8 @@ function spotifyFor(
     clock: base.clock,
     random: base.random,
     logger: base.logger,
+    budget: base.spotifyBudget,
+    callClass,
     spotify: {
       clientId: requireEnv("SPOTIFY_CLIENT_ID"),
       clientSecret: requireEnv("SPOTIFY_CLIENT_SECRET"),
@@ -195,9 +211,17 @@ function buildLookup(c: Container): LiveLookup {
 function buildContainer(): Container {
   const base = { db: createDb(), logger, clock: systemClock, random: systemRandom };
   const c = base as Container;
-  lazy(c, "spotify", () => spotifyFor(base));
+  lazy(c, "spotifyBudget", () =>
+    new SpotifyCallBudget({
+      store: new PgCallCounterStore(c.db),
+      clock: c.clock,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      logger: c.logger,
+    }),
+  );
+  lazy(c, "spotify", () => spotifyFor(c, "match"));
   lazy(c, "engineSpotify", () =>
-    spotifyFor(base, {
+    spotifyFor(c, "build", {
       http: PLAYLIST_STEP_SPOTIFY_HTTP,
       fetch: fetchWithTimeout((input, init) => fetch(input, init)),
     }),
@@ -206,7 +230,10 @@ function buildContainer(): Container {
     const s = c.spotify;
     return new SpotifyAuthService({
       oauth: s.oauth,
-      profiles: s.profiles,
+      // Sign-in is user-facing: it must never queue behind background matching (D-080).
+      profiles: {
+        getCurrentUser: (token) => runAsSpotifyClass("build", () => s.profiles.getCurrentUser(token)),
+      },
       users: s.users,
       sessions: s.sessions,
       tokens: s.tokens,

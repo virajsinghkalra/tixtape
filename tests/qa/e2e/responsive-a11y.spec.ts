@@ -132,7 +132,7 @@ test.describe("motion and colour", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await gotoHome(page);
     await shot(page, info, "reduced-motion-home", true);
-    for (const h of [/upcoming/i, /how it works/i]) {
+    for (const h of [/the big ones/i, /how it works/i]) {
       const el = page.getByRole("heading", { level: 2, name: h });
       await el.scrollIntoViewIfNeeded();
       await expect(el).toBeVisible();

@@ -24,6 +24,7 @@ import { ArcticSpotifyOAuth } from "./oauth";
 import { SpotifyPlaylistWriter } from "./playlist-writer";
 import { SpotifyProfiles } from "./profiles";
 import type { Sleep } from "./rate-limiter";
+import type { SpotifyCallBudget, SpotifyCallClass } from "./call-budget";
 import { SpotifyHttp, type SpotifyHttpConfig } from "./spotify-http";
 
 export type SpotifyModuleDeps = {
@@ -37,6 +38,9 @@ export type SpotifyModuleDeps = {
   fetch?: typeof fetch;
   sleep?: Sleep;
   http?: Partial<SpotifyHttpConfig>;
+  /** D-080: the shared call budget and this instance's default class. */
+  budget?: SpotifyCallBudget;
+  callClass?: SpotifyCallClass;
 };
 
 export type SpotifyModule = {
@@ -71,6 +75,8 @@ export function createSpotifyModule(deps: SpotifyModuleDeps): SpotifyModule {
     tokens: new SpotifyAccessTokens({ tokens, oauth, appTokens: oauth, clock: deps.clock }),
     logger: deps.logger,
     config: deps.http,
+    budget: deps.budget,
+    callClass: deps.callClass,
   });
   return {
     http,
@@ -87,6 +93,15 @@ export function createSpotifyModule(deps: SpotifyModuleDeps): SpotifyModule {
 }
 
 export { SpotifyHttp, DEFAULT_SPOTIFY_HTTP_CONFIG } from "./spotify-http";
+export {
+  MemoryCallCounterStore,
+  PgCallCounterStore,
+  runAsSpotifyClass,
+  SpotifyCallBudget,
+  SPOTIFY_CALL_CLASSES,
+  type SpotifyCallClass,
+  type SpotifyCallStats,
+} from "./call-budget";
 export type {
   AccessTokenSource,
   SpotifyAuth,

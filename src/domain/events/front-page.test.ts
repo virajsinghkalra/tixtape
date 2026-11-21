@@ -45,7 +45,9 @@ describe("size", () => {
   it("popularity is log-scaled with no regional bias, and unknown is neutral", () => {
     expect(popularityFactor(null)).toBe(NEUTRAL_POPULARITY);
     expect(popularityFactor(10_000_000)).toBeCloseTo(1, 2);
-    expect(popularityFactor(1_000_000)).toBeCloseTo(6 / 7, 2);
+    expect(popularityFactor(1_000_000)).toBeCloseTo(0.75, 2);
+    expect(popularityFactor(100_000)).toBeCloseTo(0.5, 2);
+    expect(popularityFactor(100)).toBe(0);
     expect(popularityFactor(1_000)).toBeLessThan(popularityFactor(1_000_000));
     // Arijit (Indian, huge) outranks a small international act.
     expect(sizeScore(ev({ headlinerListeners: 3_000_000 }))).toBeGreaterThan(
@@ -144,17 +146,19 @@ describe("tours", () => {
 
 describe("diversify", () => {
   const item = (e: FeedEvent): FrontItem<FeedEvent> => ({ kind: "event", event: e, score: 1 });
-  it("allows at most 2 cards per metro and per headliner", () => {
+  it("allows at most 2 cards per city and per headliner", () => {
     const items = [
       item(ev({ city: "Mumbai" })),
-      item(ev({ city: "Pune" })),
-      item(ev({ city: "Thane" })),
+      item(ev({ city: "Mumbai" })),
+      item(ev({ city: "Mumbai" })),
       item(ev({ city: "Delhi", headliners: ["Ritviz"] })),
       item(ev({ city: "Chennai", headliners: ["Ritviz"] })),
       item(ev({ city: "Goa", headliners: ["Ritviz"] })),
     ];
     const picked = diversify(items, 10).map((i) => leadEvent(i).city);
-    expect(picked).toEqual(["Mumbai", "Pune", "Delhi", "Chennai"]);
+    expect(picked).toEqual(["Mumbai", "Mumbai", "Delhi", "Chennai"]);
+    // Near you drops the city cap (the city is the point) but keeps the headliner cap.
+    expect(diversify(items, 10, { cityCap: false })).toHaveLength(5);
   });
 });
 
@@ -171,7 +175,7 @@ describe("seeded scenario: 200 events", () => {
     "Ahmedabad",
     "Jaipur",
   ];
-  const filler = Array.from({ length: 186 }, (_, i) =>
+  const filler = Array.from({ length: 185 }, (_, i) =>
     ev({
       title: `Club night ${i}`,
       city: cities[i % cities.length],

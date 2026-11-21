@@ -44,6 +44,7 @@ import { container } from "@/server/container";
 import { events } from "@/server/events";
 import { watchTerms } from "@/server/lookup";
 import { matching } from "@/server/matching";
+import { runAsSpotifyClass } from "@/infrastructure/spotify";
 
 /** Sources with their own adapter (D-073: search-driven sources have none). */
 const ADAPTERS = COLLECTOR_SOURCES.filter(isAdapterSource);
@@ -293,7 +294,8 @@ async function main(): Promise<void> {
   if (failed) process.exitCode = 1;
 }
 
-main().catch((e: unknown) => {
+// D-080: every Spotify call in this script counts as `discovery` (background, capped).
+runAsSpotifyClass("discovery", main).catch((e: unknown) => {
   console.error(e);
   process.exit(1);
 });

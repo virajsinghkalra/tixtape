@@ -63,7 +63,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     ? `Shows by ${params.artist}`
     : params.city && !params.q
       ? `Shows in ${params.city}`
-      : `Results for “${params.q ?? ""}”`;
+      : params.q
+        ? `Results for “${params.q}”`
+        : "All upcoming shows";
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">

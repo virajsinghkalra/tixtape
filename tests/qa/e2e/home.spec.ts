@@ -4,7 +4,9 @@ test.describe("P3.8 home feed", () => {
   test("sections render and every event card links to a real event", async ({ page }) => {
     const w = watch(page);
     await gotoHome(page);
-    await expect(page.getByRole("heading", { level: 2, name: /upcoming/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: /the big ones|near you|this week/i }).first(),
+    ).toBeVisible();
     // D-036: "Concerts for you" is a logged-in extra; a logged-out visitor never sees it.
     await expect(page.getByRole("heading", { name: /concerts for you/i })).toHaveCount(0);
     const hrefs = [
@@ -24,17 +26,67 @@ test.describe("P3.8 home feed", () => {
     w.assertClean();
   });
 
-  test("Upcoming is sorted soonest first", async ({ page }) => {
+  test("D-079 sections: each has 'See all', and no card repeats across sections", async ({
+    page,
+  }) => {
     await gotoHome(page);
-    const titles = await page
-      .locator("section", { has: page.getByRole("heading", { name: /upcoming/i }) })
-      .locator("h3")
-      .allInnerTexts();
+    const known = /near you|the big ones|this week|just announced|tours/i;
+    const regions = page
+      .getByRole("region")
+      .filter({ has: page.getByRole("heading", { level: 2, name: known }) });
+    const n = await regions.count();
+    expect(n).toBeGreaterThan(0);
+    const seen = new Map<string, string>();
+    for (let i = 0; i < n; i++) {
+      const r = regions.nth(i);
+      const name = await r.getByRole("heading", { level: 2 }).first().innerText();
+      const seeAll = r.getByRole("link", { name: /see all/i });
+      await expect(seeAll, name).toBeVisible();
+      const href = (await seeAll.getAttribute("href"))!;
+      expect((await page.request.get(href)).status(), `${name} See all → ${href}`).toBe(200);
+      for (const h of await r
+        .locator('article a[href^="/events/"]')
+        .evaluateAll((as) => as.map((a) => a.getAttribute("href")!))) {
+        expect(seen.get(h), `${h} repeats in "${name}" and "${seen.get(h)}"`).toBeUndefined();
+        seen.set(h, name);
+      }
+    }
+    // the old date-sorted "Upcoming" list is gone
+    await expect(page.getByRole("heading", { level: 2, name: /^upcoming$/i })).toHaveCount(0);
+  });
+
+  test("D-079 city cookie: 'Near you · Pune' lists Pune first, and its See all is /search?city=Pune", async ({
+    page,
+    baseURL,
+  }) => {
+    await page.context().addCookies([{ name: "city", value: "Pune", url: baseURL! }]);
+    await gotoHome(page);
+    const near = page.getByRole("region", { name: /near you · pune/i });
+    await expect(near).toBeVisible();
+    await expect(near.locator("article h3").first()).toContainText(/NH7 Weekender Pune/);
+    await expect(near.getByRole("link", { name: /see all/i })).toHaveAttribute(
+      "href",
+      /\/search\?city=Pune/,
+    );
+    // Pune shows aren't repeated in The big ones
+    const big = page.getByRole("region", { name: /the big ones/i });
+    if (await big.count()) await expect(big).not.toContainText(/NH7 Weekender Pune/);
+    // switching to All India removes Near you
+    await page.context().clearCookies();
+    await gotoHome(page);
+    await expect(page.getByRole("region", { name: /near you/i })).toHaveCount(0);
+  });
+
+  test("D-079 no city: no 'Near you' section and every published event is reachable from the page", async ({
+    page,
+  }) => {
+    await gotoHome(page);
+    await expect(page.getByRole("region", { name: /near you/i })).toHaveCount(0);
     const api = await (await page.request.get("/api/events")).json();
-    const sorted = [...api.events]
-      .sort((a: any, b: any) => a.startsAt.localeCompare(b.startsAt))
-      .map((e: any) => e.title.toUpperCase());
-    expect(titles.map((t) => t.toUpperCase())).toEqual(sorted);
+    const hrefs = await page
+      .locator('a[href^="/events/"]')
+      .evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+    for (const e of api.events) expect(hrefs).toContain(`/events/${e.id}`);
   });
 
   test("no duplicate-key or hydration warnings on load", async ({ page }) => {

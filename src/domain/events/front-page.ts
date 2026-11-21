@@ -30,13 +30,17 @@ export type FeedEvent = {
 
 // ── Size ─────────────────────────────────────────────────────────────────
 
-/** Unknown popularity sits in the middle: it neither boosts nor buries an event. */
-export const NEUTRAL_POPULARITY = 0.5;
+/** Unknown popularity counts like ~25k listeners: it neither boosts nor buries an event. */
+export const NEUTRAL_POPULARITY = 0.35;
 
-/** 0–1 from Last.fm listeners on a log scale (10M listeners ≈ 1.0). No region bias. */
+/**
+ * 0–1 from Last.fm listeners on a log scale: 1k → 0, 10k → 0.25, 100k → 0.5, 1M → 0.75,
+ * 10M → 1. Spread wide enough that a 2M-listener headliner clearly beats a 20k club night.
+ * No regional bias: Arijit or Diljit can outrank anyone.
+ */
 export function popularityFactor(listeners: number | null): number {
   if (listeners === null || listeners < 0) return NEUTRAL_POPULARITY;
-  return Math.min(Math.log10(listeners + 1) / 7, 1);
+  return Math.min(Math.max((Math.log10(listeners + 1) - 3) / 4, 0), 1);
 }
 
 /** Engagement only starts to matter once traffic exists, and is capped. */
@@ -46,12 +50,12 @@ export function engagementBonus(views: number, playlistOpens: number): number {
 }
 
 export function sizeScore(e: FeedEvent): number {
-  const festival = e.type === "festival" ? 0.4 : 0;
+  const festival = e.type === "festival" ? 0.6 : 0;
   const lineup = 0.3 * Math.min(Math.log2(Math.max(e.artistCount, 1)) / 6, 1);
   const sources = 0.05 * Math.min(Math.max(e.sourceCount - 1, 0), 3);
   return (
     1 +
-    2 * popularityFactor(e.headlinerListeners) +
+    3 * popularityFactor(e.headlinerListeners) +
     festival +
     lineup +
     sources +
@@ -225,11 +229,14 @@ export function itemKey(item: FrontItem<FeedEvent>): string {
   return item.kind === "event" ? item.event.id : item.tour.key;
 }
 
-/** Keeps order, skipping items once their city or headliner already has `cap` cards. */
+/**
+ * Keeps order, skipping items once their city (exact) or headliner already has `cap` cards.
+ * `cityCap: false` drops the city cap: in "Near you" the city is the whole point.
+ */
 export function diversify<T extends FeedEvent>(
   items: readonly FrontItem<T>[],
   limit: number,
-  cap = 2,
+  { cap = 2, cityCap = true }: { cap?: number; cityCap?: boolean } = {},
 ): FrontItem<T>[] {
   const cities = new Map<string, number>();
   const headliners = new Map<string, number>();
@@ -237,7 +244,7 @@ export function diversify<T extends FeedEvent>(
   for (const item of items) {
     if (out.length >= limit) break;
     const lead = leadEvent(item);
-    const city = lead.city ? metroOf(lead.city) : null;
+    const city = cityCap && lead.city ? norm(lead.city) : null;
     const names = lead.headliners.map(norm);
     if (city && (cities.get(city) ?? 0) >= cap) continue;
     if (names.some((n) => (headliners.get(n) ?? 0) >= cap)) continue;
@@ -267,10 +274,11 @@ export function buildFrontPage<T extends FeedEvent>(
   const { now, city } = opts;
   const items = groupTours(events, city, now);
   const used = new Set<string>();
-  const take = (list: FrontItem<T>[], limit: number) => {
+  const take = (list: FrontItem<T>[], limit: number, cityCap = true) => {
     const picked = diversify(
       list.filter((i) => !used.has(itemKey(i))),
       limit,
+      { cityCap },
     );
     picked.forEach((i) => used.add(itemKey(i)));
     return picked;
@@ -288,7 +296,7 @@ export function buildFrontPage<T extends FeedEvent>(
         return members.some((e) => proximity(e.city, city) >= 0.7);
       })
     : [];
-  const nearYou = take([...local].sort(byScore), LIMITS.nearYou);
+  const nearYou = take([...local].sort(byScore), LIMITS.nearYou, false);
   const bigOnes = take(
     [...items].sort((a, b) => national(b) - national(a)),
     LIMITS.bigOnes,

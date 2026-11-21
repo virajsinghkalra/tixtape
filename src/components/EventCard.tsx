@@ -23,6 +23,16 @@ type Props = {
   note?: string | null;
   /** A solo show's artist photo: fills the colour block so the card leads with a face. */
   image?: string | null;
+  /** A tour shown as one card (D-079): the featured date is `event`; the rest are listed. */
+  tour?: TourInfo;
+};
+
+export type TourInfo = {
+  /** "10 cities" or "3 dates". */
+  count: string;
+  /** "nearest: Mumbai · 21 Mar" or "next: Delhi NCR · 12 Mar". */
+  featuredLine: string;
+  stops: { id: string; label: string }[];
 };
 
 /** A feed card: a loud date block with stickers, then the facts. The whole card is one link. */
@@ -35,6 +45,7 @@ export function EventCard({
   variant = "feed",
   note,
   image,
+  tour,
 }: Props) {
   const photo = event.artistCount === 1 && image ? image : null;
   const { day, month, weekday } = istParts(event.startsAt);
@@ -76,9 +87,15 @@ export function EventCard({
               endsAt={event.endsAt?.toISOString() ?? null}
               now={now.toISOString()}
             />
-            <Sticker tone="night" tilt={3} emoji={event.type === "festival" ? "🎪" : "🎤"}>
-              {event.type === "festival" ? "Festival" : "Concert"}
-            </Sticker>
+            {tour ? (
+              <Sticker tone="night" tilt={3} emoji="🗺️">
+                Tour · {tour.count}
+              </Sticker>
+            ) : (
+              <Sticker tone="night" tilt={3} emoji={event.type === "festival" ? "🎪" : "🎤"}>
+                {event.type === "festival" ? "Festival" : "Concert"}
+              </Sticker>
+            )}
           </div>
           <p className="font-display leading-none font-extrabold uppercase">
             <span className={compact ? "text-5xl" : "text-6xl"}>{day}</span>{" "}
@@ -113,7 +130,35 @@ export function EventCard({
           </p>
         </div>
       </Link>
-      {ticketUrl && (
+      {tour && (
+        <details className="group/tour border-t border-dashed border-line px-4 py-2 text-sm">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-semibold">
+            <span>{tour.featuredLine}</span>
+            <span className="text-accent-text">
+              All {tour.count}{" "}
+              <span
+                aria-hidden
+                className="inline-block transition-transform group-open/tour:rotate-180"
+              >
+                ▾
+              </span>
+            </span>
+          </summary>
+          <ul className="pb-2">
+            {tour.stops.map((s) => (
+              <li key={s.id}>
+                <Link
+                  href={`/events/${s.id}`}
+                  className="flex min-h-11 items-center justify-between rounded-field px-2 hover:bg-surface-2"
+                >
+                  {s.label} <span aria-hidden>→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {ticketUrl && !tour && (
         <div className="px-4 pb-4">
           <ButtonLink href={ticketUrl} external variant="secondary" className="w-full">
             <span aria-hidden>🎟️</span> Buy tickets

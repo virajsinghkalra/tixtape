@@ -170,6 +170,11 @@ export function sameEvent(
   if (dayGap > 1) return false;
   if (disjoint(titleHeadliners(a), titleHeadliners(b))) return false;
   if (dayGap === 0 && sameVenue(a, b) && !sourcesAgreeOnArtists(a, b)) return false;
+  // One listing source, two items, consecutive nights at one venue: two nights, like a
+  // residency (D-072). The ±1 day window is for slips *between* sources.
+  if (dayGap === 1 && a.source === b.source && a.externalId !== b.externalId && sameVenue(a, b)) {
+    return false;
+  }
   return (
     titleOverlap(a, b, brandWords) >= TITLE_MATCH_MIN ||
     artistOverlap(a.artists, b.artists) >= ARTIST_OVERLAP_MIN

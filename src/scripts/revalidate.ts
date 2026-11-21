@@ -7,7 +7,9 @@
  */
 import "dotenv/config";
 import { container } from "@/server/container";
+import { refreshPopularity } from "@/server/front-page";
 import { matching } from "@/server/matching";
+import { runAsSpotifyClass } from "@/infrastructure/spotify";
 
 const BATCH = 50;
 /** Leaves headroom inside the workflow's 30-minute timeout. */
@@ -39,11 +41,18 @@ async function main(): Promise<void> {
   console.warn(
     `revalidate: resolved=${resolved} needsReviewOrUnmatched=${changed} failed=${failures}`,
   );
+  // D-079: keep the home page's Last.fm listeners cache fresh. Never fails the run.
+  const pop = await refreshPopularity(500).catch((e: unknown) => {
+    console.warn("popularity refresh failed", e);
+    return null;
+  });
+  if (pop) console.warn(`popularity: checked=${pop.checked} known=${pop.known}`);
   await c.db.$close();
   if (failures > 0) process.exitCode = 1;
 }
 
-main().catch((e: unknown) => {
+// D-080: every Spotify call in this script counts as `revalidate` (background, capped).
+runAsSpotifyClass("revalidate", main).catch((e: unknown) => {
   console.error(e);
   process.exit(1);
 });

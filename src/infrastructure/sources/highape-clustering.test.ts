@@ -54,7 +54,8 @@ async function collectFixtures(): Promise<EventCandidate[]> {
 const validated = (c: EventCandidate): ValidatedCandidate => ({
   ...c,
   title: c.title ?? c.artists[0]?.name ?? "",
-  artists: c.artists.map((a) => a.name),
+  artists: c.artists.filter((a) => a.role !== "support").map((a) => a.name),
+  supportActs: c.artists.filter((a) => a.role === "support").map((a) => a.name),
 });
 
 const ids = (clusters: ValidatedCandidate[][]) => clusters.map((cl) => cl.map((c) => c.title));

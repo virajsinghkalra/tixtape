@@ -5,6 +5,7 @@
 import { AdminEventInputSchema } from "@/application/events";
 import { createEventsModule } from "@/infrastructure/events-module";
 import { container } from "@/server/container";
+import postgres from "postgres";
 
 export const FIXTURE_EVENTS = [
   {
@@ -52,6 +53,14 @@ export async function seedFixtures(): Promise<void> {
   for (const e of FIXTURE_EVENTS)
     await events.createAdminEvent(AdminEventInputSchema.parse({ ...e, visibility: "published" }));
   await c.db.$close();
+  // createAdminEvent stores new events as `held` (D-055/D-056: nothing publishes without review),
+  // and held events are 404 everywhere (D-070). Publish the fixtures directly in the E2E DB only.
+  const url = process.env.DATABASE_URL ?? "";
+  if (!/\/concert_e2e(\?|$)/.test(url)) throw new Error("seed.ts only runs against concert_e2e");
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  const titles = FIXTURE_EVENTS.map((e) => e.title);
+  await sql`update events set visibility = 'published' where title in ${sql(titles)}`;
+  await sql.end();
 }
 
 // Run directly by tests/e2e/global-setup.ts via tsx (which resolves the "@/" alias).

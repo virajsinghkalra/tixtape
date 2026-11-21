@@ -72,6 +72,7 @@ export class SpotifyTrackCatalog implements TrackCatalog {
     query: string,
     market: string,
     caller: SpotifyCaller,
+    opts: { offset?: number } = {},
   ): Promise<SpotifyTrack[]> {
     const body = await this.http.request({
       method: "GET",
@@ -81,12 +82,20 @@ export class SpotifyTrackCatalog implements TrackCatalog {
         type: "track",
         limit: SEARCH_LIMIT,
         market: checkMarket(market),
+        offset: opts.offset || undefined,
       },
       auth: caller,
       schema: trackSearchSchema,
     });
+    const offset = opts.offset ?? 0;
     return withIds(compact(body.tracks.items)).map((t, rank) =>
-      toTrack(t, t.album.id, t.album.release_date ?? null, t.external_ids?.isrc ?? null, rank),
+      toTrack(
+        t,
+        t.album.id,
+        t.album.release_date ?? null,
+        t.external_ids?.isrc ?? null,
+        offset + rank,
+      ),
     );
   }
 

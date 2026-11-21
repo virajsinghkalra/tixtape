@@ -226,6 +226,30 @@ describe("D-078: club nights are not clustered on brand words", () => {
       true,
     ],
     [
+      "one listing, the same brand title on consecutive nights at one venue",
+      gig({ externalId: "fri", title: "Bollywood Night", artists: ["DJ Aqeel"] }),
+      gig({
+        externalId: "sat",
+        title: "Bollywood Night",
+        artists: ["DJ Suketu"],
+        startsAt: new Date("2026-11-22T20:00:00+05:30"),
+      }),
+      false,
+    ],
+    [
+      "two sources, same title, one day apart (a date slip) still cluster",
+      gig({ externalId: "h12", title: "Bollywood Night", artists: ["DJ Aqeel"] }),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r5",
+        title: "Bollywood Night",
+        artists: ["DJ Aqeel"],
+        startsAt: new Date("2026-11-22T20:00:00+05:30"),
+      }),
+      true,
+    ],
+    [
       "the same club night listed by two sources",
       crossover("Nikhil Chinapa", "h1"),
       gig({
