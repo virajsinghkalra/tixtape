@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Tixtape mark (D-077): a ticket stub that is also a cassette tape. -->
+  <rect width="512" height="512" rx="116" fill="#0b0b0f"/>
+  <g transform="rotate(-8 256 256)">
+    <!-- ticket body with side notches -->
+    <path d="M86 150h340a22 22 0 0 1 22 22v52a32 32 0 0 0 0 64v52a22 22 0 0 1-22 22H86a22 22 0 0 1-22-22v-52a32 32 0 0 0 0-64v-52a22 22 0 0 1 22-22z" fill="#c6f432" stroke="#0b0b0f" stroke-width="10"/>
+    <!-- perforation -->
+    <path d="M150 168v176" stroke="#0b0b0f" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
+    <!-- cassette window -->
+    <rect x="182" y="196" width="218" height="104" rx="52" fill="#0b0b0f"/>
+    <!-- reels -->
+    <circle cx="234" cy="248" r="34" fill="#c6f432"/>
+    <circle cx="348" cy="248" r="34" fill="#c6f432"/>
+    <circle cx="234" cy="248" r="12" fill="#0b0b0f"/>
+    <circle cx="348" cy="248" r="12" fill="#0b0b0f"/>
+    <!-- tape between reels -->
+    <rect x="252" y="275" width="78" height="10" rx="5" fill="#ff5fa2"/>
+    <!-- label stripe -->
+    <rect x="190" y="318" width="200" height="14" rx="7" fill="#0b0b0f"/>
+  </g>
+</svg>
