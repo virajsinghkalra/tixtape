@@ -3,7 +3,7 @@
  * spike count. Read-only queries over the Gig Coverage audit tables, plus pure formatting.
  * JSON columns are validated here (ENGINEERING.md §3); anything unreadable is shown as "?".
  */
-import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Alert } from "@/application/ports/alerts";
 import type { Database } from "@/db/client";
@@ -52,13 +52,12 @@ export async function countAutoPublished(db: Database, since: Date): Promise<num
   return row?.n ?? 0;
 }
 
-/** `night_key` is the fallback label when the event row is gone. */
-const auditRows = (db: Database, actions: ("published" | "updated" | "held" | "reverified")[]) =>
+/** Audit rows with their event's title, date and city; `night_key` labels a deleted event. */
+const auditRows = (db: Database, where: SQL | undefined) =>
   db
     .select({
       nightKey: publishAudit.nightKey,
       action: publishAudit.action,
-      actor: publishAudit.actor,
       reasons: publishAudit.reasons,
       sources: publishAudit.sources,
       changes: publishAudit.changes,
@@ -69,20 +68,20 @@ const auditRows = (db: Database, actions: ("published" | "updated" | "held" | "r
     .from(publishAudit)
     .leftJoin(events, eq(events.id, publishAudit.eventId))
     .leftJoin(venues, eq(venues.id, events.venueId))
-    .where(inArray(publishAudit.action, actions));
+    .where(where)
+    .orderBy(desc(publishAudit.at))
+    .limit(LIST_LIMIT);
 
 export async function loadGigActivity(db: Database, since: Date): Promise<GigActivity> {
   const [published, decided, reverified, leads] = await Promise.all([
-    auditRows(db, ["published"])
-      .where(
-        and(
-          eq(publishAudit.action, "published"),
-          eq(publishAudit.actor, AUTO_GATE_ACTOR),
-          gt(publishAudit.at, since),
-        ),
-      )
-      .orderBy(desc(publishAudit.at))
-      .limit(LIST_LIMIT),
+    auditRows(
+      db,
+      and(
+        eq(publishAudit.action, "published"),
+        eq(publishAudit.actor, AUTO_GATE_ACTOR),
+        gt(publishAudit.at, since),
+      ),
+    ),
     db
       .select()
       .from(gateDecisions)
@@ -94,15 +93,13 @@ export async function loadGigActivity(db: Database, since: Date): Promise<GigAct
       )
       .orderBy(desc(gateDecisions.decidedAt))
       .limit(LIST_LIMIT),
-    auditRows(db, ["updated", "held", "reverified"])
-      .where(
-        and(
-          inArray(publishAudit.action, ["updated", "held", "reverified"]),
-          gt(publishAudit.at, since),
-        ),
-      )
-      .orderBy(desc(publishAudit.at))
-      .limit(LIST_LIMIT),
+    auditRows(
+      db,
+      and(
+        inArray(publishAudit.action, ["updated", "held", "reverified"]),
+        gt(publishAudit.at, since),
+      ),
+    ),
     db
       .select()
       .from(gigLeads)

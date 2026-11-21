@@ -41,7 +41,7 @@ If an agent didn't finish, start a fresh one with the same brief. The `.claude/s
 5. Build the **first real playlist** from a real ingested event, and check it in Spotify with the user.
 6. **P1.10 data-integrity code:** `mergeInto`, `findBySpotifyId`, use the `artist_match_candidates` and `event_merge_reviews` tables (schema exists, migration 0001).
 7. **Container wiring:** move `src/server/{events,matching,playlists}.ts` and `auth/spotify-auth.ts` into `src/server/container.ts` (one engine-scoped Spotify instance, D-043).
-8. **First git push** to the private repo `virajsinghkalra/concert-playlist-app` (personal account only, never a work account). Commit identity is set per repo. Before pushing, re-stamp the first create-next-app commit's author (it has the work email), commit with `--no-verify`, and add no Claude attribution (user's CLAUDE.md). Push only after `npm run check` is green, then confirm CI (P0.6).
+8. **First git push** to the private repo `virajsinghkalra/tixtape` (personal account only, never a work account). Commit identity is set per repo. Before pushing, re-stamp the first create-next-app commit's author (it has the work email), commit with `--no-verify`, and add no Claude attribution (user's CLAUDE.md). Push only after `npm run check` is green, then confirm CI (P0.6).
 9. **Deploy (P4.5)** after the first playlist works:
    - the user signs up to Neon + Vercel with personal GitHub;
    - **rotate the Spotify client secret** (it was pasted in chat);

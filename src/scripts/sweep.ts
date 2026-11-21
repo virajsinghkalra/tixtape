@@ -13,6 +13,7 @@
  *    The scheduled ingest runs in candidates-only mode (D-055), which does neither archiving
  *    nor candidate cleanup, so the sweep owns them.
  * 3. Alerts (D-060): held events waiting for review, and a publisher that needs reauth.
+ * 4. D-074 spike guard: over 30 auto-published events in 24 h pauses auto-publish and alerts.
  *
  * Each task runs on its own; a failure is logged, the rest still run, and the exit code is 1.
  */
@@ -22,6 +23,8 @@ import type { BuildProgress } from "@/application/playlists";
 import { ACTIVE_JOB_STATUSES } from "@/application/ports/playlists";
 import type { PlaylistJobId } from "@/domain/shared/ids";
 import { ThrottledAlerts } from "@/infrastructure/alerts";
+import { AUTO_PUBLISH_SPIKE_LIMIT, countAutoPublished } from "@/infrastructure/alerts/gig-digest";
+import { PgAutoPublishPause } from "@/infrastructure/db/auto-publish-pause";
 import { deleteExpiredRateLimits } from "@/infrastructure/db/pg-rate-limiter";
 import { PgPlaylistJobRepository } from "@/infrastructure/db/playlist-job-repository";
 import { FileCollectorState } from "@/infrastructure/sources/collector-state";
@@ -151,6 +154,32 @@ async function alertPublisher(alerts: ThrottledAlerts): Promise<string> {
   return "publisher needs reauth (alert sent unless unchanged today)";
 }
 
+/**
+ * D-074 safety valve: more than 30 auto-published events in 24 h pauses auto-publish for 24 h
+ * (the Gig Coverage script checks the flag) and alerts. An existing pause isn't extended.
+ */
+async function guardAutoPublishSpike(alerts: ThrottledAlerts): Promise<string> {
+  const c = container();
+  const now = c.clock.now();
+  const count = await countAutoPublished(c.db, new Date(now.getTime() - DAY_MS));
+  if (count <= AUTO_PUBLISH_SPIKE_LIMIT) return `${count} auto-published in 24 h (ok)`;
+  const pause = new PgAutoPublishPause(c.db);
+  const already = await pause.pausedUntil(now);
+  const until = already ?? new Date(now.getTime() + DAY_MS);
+  if (!already) {
+    await pause.pauseUntil(
+      until,
+      `spike: ${count} auto-published in 24 h (limit ${AUTO_PUBLISH_SPIKE_LIMIT})`,
+    );
+  }
+  await alerts.send({
+    key: "auto-publish-spike",
+    subject: `Auto-publish paused: ${count} events published in 24 h`,
+    body: `The auto-gate published ${count} events in the last 24 hours, above the limit of ${AUTO_PUBLISH_SPIKE_LIMIT}. Auto-publish is paused until ${until.toISOString()} (settings key auto_publish_paused_until); nights are still discovered and judged, and held for review.\n\nCheck the recent publish_audit entries. To resume early, delete that settings row. To stop auto-publish entirely, set the repository variable AUTO_PUBLISH_ENABLED to false.`,
+  });
+  return `${count} auto-published in 24 h: SPIKE, paused until ${until.toISOString()}`;
+}
+
 async function main(): Promise<void> {
   const c = container();
   const now = c.clock.now();
@@ -171,6 +200,7 @@ async function main(): Promise<void> {
     return `${n} old windows deleted`;
   });
   await task("held events", () => alertHeldEvents(alerts));
+  await task("auto-publish spike", () => guardAutoPublishSpike(alerts));
   await task("publisher", () => alertPublisher(alerts));
 
   await c.db.$close();

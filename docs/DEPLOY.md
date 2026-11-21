@@ -65,7 +65,7 @@ Never run migrations from the Vercel build: preview builds would migrate product
 
 ## 3. Vercel (web)
 
-1. Sign up at vercel.com with the personal GitHub account **virajsinghkalra**; import `virajsinghkalra/concert-playlist-app`. Framework: Next.js (auto); the build is `next build`. Scheduled work runs in GitHub Actions, not Vercel Cron.
+1. Sign up at vercel.com with the personal GitHub account **virajsinghkalra**; import `virajsinghkalra/tixtape`. Framework: Next.js (auto); the build is `next build`. Scheduled work runs in GitHub Actions, not Vercel Cron.
 2. Settings → General → **Node.js 24.x**. The function region is pinned to **sin1 (Singapore)**, next to Neon, by `vercel.json` (`"regions": ["sin1"]`; Hobby allows one region). Without the pin, functions default to iad1 and every query would cross to Singapore. Check it after the first deploy under Settings → Functions.
 3. Environment variables (Production; add Preview only if you want previews to work, ideally with a Neon branch):
 

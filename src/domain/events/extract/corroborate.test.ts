@@ -5,7 +5,9 @@ import {
   clusterCandidates,
   decidePublication,
   mergeCluster,
+  recurringBrandWords,
   sameEvent,
+  titleHeadliners,
 } from "./corroborate";
 
 const base: ValidatedCandidate = {
@@ -137,5 +139,179 @@ describe("clusterCandidates / mergeCluster", () => {
       artists: ["Charlie Puth", "Ellie Goulding", "Kayan"],
     });
     expect(merged.sources.map((s) => s.source)).toEqual(["teaminnovation", "rollingstone"]);
+  });
+});
+
+describe("D-078: club nights are not clustered on brand words", () => {
+  /** Real titles and venues from the HighApe fixtures (Bengaluru, Nov 2026). */
+  const gig = (over: Partial<ValidatedCandidate>): ValidatedCandidate =>
+    c({
+      source: "highape",
+      trust: "official",
+      type: "concert",
+      city: "Bengaluru",
+      startsAt: new Date("2026-11-21T20:00:00+05:30"),
+      venueName: "DND",
+      artists: [],
+      ...over,
+    });
+  const crossover = (dj: string, externalId: string) =>
+    gig({ externalId, title: `CROSS/OVER Ft ${dj}`, artists: [dj] });
+  const hod = (title: string, artist: string, externalId: string) =>
+    gig({
+      externalId,
+      title,
+      artists: [artist],
+      venueName: "HOD - House Of Dopamine Brewery LLP",
+      startsAt: new Date("2026-11-22T20:00:00+05:30"),
+    });
+
+  it.each<[string, ValidatedCandidate, ValidatedCandidate, boolean]>([
+    [
+      "same brand, different DJ in the title (was a 0.6 title match)",
+      crossover("Nikhil Chinapa", "h1"),
+      crossover("Anish Sood", "h2"),
+      false,
+    ],
+    [
+      "same brand, different DJ, titles only (no artist lists)",
+      gig({ externalId: "h1", title: "CROSS/OVER Ft Nikhil Chinapa" }),
+      gig({ externalId: "h2", title: "CROSS/OVER Ft Anish Sood" }),
+      false,
+    ],
+    [
+      "two HOD Club nights with different live acts on the same night",
+      hod("War Drum | James Mithal Live at HOD Club", "James Mithal", "h3"),
+      hod("Black Friday | Karthik Gopinath live at HOD CLUB", "Karthik Gopinath", "h4"),
+      false,
+    ],
+    [
+      "generic '<Brand> Night ft. DJ X' vs 'ft. DJ Y', one day apart",
+      gig({ externalId: "h5", title: "Techno Night ft. DJ Kohra" }),
+      gig({
+        externalId: "h6",
+        title: "Techno Night ft. DJ Arjun Vagale",
+        startsAt: new Date("2026-11-22T20:00:00+05:30"),
+      }),
+      false,
+    ],
+    [
+      "only generic words in common",
+      gig({ externalId: "h7", title: "Saturday Night Live Party at the Club" }),
+      gig({ externalId: "h8", title: "Live Music Night at the Club" }),
+      false,
+    ],
+    [
+      "same venue and IST date, different headliner, generic titles",
+      gig({ externalId: "h9", title: "Friday Night Live", artists: ["Kohra"] }),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r1",
+        title: "Friday Night Live",
+        artists: ["Arjun Vagale"],
+      }),
+      false,
+    ],
+    [
+      "same venue and IST date, different first artist, but the sources agree",
+      gig({ externalId: "h10", title: "Friday Night Live", artists: ["Kohra", "Arjun Vagale"] }),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r2",
+        title: "Friday Night Live",
+        artists: ["Arjun Vagale", "Kohra"],
+      }),
+      true,
+    ],
+    [
+      "the same club night listed by two sources",
+      crossover("Nikhil Chinapa", "h1"),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r3",
+        title: "CROSS/OVER feat. Nikhil Chinapa",
+        artists: ["Nikhil Chinapa"],
+      }),
+      true,
+    ],
+    [
+      "same headliner, one title names a support act too",
+      gig({
+        externalId: "h11",
+        title: "Ed Sheeran ft. Calum Scott",
+        artists: ["Ed Sheeran", "Calum Scott"],
+      }),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r4",
+        title: "Ed Sheeran Live in Bengaluru",
+        artists: ["Ed Sheeran"],
+      }),
+      true,
+    ],
+  ])("%s → %s", (_label, a, b, expected) => {
+    expect(sameEvent(a, b)).toBe(expected);
+    expect(sameEvent(b, a)).toBe(expected);
+  });
+
+  it.each<[string, string[]]>([
+    ["CROSS/OVER Ft Nikhil Chinapa", ["nikhil chinapa"]],
+    ["War Drum | James Mithal Live at HOD Club", ["james mithal"]],
+    ["Black Friday | Karthik Gopinath live at HOD CLUB", ["karthik gopinath"]],
+    ["Techno Night ft. DJ Kohra b2b Arjun Vagale", ["kohra", "arjun vagale"]],
+    ["Sundowner Pool Party – Sunset Vibes & Poolside Beats", []],
+    ["Johnnie & Co. Festival", []],
+  ])("titleHeadliners(%j) → %j", (title, names) => {
+    expect([...titleHeadliners(gig({ title }))].sort()).toEqual([...names].sort());
+  });
+
+  it("a brand that recurs weekly carries no title similarity; one festival weekend is not a brand", () => {
+    const weekly = [0, 7, 14].map((d, i) =>
+      gig({
+        externalId: `w${i}`,
+        title: `CROSS/OVER Ft ${["Nikhil Chinapa", "Anish Sood", "Kohra"][i]}`,
+        startsAt: new Date(Date.parse("2026-11-21T20:00:00+05:30") + d * 86_400_000),
+      }),
+    );
+    const festival = [0, 1, 2].map((d, i) =>
+      c({
+        externalId: `f${i}`,
+        title: "Sunburn Goa",
+        city: "Goa",
+        startsAt: new Date(Date.parse("2026-12-28T16:00:00+05:30") + d * 86_400_000),
+      }),
+    );
+    const brands = recurringBrandWords([...weekly, ...festival]);
+    expect([...brands].sort()).toEqual(["cross", "over"]);
+    // With the brand ignored, two bare CROSS/OVER listings on one night no longer match by title.
+    const bare = (id: string) => gig({ externalId: id, title: "CROSS/OVER", artists: [] });
+    expect(sameEvent(bare("b1"), bare("b2"))).toBe(true);
+    expect(sameEvent(bare("b1"), bare("b2"), brands)).toBe(false);
+  });
+
+  it("clusterCandidates keeps every HighApe night separate and still joins a real duplicate", () => {
+    const nights = [
+      crossover("Nikhil Chinapa", "h1"),
+      crossover("Anish Sood", "h2"),
+      hod("War Drum | James Mithal Live at HOD Club", "James Mithal", "h3"),
+      hod("Black Friday | Karthik Gopinath live at HOD CLUB", "Karthik Gopinath", "h4"),
+      gig({
+        source: "rollingstone",
+        trust: "trusted",
+        externalId: "r3",
+        title: "CROSS/OVER feat. Nikhil Chinapa",
+        artists: ["Nikhil Chinapa"],
+      }),
+    ];
+    expect(clusterCandidates(nights).map((cl) => cl.map((x) => x.externalId))).toEqual([
+      ["h1", "r3"],
+      ["h2"],
+      ["h3"],
+      ["h4"],
+    ]);
   });
 });

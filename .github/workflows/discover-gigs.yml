@@ -73,6 +73,15 @@ jobs:
             args+=("--max-artists=$MAX_ARTISTS")
           fi
           npx tsx src/scripts/discover-gigs.ts "${args[@]}"
+      # D-060 daily digest of the last 24 h (published, held or rejected and why, re-verification,
+      # new leads). Sent only when there's something to report. Only the alert secrets.
+      - name: Daily gig digest
+        if: always() && github.event.inputs.dry_run != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
+          ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
+        run: npx tsx src/scripts/gig-digest.ts
       - if: always()
         uses: actions/upload-artifact@v4
         with:

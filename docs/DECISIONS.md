@@ -901,7 +901,7 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
 
 - **Status:** Accepted · **Owner:** Lead · **Date:** 2026-11-21
 - **Context:** The scheduled jobs (sweep every 30 min, ingest every 3 h, gig discovery every 6 h, weekly revalidate) use roughly 2,000 GitHub Actions minutes a month, counting install overhead. That is about the whole private-repo free quota. Public repos get unlimited standard-runner minutes. The owner delegated the choice.
-- **Decision:** Make `virajsinghkalra/concert-playlist-app` (personal account only) public.
+- **Decision:** Make `virajsinghkalra/tixtape` (personal account only) public.
   - Before the first push and before every release: run a secret scan over the working tree **and the full git history**. Commit no `.env*` except `.env.example`. Everything sensitive lives in GitHub/Vercel secrets.
   - No personal or work email in commit metadata. The first commit's author is re-stamped to the personal noreply address.
   - Workflows keep `contents: read`, secrets scoped to single steps, and no `pull_request_target`. Fork PRs never receive secrets.
@@ -938,7 +938,7 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - Footer tagline: "every ticket gets a mixtape ✦".
   - Production URL: `tixtape.vercel.app`.
   - The owner renames the Spotify publisher account's display name to Tixtape.
-- **Unchanged:** the npm package and repo name stay `concert-playlist-app`, and the bot User-Agent token and contact mailbox (`lineupmixes@gmail.com`) stay as they are. Changing them adds risk and no user-visible value.
+- **Unchanged:** the npm package and GitHub repo are renamed `tixtape` (local folder stays `concert-playlist-app`), and the bot User-Agent token and contact mailbox (`lineupmixes@gmail.com`) stay as they are. Changing them adds risk and no user-visible value.
 - **Also fixed:** `clip()` in `src/domain/playlists/naming.ts` could cut an emoji (surrogate pair) in half. The rename moved the cut point and exposed it. It now never splits a pair.
 - **Addendum (2026-11-21):**
   - Neon created the project on **Postgres 18.7**; local and CI run 16. All migrations 0000–0009 apply cleanly, and pg_trgm and unaccent are present. Move local Docker and the CI service to 18 so all environments match.
