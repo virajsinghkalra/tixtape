@@ -5,12 +5,14 @@ import { z } from "zod";
 import type { PickedTrack } from "@/domain/playlists/selection";
 import type { EventDetail } from "./events";
 import {
-  asSpotifyArtistId,
   asSpotifyPlaylistId,
   asSpotifyTrackId,
+  type ArtistId,
   type EventId,
   type PlaylistJobId,
+  type SpotifyArtistId,
   type SpotifyPlaylistId,
+  type SpotifyTrackId,
   type UserId,
 } from "@/domain/shared/ids";
 
@@ -31,33 +33,6 @@ export type BuildStage = (typeof BUILD_STAGES)[number];
 const trackId = z.string().min(1).transform(asSpotifyTrackId);
 const picked = z.object({ id: trackId, isrc: z.string().nullable(), key: z.string() });
 
-const poolTrack = z.object({
-  id: trackId,
-  name: z.string(),
-  artistIds: z.array(z.string().transform(asSpotifyArtistId)),
-  isrc: z.string().nullable(),
-  durationMs: z.number().int().min(0),
-});
-export type PoolTrack = z.infer<typeof poolTrack>;
-
-/** POOL_PHASES run in order, one unit of work each (several units for map and albums). */
-export const POOL_PHASES = ["signals", "newest", "map", "albums", "ready"] as const;
-
-/** The current artist's candidate songs while they're being gathered (D-065). */
-export const ArtistPoolSchema = z.object({
-  phase: z.enum(POOL_PHASES),
-  search: z.array(poolTrack),
-  mostListened: z.array(poolTrack),
-  trending: z.array(poolTrack),
-  newest: z.array(poolTrack),
-  albums: z.array(poolTrack),
-  /** Signal titles still to map to Spotify, best first. */
-  toMap: z.array(z.object({ title: z.string(), signal: z.enum(["mostListened", "trending"]) })),
-  /** Album and single ids, newest first, still to open. Null until listed. */
-  albumIds: z.array(z.string()).nullable(),
-});
-export type ArtistPool = z.infer<typeof ArtistPoolSchema>;
-
 /** Validated when read back from `playlist_jobs.checkpoint` (ENGINEERING.md §3). */
 export const JobCheckpointSchema = z.object({
   stage: z.enum(BUILD_STAGES),
@@ -77,10 +52,9 @@ export const JobCheckpointSchema = z.object({
   /** Set just before a chunk is sent; still set on resume means the step died mid-chunk. */
   chunkInFlight: z.number().int().min(0).nullable(),
   snapshotId: z.string().nullable(),
-  /** D-065: Last.fm listeners per matched artist (null = unknown), gathered first. */
-  popularity: z.array(z.number().nullable()).default([]),
-  /** The pool of the artist at `artistIndex`, while it's being gathered. */
-  pool: ArtistPoolSchema.nullable().default(null),
+  /** Older checkpoints (before D-080) carried these; they're ignored now. */
+  popularity: z.unknown().optional(),
+  pool: z.unknown().optional(),
 });
 export type JobCheckpoint = z.infer<typeof JobCheckpointSchema>;
 export type { PickedTrack };
@@ -184,4 +158,37 @@ export interface EventLineupReader {
    * `hours` (D-065, e.g. "14:00-22:00 IST each day"); it's parsed defensively.
    */
   getEvent(id: EventId): Promise<EventDetail & { verification?: unknown }>;
+}
+
+/** One resolved candidate song for an artist (D-080), shared by every event and rebuild. */
+export type CachedSong = {
+  id: SpotifyTrackId;
+  name: string;
+  artistIds: SpotifyArtistId[];
+  isrc: string | null;
+  durationMs: number;
+  releaseDate: string | null;
+  /** 0-based position in Spotify's `artist:"…"` search results (popularity proxy). */
+  searchRank: number;
+  /** 1-based Last.fm top-track rank of this title, or null. */
+  lastfmRank: number | null;
+};
+
+export type ArtistSongs = {
+  /** The Spotify artist these songs were resolved for; a re-matched artist is a cache miss. */
+  spotifyArtistId: SpotifyArtistId;
+  songs: CachedSong[];
+  /** Last.fm listeners (D-065 popularity), null when unknown. */
+  listeners: number | null;
+  /** Search pages fetched; more can be fetched for a bigger budget unless `exhausted`. */
+  pages: number;
+  /** Spotify had no more results for the artist. */
+  exhausted: boolean;
+  fetchedAt: Date;
+};
+
+/** D-080: resolved songs per artist (`artist_track_cache`, TTL enforced by callers). */
+export interface ArtistSongsCache {
+  getMany(artistIds: readonly ArtistId[], market: string): Promise<Map<ArtistId, ArtistSongs>>;
+  put(artistId: ArtistId, market: string, songs: ArtistSongs): Promise<void>;
 }

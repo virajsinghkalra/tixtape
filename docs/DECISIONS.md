@@ -989,3 +989,35 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
 - **Tests:**
   - Unit tests for every factor, metro clustering, tour grouping, featured dates and the diversity caps.
   - A seeded 200-event scenario (a 10-city tour, a far-away mega festival, a tiny local gig, a past event) asserting what Mumbai, Kolkata and no-city visitors see.
+
+### D-080 · Fast "Make playlist": cached songs, pre-warm, and one prioritised Spotify call budget
+- **Status:** Accepted · **Owner:** Engine (owner P0) · **Date:** 2026-11-22. Amends D-038/D-065 (how songs are fetched), D-006/D-020 (who may call Spotify, and how often).
+- **Context:** The real HOME build (24 artists) made about 14 Spotify calls per artist: a search for every Last.fm title, newest releases and album tracks. Only 4 artists finished in 90 s, then a 429 on `/search` returned `Retry-After: ~63,700 s`. The shared gate honoured it, so the whole app was paused for ~17.7 h. Matching re-runs and gig validation were calling Spotify at the same time.
+- **Spotify facts (developer docs, checked 2026-11-22):**
+  - The rate limit is app-wide over a rolling 30 s window, not per endpoint. So one gate for every endpoint is correct, and a `/search` ban does block playlist writes.
+  - `Retry-After` is in seconds. We parse seconds or an HTTP date, with no cap, and honour it.
+  - Since February 2026, batch `GET /tracks|/albums|/artists` and artist top tracks are removed. Search returns at most 10 results per page (`offset` paging is the advice), artist albums at most 10, and album tracks at most 50.
+- **Songs per artist (≤ 3 calls for festival artists):**
+  - Ranking comes from Last.fm, which is free: `artist.getTopTracks` and listeners.
+  - Spotify only resolves titles. It uses `artist:"Name"` search pages sized to the artist's D-065 budget: 1 page for ≤ 7 songs, 2–3 for subs, 4–5 for a big headliner, 6 at most for a solo 150-min show. Then targeted `track:"T" artist:"A"` searches for top Last.fm titles the pages missed, within 3 calls in total.
+  - It never pages a whole catalogue, and newest releases and album tracks are no longer fetched.
+  - The "newest" signal comes from release dates already in the search results.
+- **Cache:**
+  - Each artist's resolved songs are stored in `artist_track_cache` (mode `hits`, per market) for 14 days: id, name, artists, ISRC, duration, release date, search rank, Last.fm rank, plus Last.fm listeners.
+  - The cache is shared by every event, rebuild and estimate.
+  - It had 0 rows before because nothing wrote to it; the engine only cached in process memory.
+  - Interim encoding: JSON per element of `spotify_track_ids`, with a header in element 0. **Proposed:** a `candidates jsonb` column (Lead, schema).
+- **Pre-warm:**
+  - `prewarmEvent` resolves uncached artists as the `prewarm` class. It runs after `ingest --publish` (2 min) and in every sweep (4 min, soonest events first).
+  - A warm build is create + ≤ 3 writes, finishing in 1–2 steps.
+  - The estimate returns `readiness {cachedArtists, artists, seconds}`, and the panel shows "Ready in about 5 s" or "Takes about 2 min to make".
+- **One call budget with priorities:**
+  - Every Spotify request takes a slot first (`SpotifyCallBudget`). The counters live in Postgres (`rate_limits`) and are shared by every instance.
+  - Classes: `build` (playlist builds, sign-in) > `match` (matching, live-lookup validation) > `prewarm` > `discovery` (gigs, ingest validation) / `revalidate`.
+  - **App-wide:** 8 calls per fixed 10 s window, so any rolling 30 s holds ≤ 32 calls (~1 per second).
+  - **Background:** at most 3 of the 8 slots. Per window: match 2, prewarm 1, discovery 1, revalidate 1. Per day: match 1,500, prewarm 1,000, discovery 400, revalidate 400. So builds always keep ≥ 5 of 8 slots.
+  - **When the window is full:** builds wait ≤ 1.5 s, then return a short pause (the next step retries). Background classes wait up to 60 s, and stop for the day at their cap.
+  - Scripts declare their class with `runAsSpotifyClass`. Module defaults: the main instance counts as `match`, the engine's instance as `build`.
+  - A 429 still closes the shared gate for everyone, and the class that triggered it is logged and counted.
+  - The sweep logs calls and 429s per class for today and yesterday.
+- **Steps:** a step starts no new unit after 6 s, and writes need ≥ 13 s of lease left (D-045).

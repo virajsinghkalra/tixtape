@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   activeJob,
+  afterFailedStep,
+  refreshView,
   MAX_STALLED_STEPS,
   formatClock,
   nextStepDelay,
@@ -188,5 +190,75 @@ describe("never an endless wait", () => {
     expect(viewFromStep({ error: { code: "playlist_unavailable" } }, building, 503)).toEqual({
       kind: "unavailable",
     });
+  });
+});
+
+describe("a paused build shows as paused at once (no 'Joining the build…')", () => {
+  const paused = {
+    jobId: "job-1",
+    status: "paused",
+    stage: "select",
+    progress: 17,
+    artistsDone: 6,
+    artistsTotal: 34,
+    unresolved: [],
+    resumeAfter: "2026-11-22T12:03:40.151Z",
+  };
+
+  it("from a server-rendered status that carries the job's progress", () => {
+    const view = viewFromStatus({ status: "building", jobId: "job-1", progress: paused });
+    expect(view).toMatchObject({
+      kind: "building",
+      joined: true,
+      waitUntil: "2026-11-22T12:03:40.151Z",
+      progress: 17,
+    });
+    expect(formatClock("2026-11-22T12:03:40.151Z")).toBe("5:33 pm");
+  });
+
+  it("without progress it asks the job straight away instead of waiting 1.5 s", () => {
+    const view = viewFromStatus({ status: "building", jobId: "job-1" });
+    expect(view).toMatchObject({ kind: "building", label: "Joining the build…" });
+    expect(nextStepDelay(activeJob(view)!, new Date())).toBe(0);
+  });
+
+  it("a finished job in the status goes straight to ready", () => {
+    const view = viewFromStatus({
+      status: "building",
+      jobId: "job-1",
+      progress: { ...paused, status: "succeeded", stage: "done", progress: 100, playlistUrl: URL_ },
+    });
+    expect(view).toMatchObject({ kind: "ready", url: URL_ });
+  });
+});
+
+describe("no tight loops, no downgrades", () => {
+  const paused = viewFromStatus({
+    status: "building",
+    jobId: "job-1",
+    progress: {
+      jobId: "job-1",
+      status: "paused",
+      stage: "select",
+      progress: 17,
+      artistsDone: 6,
+      artistsTotal: 34,
+      unresolved: [],
+      resumeAfter: "2026-11-22T12:03:40.151Z",
+    },
+  });
+  const joining = viewFromStatus({ status: "building", jobId: "job-1" });
+
+  it("a refresh without progress keeps the known pause for the same job", () => {
+    expect(refreshView(paused, joining)).toBe(paused);
+    expect(
+      refreshView(paused, viewFromStatus({ status: "building", jobId: "job-2" })),
+    ).toMatchObject({ jobId: "job-2" });
+    expect(refreshView(joining, viewFromStatus({ status: "none" }))).toEqual({ kind: "idle" });
+  });
+
+  it("a failed first step backs off to the normal 1.5 s", () => {
+    const after = afterFailedStep(joining);
+    expect(nextStepDelay(activeJob(after)!, new Date())).toBe(1500);
   });
 });

@@ -20,6 +20,14 @@ const previewSchema = z.object({
   showMinutes: z.number().min(0),
   days: z.number().int().min(1),
   unmatched: z.number().int().min(0),
+  /** D-080: how many artists' songs are already cached, and the expected build time. */
+  readiness: z
+    .object({
+      cachedArtists: z.number().int().min(0),
+      artists: z.number().int().min(0),
+      seconds: z.number().min(0),
+    })
+    .optional(),
 });
 export type PlaylistPreview = z.infer<typeof previewSchema>;
 export type TierPreview = PlaylistPreview["perTier"][number];
@@ -43,6 +51,14 @@ export function formatDuration(minutes: number): string {
 export function headline(p: PlaylistPreview, soloName?: string): string {
   if (soloName) return `~${plural(p.songs, "song")} · ${formatDuration(p.minutes)} of ${soloName}`;
   return `${plural(p.songs, "song")} · about ${formatDuration(p.minutes)}`;
+}
+
+/** D-080: "Ready in about 10 s" when songs are cached, else "Takes about 2 min". */
+export function readyLine(p: PlaylistPreview): string {
+  const r = p.readiness;
+  if (!r || r.artists === 0) return "";
+  if (r.seconds < 60) return `Ready in about ${Math.max(5, Math.round(r.seconds / 5) * 5)} s`;
+  return `Takes about ${Math.round(r.seconds / 60)} min to make`;
 }
 
 /** "matches the show (2 days × 8 h)" or "matches the show (3 h)". */

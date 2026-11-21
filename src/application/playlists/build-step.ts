@@ -1,15 +1,14 @@
 /**
  * One step of a shared playlist build (P2.2, D-005, D-036). A step claims the job's lease,
  * does at most ~8 s of work in small units, checkpoints after each unit and returns progress.
- * Stages: select (popularity for a few artists per unit, then each artist's pool a few calls
- * per unit, D-065) → create → write (one 100-track chunk per unit).
+ * Stages: select (D-080: one uncached artist resolved per unit, ≤ 3 Spotify calls; cached
+ * artists cost nothing; then every artist is picked at once, D-065) → create → write (one
+ * 100-track chunk per unit). With a warm cache a build is create + ≤ 3 writes.
  */
+import type { ChartEntry, TrendingSource } from "@/application/ports/music-signals";
 import type {
-  ArtistPopularitySource,
-  ChartEntry,
-  TrendingSource,
-} from "@/application/ports/music-signals";
-import type {
+  ArtistSongs,
+  ArtistSongsCache,
   EventLineupReader,
   JobCheckpoint,
   JobLease,
@@ -25,11 +24,18 @@ import {
 } from "@/application/ports/spotify";
 import { playlistDescription, playlistName } from "@/domain/playlists/naming";
 import { orderPlaylist, pickedTrack } from "@/domain/playlists/selection";
-import type { PlaylistJobId, SpotifyTrackId } from "@/domain/shared/ids";
+import type { PickedTrack } from "@/domain/playlists/selection";
+import type { ArtistId, PlaylistJobId, SpotifyTrackId } from "@/domain/shared/ids";
 import { NotFoundError, UpstreamError } from "@/lib/errors";
 import { UNAVAILABLE_MESSAGE } from "./errors";
 import { budgetsFor, planBuild, type BuildPlan } from "./plan";
-import { advancePool, pickFromPool, type SignalDeps } from "./pick-artist-tracks";
+import {
+  entryFor,
+  isUsable,
+  pickFromSongs,
+  resolveArtistSongs,
+  type ArtistSongsDeps,
+} from "./artist-songs";
 import { CHUNK_SIZE, progressFor, toProgress, type BuildProgress } from "./progress";
 import { getPublisher, type PublisherDeps, type PublisherProblem } from "./publisher";
 
@@ -39,8 +45,6 @@ export const STEP_BUDGET_MS = 8_000;
  * most a few requests of REQUEST_TIMEOUT_MS, so the step ends near STEP_BUDGET_MS.
  */
 export const UNIT_START_LIMIT_MS = 6_000;
-/** Artists whose Last.fm popularity is looked up per unit of work (D-065). */
-export const POPULARITY_CHUNK = 5;
 export const LEASE_MS = 15_000;
 /** D-045: every outbound request in a step gives up after this long. */
 export const REQUEST_TIMEOUT_MS = 4_000;
@@ -53,14 +57,14 @@ export const WRITE_LEASE_MARGIN_MS = 2 * REQUEST_TIMEOUT_MS + 5_000;
 /** A Spotify pause at most this long keeps the job running; the client simply steps again. */
 export const SHORT_PAUSE_MS = 30_000;
 
-export type BuildDeps = SignalDeps &
+export type BuildDeps = ArtistSongsDeps &
   PublisherDeps & {
+    songsCache: ArtistSongsCache;
     jobs: PlaylistJobRepository;
     shared: SharedPlaylistRepository;
     events: EventLineupReader;
     trending: TrendingSource;
     writer: PlaylistWriter;
-    popularity: ArtistPopularitySource;
     alertUnavailable: (problem: PublisherProblem) => void;
   };
 
@@ -115,8 +119,6 @@ function freshCheckpoint(plan: BuildPlan): JobCheckpoint {
     chunksDone: 0,
     chunkInFlight: null,
     snapshotId: null,
-    popularity: [],
-    pool: null,
   };
 }
 
@@ -179,71 +181,94 @@ class BuildRun {
     if (cp.stage === "write") return this.writeNext(cp, publisherId);
   }
 
+  /**
+   * D-080: resolves the next artist whose cached songs are missing, stale or too shallow for
+   * their budget (one unit, ≤ 3 Spotify calls). Cached artists are skipped at no cost; once
+   * every artist is cached, all of them are picked in one go.
+   */
   private async selectNext(plan: BuildPlan, cp: JobCheckpoint): Promise<void> {
-    if (cp.popularity.length < plan.artists.length) return this.lookUpPopularity(plan, cp);
-    const artist = plan.artists[cp.artistIndex];
-    if (!artist) return this.finishSelection(plan, cp);
-    const budget = budgetsFor(plan, cp.popularity)[cp.artistIndex];
-    const targetSongs = budget?.songs ?? 1;
-    const pool = await advancePool(
-      this.deps,
-      {
-        artist,
-        market: plan.market,
-        targetSongs,
-        chart: () => this.loadChart(plan.market),
-        keepGoing: () => this.inTime(),
-      },
-      cp.pool,
+    const cache = await this.songs(plan);
+    const now = this.deps.clock.now();
+    const targets = budgetsFor(
+      plan,
+      plan.artists.map((a) => entryFor(cache, a)?.listeners ?? null),
     );
-    if (pool.phase !== "ready") return this.advance({ ...cp, pool });
-
-    const tracks = pickFromPool({
-      artist,
-      pool,
-      budgetMs: (budget?.minutes ?? 0) * 60_000,
-      minSongs: Math.min(2, targetSongs),
-      alreadyPicked: cp.picks.flat(),
-    });
-    await this.advance({
-      ...cp,
-      pool: null,
-      artistIndex: cp.artistIndex + 1,
-      picks: [...cp.picks, tracks.map(pickedTrack)],
-      unresolved: tracks.length > 0 ? cp.unresolved : [...cp.unresolved, artist.name],
-    });
-  }
-
-  /** D-065: Last.fm listeners for the next few artists; a failure means "unknown" (1.0). */
-  private async lookUpPopularity(plan: BuildPlan, cp: JobCheckpoint): Promise<void> {
-    const next = plan.artists.slice(cp.popularity.length, cp.popularity.length + POPULARITY_CHUNK);
-    const found: (number | null)[] = [];
-    for (const artist of next) {
-      if (found.length > 0 && !this.inTime()) break;
-      found.push(
-        await this.deps.popularity.listeners(artist.name).catch((e: unknown) => {
-          if (!(e instanceof UpstreamError)) throw e;
-          this.deps.logger.warn({ err: e, artist: artist.name }, "popularity unavailable");
-          return null;
-        }),
-      );
+    let index = cp.artistIndex;
+    while (index < plan.artists.length) {
+      const artist = plan.artists[index]!;
+      if (!isUsable(entryFor(cache, artist), targets[index]?.songs ?? 1, now)) break;
+      index++;
     }
-    await this.advance({ ...cp, popularity: [...cp.popularity, ...found] });
+    const artist = plan.artists[index];
+    if (!artist) return this.finishSelection(plan, cp, cache);
+    const songs = await resolveArtistSongs(this.deps, {
+      artist,
+      market: plan.market,
+      targetSongs: targets[index]?.songs ?? 1,
+      now,
+    });
+    await this.deps.songsCache.put(artist.artistId, plan.market, songs);
+    this.cache?.set(artist.artistId, songs);
+    await this.advance({ ...cp, artistIndex: index + 1 });
   }
 
-  private async finishSelection(plan: BuildPlan, cp: JobCheckpoint): Promise<void> {
+  private cache: Map<ArtistId, ArtistSongs> | undefined;
+
+  /** One read per step for every artist's cached songs. */
+  private async songs(plan: BuildPlan): Promise<Map<ArtistId, ArtistSongs>> {
+    this.cache ??= await this.deps.songsCache.getMany(
+      plan.artists.map((a) => a.artistId),
+      plan.market,
+    );
+    return this.cache;
+  }
+
+  /** Every artist is cached: budgets with real popularity, picks, D-040 order. No calls. */
+  private async finishSelection(
+    plan: BuildPlan,
+    cp: JobCheckpoint,
+    cache: Map<ArtistId, ArtistSongs>,
+  ): Promise<void> {
+    const budgets = budgetsFor(
+      plan,
+      plan.artists.map((a) => entryFor(cache, a)?.listeners ?? null),
+    );
+    const chart = await this.loadChart(plan.market);
+    const picks: PickedTrack[][] = [];
+    const unresolved = [...plan.unmatched];
+    for (const [i, artist] of plan.artists.entries()) {
+      const budget = budgets[i];
+      const tracks = pickFromSongs({
+        artist,
+        songs: entryFor(cache, artist)?.songs ?? [],
+        chart,
+        budgetMs: (budget?.minutes ?? 0) * 60_000,
+        minSongs: Math.min(2, budget?.songs ?? 1),
+        alreadyPicked: picks.flat(),
+      });
+      picks.push(tracks.map(pickedTrack));
+      if (tracks.length === 0) unresolved.push(artist.name);
+    }
     const pickedTrackIds = orderPlaylist(
       plan.artists.map((a, i) => ({
         tier: a.tier,
         billingRank: a.billingRank,
-        trackIds: (cp.picks[i] ?? []).map((p) => p.id),
+        trackIds: (picks[i] ?? []).map((p) => p.id),
       })),
     );
     if (pickedTrackIds.length === 0) {
+      await this.advance({ ...cp, artistIndex: plan.artists.length, unresolved });
       await this.fail("We couldn't find songs for this lineup on Spotify.");
       return;
     }
-    await this.advance({ ...cp, stage: "create", pickedTrackIds });
+    await this.advance({
+      ...cp,
+      artistIndex: plan.artists.length,
+      picks,
+      unresolved,
+      stage: "create",
+      pickedTrackIds,
+    });
   }
 
   /** D-036: one playlist per event, saved before any item is added; a rebuild reuses it. */

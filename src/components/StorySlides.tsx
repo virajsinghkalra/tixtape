@@ -7,16 +7,23 @@ import { cx } from "./ui/cx";
 import { Sticker } from "./ui/Sticker";
 import type { Story } from "./ui/StoryViewer";
 
+/** Sized for a portrait story card (~440px wide), never a full-width banner. */
 const TITLE: Record<TitleSize, string> = {
-  xl: "text-huge",
-  lg: "text-big",
-  md: "text-2xl sm:text-3xl",
+  xl: "text-5xl",
+  lg: "text-4xl",
+  md: "text-3xl",
 };
 
 const NAME: Record<"huge" | "big" | "small", string> = {
-  huge: "text-huge",
-  big: "text-big",
-  small: "text-2xl",
+  huge: "text-4xl",
+  big: "text-2xl",
+  small: "text-xl",
+};
+
+const FACE: Record<"huge" | "big" | "small", string> = {
+  huge: "size-20",
+  big: "size-11",
+  small: "size-9",
 };
 
 /** Turns a planned story into slides for `StoryViewer`. Works on the server and the client. */
@@ -51,7 +58,7 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
                 {slide.city ? `📍 ${slide.city} · ` : ""}
                 {slide.dateLine}
               </p>
-              <p className="font-display text-huge leading-none font-extrabold uppercase [overflow-wrap:anywhere]">
+              <p className="font-display text-5xl leading-none font-extrabold uppercase [overflow-wrap:anywhere]">
                 {slide.artist.name}
               </p>
               <p className={cx("font-display font-bold text-balance", "text-xl sm:text-2xl")}>
@@ -63,23 +70,32 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
       );
     case "intro":
       return (
-        <div className="flex flex-1 flex-col justify-center gap-4">
-          <Sticker tone="night" size="md" emoji={slide.badge.emoji} className="self-start">
-            {slide.badge.label}
-          </Sticker>
-          <p className="text-base font-bold">
-            {slide.city ? `📍 ${slide.city} · ` : ""}
-            {slide.dateLine}
-          </p>
-          <p
-            className={cx(
-              "font-display leading-[0.95] font-extrabold text-balance [overflow-wrap:anywhere]",
-              TITLE[slide.titleSize],
-            )}
-          >
-            {slide.title}
-          </p>
-          <p className="text-lg font-semibold">{slide.who}</p>
+        <div className="flex flex-1 flex-col justify-center gap-8">
+          {slide.faces.length > 0 ? (
+            <FaceStack artists={slide.faces} />
+          ) : (
+            <Sticker tone="night" size="md" tilt={-4} className="self-start text-2xl">
+              {slide.who.split(".")[0]}
+            </Sticker>
+          )}
+          <div className="space-y-3">
+            <Sticker tone="night" size="md" emoji={slide.badge.emoji} className="self-start">
+              {slide.badge.label}
+            </Sticker>
+            <p className="text-base font-bold">
+              {slide.city ? `📍 ${slide.city} · ` : ""}
+              {slide.dateLine}
+            </p>
+            <p
+              className={cx(
+                "font-display leading-[0.95] font-extrabold text-balance [overflow-wrap:anywhere]",
+                TITLE[slide.titleSize],
+              )}
+            >
+              {slide.title}
+            </p>
+            <p className="text-lg font-semibold">{slide.who}</p>
+          </div>
         </div>
       );
     case "names":
@@ -88,13 +104,13 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
           <Sticker tone="night" size="md" className="self-start">
             {slide.kicker}
           </Sticker>
-          <ul className={slide.faces ? "space-y-4" : "space-y-1"}>
+          <ul className="space-y-3">
             {slide.artists.map((a) => (
-              <li key={a.name} className="flex items-center gap-4">
-                {slide.faces && <Face artist={a} />}
+              <li key={a.name} className="flex items-center gap-3">
+                {slide.faces && <Face artist={a} size={FACE[slide.size]} />}
                 <span
                   className={cx(
-                    "font-display font-extrabold uppercase [overflow-wrap:anywhere]",
+                    "font-display leading-none font-extrabold uppercase [overflow-wrap:anywhere]",
                     NAME[slide.size],
                   )}
                 >
@@ -103,7 +119,7 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
               </li>
             ))}
           </ul>
-          {slide.footer && <p className="text-lg font-semibold">{slide.footer}</p>}
+          {slide.more && <p className="text-base font-bold">{slide.more}</p>}
         </div>
       );
     case "playlist":
@@ -182,12 +198,15 @@ function BigFace({ artist }: { artist: StoryArtist }) {
   );
 }
 
-function Face({ artist }: { artist: StoryArtist }) {
+function Face({ artist, size = "size-14" }: { artist: StoryArtist; size?: string }) {
   if (!artist.imageUrl) {
     return (
       <span
         aria-hidden
-        className="grid size-16 shrink-0 place-items-center rounded-full border-2 border-night bg-surface font-display text-2xl font-extrabold text-ink"
+        className={cx(
+          "grid shrink-0 place-items-center rounded-full border-2 border-night bg-surface font-display text-lg font-extrabold text-ink",
+          size,
+        )}
       >
         {artist.name.charAt(0)}
       </span>
@@ -196,8 +215,27 @@ function Face({ artist }: { artist: StoryArtist }) {
   return (
     <span
       aria-hidden
-      className="size-16 shrink-0 rounded-full border-2 border-night bg-cover bg-center"
+      className={cx("shrink-0 rounded-full border-2 border-night bg-cover bg-center", size)}
       style={{ backgroundImage: `url("${artist.imageUrl}")` }}
     />
+  );
+}
+
+/** Headliner photos stacked like stickers on a laptop lid. */
+function FaceStack({ artists }: { artists: StoryArtist[] }) {
+  return (
+    <div aria-hidden className="flex pt-2 pl-3">
+      {artists.map((a, i) => (
+        <span
+          key={a.name}
+          className="-ml-4 size-24 rounded-full border-[3px] border-night bg-night bg-cover bg-center shadow-[3px_4px_0_0_var(--color-night)] first:ml-0 sm:size-28"
+          style={{
+            backgroundImage: `url("${a.imageUrl}")`,
+            rotate: `${(i % 2 === 0 ? -1 : 1) * (4 + i)}deg`,
+            zIndex: artists.length - i,
+          }}
+        />
+      ))}
+    </div>
   );
 }

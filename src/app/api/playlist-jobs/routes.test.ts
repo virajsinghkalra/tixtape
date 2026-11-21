@@ -161,6 +161,8 @@ describe("GET /api/events/:id/playlist/estimate (D-065)", () => {
       showMinutes: 480,
       days: 1,
       unmatched: 1,
+      // 128 songs need the maximum 6 search pages: about 13 s when nothing is cached.
+      readiness: { cachedArtists: 0, artists: 1, seconds: 13 },
       perTier: [{ tier: "headliner", artists: 1, songs: 128, minutes: 480 }],
     });
   });

@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   headline,
+  readyLine,
   showLine,
   tierLines,
   unmatchedLine,
@@ -11,6 +12,8 @@ import {
 } from "./playlist-preview";
 import {
   activeJob,
+  afterFailedStep,
+  refreshView,
   formatClock,
   formatDay,
   nextStepDelay,
@@ -100,7 +103,7 @@ export function PlaylistPanel({
     fetch(`/api/events/${eventId}/playlist`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => {
-        if (body) apply(viewFromStatus(body));
+        if (body) apply(refreshView(viewRef.current, viewFromStatus(body)));
         else if (viewRef.current.kind === "checking") apply({ kind: "idle" });
       })
       .catch(() => {
@@ -122,10 +125,10 @@ export function PlaylistPanel({
       async () => {
         try {
           const res = await fetch(`/api/playlist-jobs/${job.jobId}/step`, { method: "POST" });
-          apply(viewFromStep(await res.json().catch(() => null), viewRef.current));
+          apply(viewFromStep(await res.json().catch(() => null), viewRef.current, res.status));
         } catch {
-          // Transient: the next render schedules another step.
-          apply({ ...viewRef.current });
+          // Transient: try again on the normal cadence (never a tight loop).
+          apply(afterFailedStep(viewRef.current));
         }
       },
       nextStepDelay(job, new Date()),
@@ -196,6 +199,7 @@ function PreviewBlock({ preview, soloName }: { preview: PlaylistPreview; soloNam
         ))}
       </ul>
       {missing && <p className="mt-3 text-sm font-semibold">{missing}</p>}
+      {readyLine(preview) && <p className="mt-2 text-sm text-muted">{readyLine(preview)}</p>}
     </>
   );
 }

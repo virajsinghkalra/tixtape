@@ -12,9 +12,13 @@ import {
 } from "@/domain/shared/ids";
 import { NotFoundError } from "@/lib/errors";
 import type { Result } from "@/lib/result";
-import type { ArtistPopularitySource } from "@/application/ports/music-signals";
+import type { ArtistPopularitySource, NewReleaseSource } from "@/application/ports/music-signals";
+import type { ArtistSongsCache } from "@/application/ports/playlists";
+import { entryFor } from "./artist-songs";
+import { MemoryArtistSongsCache } from "./memory-songs-cache";
 import { currentProgress, stepBuild, type BuildDeps } from "./build-step";
 import { estimateFromPlan, planBuild, type PlaylistPreview } from "./plan";
+import { buildReadiness, prewarmEvent, type BuildReadiness, type PrewarmResult } from "./prewarm";
 import type { BuildProgress } from "./progress";
 import {
   getPublisher,
@@ -34,6 +38,7 @@ import { FixedWindowLimiter, type StartLimiter } from "./start-limiter";
 
 export type { BuildProgress } from "./progress";
 export type { PlaylistPreview } from "./plan";
+export type { BuildReadiness, PrewarmResult } from "./prewarm";
 export type { PublisherProblem, PublisherStatus } from "./publisher";
 export type { SharedPlaylistStatus, StartResult } from "./shared-builds";
 export type { StartLimiter } from "./start-limiter";
@@ -68,14 +73,23 @@ export type PlaylistsUseCases = {
    * the tier split can shift slightly once a build has looked popularity up.
    * Throws `NotFoundError`.
    */
-  estimatePlaylist(eventId: EventId): Promise<PlaylistPreview>;
+  estimatePlaylist(eventId: EventId): Promise<PlaylistPreview & { readiness: BuildReadiness }>;
+  /**
+   * D-080: resolves the event's uncached artists into the shared song cache until `deadline`.
+   * Run it as the `prewarm` Spotify class. Throws `NotFoundError` for unpublished events.
+   */
+  prewarmEvent(eventId: EventId, opts: { deadline: Date }): Promise<PrewarmResult>;
 };
 
-export type PlaylistsPorts = Omit<BuildDeps, "alertUnavailable" | "popularity"> & {
+export type PlaylistsPorts = Omit<BuildDeps, "alertUnavailable" | "popularity" | "songsCache"> & {
   clock: Clock;
   limiter?: StartLimiter;
   /** D-065. Without it every artist's popularity is unknown (factor 1.0: tier decides). */
   popularity?: ArtistPopularitySource;
+  /** D-080: shared resolved songs. Defaults to a per-process memory cache (tests). */
+  songsCache?: ArtistSongsCache;
+  /** No longer used (D-080 replaced album-by-album newest releases); kept for old callers. */
+  newReleases?: NewReleaseSource;
 };
 
 const unknownPopularity: ArtistPopularitySource = { listeners: async () => null };
@@ -87,6 +101,7 @@ export function createPlaylistsUseCases(ports: PlaylistsPorts): PlaylistsUseCase
     ...ports,
     limiter,
     popularity: ports.popularity ?? unknownPopularity,
+    songsCache: ports.songsCache ?? new MemoryArtistSongsCache(),
     alertUnavailable: unavailableAlert(ports.logger, ports.clock),
   };
   return {
@@ -99,13 +114,21 @@ export function createPlaylistsUseCases(ports: PlaylistsPorts): PlaylistsUseCase
     setPublisher: (userId) => setPublisher(deps, userId),
     estimatePlaylist: async (eventId) => {
       const plan = planBuild(await deps.events.getEvent(eventId));
+      // Popularity the song cache already holds (D-080), else what Last.fm has in memory.
+      const cache = await deps.songsCache.getMany(
+        plan.artists.map((a) => a.artistId),
+        plan.market,
+      );
       const popularity = await Promise.all(
-        plan.artists.map((a) =>
-          deps.popularity.listeners(a.name, { cachedOnly: true }).catch(() => null),
+        plan.artists.map(
+          async (a) =>
+            entryFor(cache, a)?.listeners ??
+            (await deps.popularity.listeners(a.name, { cachedOnly: true }).catch(() => null)),
         ),
       );
-      return estimateFromPlan(plan, popularity);
+      return { ...estimateFromPlan(plan, popularity), readiness: await buildReadiness(deps, plan) };
     },
+    prewarmEvent: (eventId, opts) => prewarmEvent(deps, eventId, opts),
   };
 }
 

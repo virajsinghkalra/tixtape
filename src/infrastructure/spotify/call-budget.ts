@@ -20,7 +20,13 @@ import { SpotifyBlockedError } from "@/application/ports/spotify";
 import type { Database } from "@/db/client";
 import { rateLimits } from "@/db/schema";
 
-export const SPOTIFY_CALL_CLASSES = ["build", "match", "prewarm", "discovery", "revalidate"] as const;
+export const SPOTIFY_CALL_CLASSES = [
+  "build",
+  "match",
+  "prewarm",
+  "discovery",
+  "revalidate",
+] as const;
 export type SpotifyCallClass = (typeof SPOTIFY_CALL_CLASSES)[number];
 export type BackgroundClass = Exclude<SpotifyCallClass, "build">;
 
@@ -87,7 +93,9 @@ export class PgCallCounterStore implements CallCounterStore {
 
   async read(entries: { key: string; windowStart: Date }[]): Promise<number[]> {
     if (entries.length === 0) return [];
-    const starts = [...new Set(entries.map((e) => e.windowStart.getTime()))].map((t) => new Date(t));
+    const starts = [...new Set(entries.map((e) => e.windowStart.getTime()))].map(
+      (t) => new Date(t),
+    );
     const rows = await this.db
       .select()
       .from(rateLimits)

@@ -51,8 +51,20 @@ export default async function EventPage({ params, searchParams }: Params) {
   // Server-render the playlist state so a ready playlist shows "Open in Spotify" at once,
   // never a flash of "Make playlist". Falls back to the client check if this fails.
   // Serialised exactly like the GET route (Dates → ISO strings) so the client parser accepts it.
+  // A build in progress carries its job's progress (read-only, no build work), so a paused
+  // build shows "Spotify asked us to slow down…" on first paint, not "Joining the build…".
   const initialPlaylistStatus: unknown = await playlists()
     .getSharedStatus(event.id)
+    .then(async (s) =>
+      s.status === "building"
+        ? {
+            ...s,
+            progress: await playlists()
+              .getProgress(s.jobId)
+              .catch(() => undefined),
+          }
+        : s,
+    )
     .then((s) => JSON.parse(JSON.stringify(s)) as unknown)
     .catch(() => null);
   // The engine's real plan for the show (D-065), server-rendered so the numbers never flash.

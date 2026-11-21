@@ -90,3 +90,9 @@ export function countdownBadge(startsAt: Date, endsAt: Date | null, now: Date): 
   if (days < 60) return { emoji: "⏰", label: `${days} days to go`, tone: "lime", live: false };
   return { emoji: "📅", label: `In ${Math.round(days / 30)} months`, tone: "sky", live: false };
 }
+
+/** How many IST calendar days a show spans (1 for a single night). */
+export function istDayCount(startsAt: Date, endsAt: Date | null): number {
+  if (!endsAt) return 1;
+  return Math.max(1, istDayNumber(endsAt) - istDayNumber(startsAt) + 1);
+}

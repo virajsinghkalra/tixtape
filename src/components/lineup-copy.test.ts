@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  introLine,
   joinNames,
+  moreLine,
+  STORY_HEADER,
+  STORY_KICKERS,
   lineupTeaser,
   lineupShape,
   orderLine,
@@ -99,5 +103,30 @@ describe("lineupTeaser (cards)", () => {
     [[], 0, "0 artists"],
   ] as const)("%j of %i", (names, count, expected) => {
     expect(lineupTeaser(names, count)).toBe(expected);
+  });
+});
+
+describe("story copy", () => {
+  it("never counts slides", () => {
+    expect(STORY_HEADER).toBe("The rundown");
+    expect(STORY_HEADER).not.toMatch(/slide/i);
+  });
+
+  it.each([
+    [["A", "B"], 34, 2, "34 acts. 2 days. Here's your cheat sheet."],
+    [["A", "B"], 12, 1, "12 acts. One night. Here's your cheat sheet."],
+    [["Anyma", "Aeden"], 2, 1, "Anyma and Aeden. One night."],
+    [["A", "B", "C"], 3, 2, "A, B and C. 2 days."],
+    [["Bhuwin"], 1, 1, "Bhuwin, all night."],
+    [[], 0, 1, "Lineup drops soon. Watch this space."],
+  ] as const)("%j, %i acts, %i days", (names, total, days, line) => {
+    expect(introLine(names, total, days)).toBe(line);
+  });
+
+  it("kickers and overflow lines", () => {
+    expect(STORY_KICKERS.gems(1)).toBe("💎 Catch this one early");
+    expect(STORY_KICKERS.gems(5)).toBe("💎 Catch these early");
+    expect(moreLine(20)).toBe("+ 20 more on the lineup");
+    expect(moreLine(0)).toBeNull();
   });
 });

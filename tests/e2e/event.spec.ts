@@ -28,9 +28,9 @@ test("lineup poster: headliners first and biggest, support last, each with a Spo
 
 test("event story: step through the slides with the arrow buttons", async ({ page, request }) => {
   await openEvent(page, await eventId(request, "lolla"), /lollapalooza/i);
-  const story = page.getByRole("region", { name: /your lollapalooza in \d slides/i });
+  const story = page.getByRole("region", { name: /lollapalooza.*the rundown/i });
   await story.getByRole("button", { name: "Next slide" }).click();
-  await expect(story.getByText(/slide 2\/\d: the headliners/i)).toBeAttached();
+  await expect(story.getByText(/slide 2\/\d: top of the bill/i)).toBeAttached();
   await story.getByRole("button", { name: "Previous slide" }).click();
   await expect(story.getByText(/slide 1\/\d/i)).toBeAttached();
 });

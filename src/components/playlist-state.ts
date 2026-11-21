@@ -44,7 +44,13 @@ export type PlaylistView =
 
 const statusBody = z.discriminatedUnion("status", [
   z.object({ status: z.literal("none") }),
-  z.object({ status: z.literal("building"), jobId: z.string(), url: z.string().url().optional() }),
+  z.object({
+    status: z.literal("building"),
+    jobId: z.string(),
+    url: z.string().url().optional(),
+    /** The job's current progress, when the server includes it (paused, stage, counts). */
+    progress: z.lazy(() => stepBody).optional(),
+  }),
   z.object({
     status: z.literal("ready"),
     url: z.string().url(),
@@ -69,6 +75,8 @@ const stepBody = z.object({
   error: z.string().optional(),
 });
 
+export const JOINING_LABEL = "Joining the build…";
+
 const GENERIC = "Something went wrong making the playlist. Try again in a minute.";
 
 const ready = (
@@ -90,15 +98,19 @@ export function viewFromStatus(body: unknown): PlaylistView {
   if (!parsed.success || parsed.data.status === "none") return { kind: "idle" };
   const d = parsed.data;
   if (d.status === "building") {
-    return {
+    const joining: PlaylistView = {
       kind: "building",
       joined: true,
       jobId: d.jobId,
       progress: 0,
-      label: "Joining the build…",
+      label: JOINING_LABEL,
       waitUntil: null,
       stalled: 0,
     };
+    if (!d.progress) return joining;
+    // Known progress (e.g. paused until 6:40 pm) shows straight away, not "Joining…".
+    const known = viewFromStep(d.progress, joining);
+    return known.kind === "building" ? { ...known, joined: true } : known;
   }
   return ready(d.url, { builtAt: d.builtAt ?? null, refresh: d.stale ? "pending" : null });
 }
@@ -214,6 +226,8 @@ export function activeJob(view: PlaylistView): BuildProgress | null {
 /** How long to wait before the next step call: ~1.5s, or until Spotify said to resume. */
 export function nextStepDelay(job: BuildProgress, now: Date): number {
   const STEP_MS = 1500;
+  // Just joined with nothing known yet: ask at once, so a pause shows without a wait.
+  if (job.label === JOINING_LABEL && !job.waitUntil) return 0;
   if (!job.waitUntil) return STEP_MS;
   return Math.max(STEP_MS, new Date(job.waitUntil).getTime() - now.getTime());
 }
@@ -238,4 +252,29 @@ export function formatClock(iso: string): string {
 /** "21 Nov" in IST. */
 export function formatDay(iso: string): string {
   return DAY.format(new Date(iso));
+}
+
+/**
+ * A client status refresh without job progress must not replace what we already know about the
+ * same job (e.g. a server-rendered pause) with "Joining the build…".
+ */
+export function refreshView(current: PlaylistView, next: PlaylistView): PlaylistView {
+  const known = activeJob(current);
+  if (
+    next.kind === "building" &&
+    next.label === JOINING_LABEL &&
+    known &&
+    known.jobId === next.jobId
+  ) {
+    return current;
+  }
+  return next;
+}
+
+/** After a failed step: keep the view, but leave "Joining…" so the retry waits ~1.5 s. */
+export function afterFailedStep(view: PlaylistView): PlaylistView {
+  if (view.kind === "building" && view.label === JOINING_LABEL) {
+    return { ...view, label: "Checking the build…" };
+  }
+  return { ...view };
 }

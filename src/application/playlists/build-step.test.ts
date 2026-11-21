@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ReauthRequiredError, SpotifyBlockedError } from "@/application/ports/spotify";
 import type { EventDetail } from "@/application/ports/events";
 import type { BillingTier } from "@/domain/shared/lineup";
-import type { PlaylistJobId } from "@/domain/shared/ids";
+import { asArtistId, type PlaylistJobId } from "@/domain/shared/ids";
 import { RateLimitedError, UpstreamError } from "@/lib/errors";
 import { UNIT_START_LIMIT_MS, WRITE_LEASE_MARGIN_MS } from "./build-step";
 import { NoMatchedArtistsError, PlaylistUnavailableError, UNAVAILABLE_MESSAGE } from "./errors";
@@ -340,6 +340,7 @@ describe("lineup changes", () => {
     stored.lineupHash = "hash-2";
     stored.lineup.push({
       ...stored.lineup[0]!,
+      artistId: asArtistId("artist-kayan"),
       name: "Kayan",
       spotifyId: kayan.id,
       tier: "support",
@@ -551,7 +552,7 @@ describe("D-065 plan in the build", () => {
     expect(onlyPlaylist(w)).toHaveLength(40);
   });
 
-  it("extends a short signal pool with album tracks by recency", async () => {
+  it("pages the artist search to the song budget, then stops (D-080)", async () => {
     const w = playlistWorld();
     const big = w.spotify.addArtist("Big Act", 40);
     w.events.add([{ name: "Big Act", tier: "headliner", spotifyId: big.id }], {
@@ -559,10 +560,11 @@ describe("D-065 plan in the build", () => {
       endsAt: null,
     });
     await runToEnd(w, await start(w));
-    // 150 min / 200 s songs = 45 songs wanted; the artist search alone gives 10.
-    const items = onlyPlaylist(w);
-    expect(items.length).toBeGreaterThan(30);
-    expect(w.spotify.calls.filter((c) => c === "albumTracks").length).toBeGreaterThan(1);
+    // 150 min / 200 s songs = 45 wanted: pages of 10 until Spotify runs out (page 5 is empty).
+    expect(onlyPlaylist(w)).toHaveLength(40);
+    expect(w.spotify.calls.filter((c) => c === "search")).toHaveLength(5);
+    expect(w.spotify.calls).not.toContain("albums");
+    expect(w.spotify.calls).not.toContain("albumTracks");
   });
 
   it("uses popularity to share time within a tier", async () => {
@@ -604,6 +606,8 @@ describe("D-065 plan in the build", () => {
       showMinutes: 60,
       days: 1,
       unmatched: 1,
+      // D-080: nothing cached: up to 3 calls per artist at the app pace, plus the writes.
+      readiness: { cachedArtists: 0, artists: 3, seconds: 16 },
       perTier: [
         { tier: "headliner", artists: 1, songs: 6, minutes: 24 },
         { tier: "sub", artists: 1, songs: 6, minutes: 24 },

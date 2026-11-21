@@ -40,6 +40,7 @@ import type { EventId } from "@/domain/shared/ids";
 import { FileCollectorState } from "@/infrastructure/sources/collector-state";
 import { env } from "@/lib/env";
 import { spotifyModule } from "@/server/auth/spotify-auth";
+import { playlists } from "@/server/playlists";
 import { container } from "@/server/container";
 import { events } from "@/server/events";
 import { watchTerms } from "@/server/lookup";
@@ -182,7 +183,18 @@ async function publish(ids: readonly string[]): Promise<void> {
     line(`${r.published ? "PUBLISHED" : "REFUSED  "} ${r.eventId}: ${r.reason}`);
   }
   if (results.some((r) => !r.published)) process.exitCode = 1;
+  // D-080: start warming the playlist song cache right away; the sweep finishes the rest.
+  const deadline = new Date(c.clock.now().getTime() + PREWARM_ON_PUBLISH_MS);
+  for (const r of results.filter((x) => x.published)) {
+    const w = await runAsSpotifyClass("prewarm", () =>
+      playlists().prewarmEvent(r.eventId as EventId, { deadline }),
+    );
+    line(`  playlist songs: ${w.alreadyCached + w.resolved}/${w.artists} artists cached`);
+  }
 }
+
+/** D-080: time spent warming songs right after publishing (the sweep continues later). */
+const PREWARM_ON_PUBLISH_MS = 2 * 60_000;
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);

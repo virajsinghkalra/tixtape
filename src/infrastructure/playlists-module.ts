@@ -15,6 +15,7 @@ import type { EventLineupReader } from "@/application/ports/playlists";
 import type { PlaylistWriter, TrackCatalog } from "@/application/ports/spotify";
 import type { Database } from "@/db/client";
 import type { Logger } from "@/lib/logger";
+import { PgArtistSongsCache } from "./db/artist-songs-cache";
 import { PgPlaylistJobRepository } from "./db/playlist-job-repository";
 import { PgPublisherRepository } from "./db/publisher-repository";
 import { PgSharedPlaylistRepository } from "./db/shared-playlist-repository";
@@ -25,7 +26,6 @@ import {
   LastfmPopularity,
   type LastfmDeps,
 } from "./music-signals/lastfm";
-import { SpotifyNewReleases } from "./music-signals/spotify-new-releases";
 import type { SpotifyHttpConfig } from "./spotify";
 
 export { LASTFM_ATTRIBUTION } from "./music-signals/lastfm";
@@ -92,7 +92,7 @@ export function createPlaylistsModule(deps: PlaylistsModuleDeps): PlaylistsModul
       lastfm && lastfmClient ? new LastfmMostListened(lastfm, lastfmClient) : noMostListened,
     popularity: lastfm && lastfmClient ? new LastfmPopularity(lastfm, lastfmClient) : undefined,
     trending: new AppleMusicTrending({ fetch: fetchFn, clock: deps.clock }),
-    newReleases: new SpotifyNewReleases(deps.trackCatalog, deps.clock),
+    songsCache: new PgArtistSongsCache(deps.db),
     jobs: new PgPlaylistJobRepository(deps.db),
     shared: new PgSharedPlaylistRepository(deps.db),
     publisher: new PgPublisherRepository(deps.db),

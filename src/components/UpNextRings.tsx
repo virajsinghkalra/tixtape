@@ -48,7 +48,7 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
           variant="modal"
           open
           onClose={() => setOpenId(null)}
-          title={open.story.heading}
+          title={`${open.title}: ${open.story.heading}`}
           slides={renderStory(open.id, open.story)}
         />
       )}

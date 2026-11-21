@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { countdownBadge, formatDateRange, formatStartTime, istParts } from "./event-format";
+import {
+  countdownBadge,
+  formatDateRange,
+  formatStartTime,
+  istDayCount,
+  istParts,
+} from "./event-format";
 
 const d = (iso: string) => new Date(iso);
 
@@ -72,5 +78,14 @@ describe("countdownBadge", () => {
     ["over", "2026-11-19T12:00:00+05:30", "2026-11-19T23:00:00+05:30", "🎬", "Ended"],
   ])("%s", (_name, start, end, emoji, label) => {
     expect(countdownBadge(d(start), end ? d(end) : null, now)).toMatchObject({ emoji, label });
+  });
+});
+
+describe("istDayCount", () => {
+  it("counts IST calendar days", () => {
+    expect(istDayCount(d("2026-12-29T14:00:00+05:30"), null)).toBe(1);
+    expect(istDayCount(d("2026-12-29T14:00:00+05:30"), d("2026-12-30T23:00:00+05:30"))).toBe(2);
+    expect(istDayCount(d("2026-12-29T20:00:00+05:30"), d("2026-12-30T02:00:00+05:30"))).toBe(2);
+    expect(istDayCount(d("2026-12-29T20:00:00+05:30"), d("2026-12-29T23:00:00+05:30"))).toBe(1);
   });
 });

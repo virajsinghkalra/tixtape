@@ -8,13 +8,15 @@ import {
   type PlaylistEstimate,
 } from "@/domain/playlists/budget";
 import { eventPerformanceMinutes, type ShowLength } from "@/domain/playlists/show-length";
-import type { SpotifyArtistId } from "@/domain/shared/ids";
+import type { ArtistId, SpotifyArtistId } from "@/domain/shared/ids";
 import { BILLING_TIERS, type BillingTier } from "@/domain/shared/lineup";
 
 /** Spotify market for track calls when the venue has no country (the beta is India-only). */
 export const DEFAULT_MARKET = "IN";
 
 export type PlannedArtist = {
+  /** Our artist row: the song cache is keyed by it (D-080). */
+  artistId: ArtistId;
   name: string;
   spotifyId: SpotifyArtistId;
   tier: BillingTier;
@@ -48,6 +50,7 @@ export function planBuild(event: EventDetail & { verification?: unknown }): Buil
   for (const a of lineup) {
     if (a.spotifyId) {
       artists.push({
+        artistId: a.artistId,
         name: a.name,
         spotifyId: a.spotifyId,
         tier: a.tier,

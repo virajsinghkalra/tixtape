@@ -3,6 +3,7 @@ import {
   formatDuration,
   headline,
   parsePreview,
+  readyLine,
   showLine,
   tierLines,
   unmatchedLine,
@@ -91,5 +92,24 @@ describe("small lineups (no plural headliners, no breakdown for one artist)", ()
       "Headliner: ~40 songs",
       "Support: ~20 songs",
     ]);
+  });
+});
+
+describe("readyLine (D-080)", () => {
+  const base = {
+    songs: 256,
+    minutes: 960,
+    perTier: [],
+    showMinutes: 960,
+    days: 2,
+    unmatched: 0,
+  };
+  it.each([
+    [undefined, ""],
+    [{ cachedArtists: 24, artists: 24, seconds: 5 }, "Ready in about 5 s"],
+    [{ cachedArtists: 20, artists: 24, seconds: 14 }, "Ready in about 15 s"],
+    [{ cachedArtists: 0, artists: 24, seconds: 117 }, "Takes about 2 min to make"],
+  ])("%j → %s", (readiness, text) => {
+    expect(readyLine({ ...base, readiness })).toBe(text);
   });
 });

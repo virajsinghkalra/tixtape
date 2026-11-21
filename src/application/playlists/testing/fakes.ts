@@ -49,6 +49,7 @@ import type { BillingTier } from "@/domain/shared/lineup";
 import { normalizeArtistName } from "@/domain/shared/normalize";
 import { NotFoundError } from "@/lib/errors";
 import { createPlaylistsUseCases, type PlaylistsUseCases } from "../index";
+import { MemoryArtistSongsCache } from "../memory-songs-cache";
 import { FixedWindowLimiter } from "../start-limiter";
 
 /** A clock tests move by hand; Spotify fakes advance it per call to model the step budget. */
@@ -278,7 +279,12 @@ export class FakeSpotify implements TrackCatalog, PlaylistWriter {
     effect();
   }
 
-  async searchTracks(query: string, _market: string): Promise<SpotifyTrack[]> {
+  async searchTracks(
+    query: string,
+    _market: string,
+    _caller?: unknown,
+    opts: { offset?: number } = {},
+  ): Promise<SpotifyTrack[]> {
     await this.call("search");
     const artistName = /artist:"([^"]+)"/u.exec(query)?.[1] ?? "";
     const title = /track:"([^"]+)"/u.exec(query)?.[1];
@@ -289,7 +295,8 @@ export class FakeSpotify implements TrackCatalog, PlaylistWriter {
     const hits = title
       ? artist.tracks.filter((t) => normalizeTrackTitle(t.name) === normalizeTrackTitle(title))
       : artist.tracks;
-    return hits.slice(0, 10);
+    const offset = opts.offset ?? 0;
+    return hits.slice(offset, offset + 10);
   }
 
   async getArtistAlbums(artistId: SpotifyArtistId): Promise<SpotifyAlbum[]> {
@@ -421,6 +428,7 @@ export function playlistWorld(opts: { callMs?: number; startsPerHour?: number } 
   const spotify = new FakeSpotify(clock, opts.callMs);
   const signals = new FakeSignals();
   signals.clock = clock;
+  const songsCache = new MemoryArtistSongsCache();
   const jobs = new InMemoryJobRepository(clock);
   const shared = new InMemorySharedPlaylists(clock);
   const publisher = new InMemoryPublisher();
@@ -436,7 +444,7 @@ export function playlistWorld(opts: { callMs?: number; startsPerHour?: number } 
     mostListened: signals,
     trending: signals,
     popularity: signals,
-    newReleases: fakeNewReleases(spotify),
+    songsCache,
     jobs,
     shared,
     events,
@@ -447,7 +455,19 @@ export function playlistWorld(opts: { callMs?: number; startsPerHour?: number } 
     logger,
     limiter: new FixedWindowLimiter(opts.startsPerHour ?? 100, 3_600_000, clock),
   });
-  return { clock, spotify, signals, jobs, shared, publisher, tokens, events, warnings, useCases };
+  return {
+    clock,
+    spotify,
+    signals,
+    jobs,
+    shared,
+    publisher,
+    tokens,
+    events,
+    warnings,
+    songsCache,
+    useCases,
+  };
 }
 
 const publisherUser = {

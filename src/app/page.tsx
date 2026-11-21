@@ -6,7 +6,7 @@ import type { EventSummary } from "@/application/ports/events";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CitySwitcher } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
-import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
+import { countdownBadge, formatDateRange, istDayCount, istParts } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
@@ -272,6 +272,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       preview: null,
       playlistHref: `/events/${e.id}#playlist`,
       eventHref: `/events/${e.id}`,
+      days: istDayCount(e.startsAt, e.endsAt),
     }),
   };
 }

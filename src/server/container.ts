@@ -211,13 +211,16 @@ function buildLookup(c: Container): LiveLookup {
 function buildContainer(): Container {
   const base = { db: createDb(), logger, clock: systemClock, random: systemRandom };
   const c = base as Container;
-  lazy(c, "spotifyBudget", () =>
-    new SpotifyCallBudget({
-      store: new PgCallCounterStore(c.db),
-      clock: c.clock,
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      logger: c.logger,
-    }),
+  lazy(
+    c,
+    "spotifyBudget",
+    () =>
+      new SpotifyCallBudget({
+        store: new PgCallCounterStore(c.db),
+        clock: c.clock,
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        logger: c.logger,
+      }),
   );
   lazy(c, "spotify", () => spotifyFor(c, "match"));
   lazy(c, "engineSpotify", () =>
@@ -232,7 +235,8 @@ function buildContainer(): Container {
       oauth: s.oauth,
       // Sign-in is user-facing: it must never queue behind background matching (D-080).
       profiles: {
-        getCurrentUser: (token) => runAsSpotifyClass("build", () => s.profiles.getCurrentUser(token)),
+        getCurrentUser: (token) =>
+          runAsSpotifyClass("build", () => s.profiles.getCurrentUser(token)),
       },
       users: s.users,
       sessions: s.sessions,

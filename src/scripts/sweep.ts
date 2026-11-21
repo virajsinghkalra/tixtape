@@ -18,7 +18,7 @@
  * Each task runs on its own; a failure is logged, the rest still run, and the exit code is 1.
  */
 import "dotenv/config";
-import { AdminListEventsQuerySchema } from "@/application/events";
+import { AdminListEventsQuerySchema, ListEventsQuerySchema } from "@/application/events";
 import type { BuildProgress } from "@/application/playlists";
 import { ACTIVE_JOB_STATUSES } from "@/application/ports/playlists";
 import type { PlaylistJobId } from "@/domain/shared/ids";
@@ -28,6 +28,7 @@ import { PgAutoPublishPause } from "@/infrastructure/db/auto-publish-pause";
 import { deleteExpiredRateLimits } from "@/infrastructure/db/pg-rate-limiter";
 import { PgPlaylistJobRepository } from "@/infrastructure/db/playlist-job-repository";
 import { FileCollectorState } from "@/infrastructure/sources/collector-state";
+import { runAsSpotifyClass } from "@/infrastructure/spotify";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { container } from "@/server/container";
 import { events } from "@/server/events";
@@ -180,6 +181,47 @@ async function guardAutoPublishSpike(alerts: ThrottledAlerts): Promise<string> {
   return `${count} auto-published in 24 h: SPIKE, paused until ${until.toISOString()}`;
 }
 
+/** D-080: how long one sweep may spend warming the playlist song cache. */
+const PREWARM_BUDGET_MS = 4 * 60_000;
+
+/**
+ * D-080: warms the song cache for upcoming published events, soonest first, as the `prewarm`
+ * Spotify class (≤ 1 call per 10 s, daily cap), so "Make playlist" only has to write.
+ */
+async function prewarmPlaylists(): Promise<string> {
+  const c = container();
+  const deadline = new Date(c.clock.now().getTime() + PREWARM_BUDGET_MS);
+  const page = await events().listEvents(
+    ListEventsQuerySchema.parse({ from: c.clock.now().toISOString(), pageSize: 100 }),
+  );
+  let resolved = 0;
+  let remaining = 0;
+  for (const e of page.items) {
+    if (c.clock.now() >= deadline) break;
+    const r = await runAsSpotifyClass("prewarm", () =>
+      playlists().prewarmEvent(e.id, { deadline }),
+    );
+    resolved += r.resolved;
+    remaining += r.remaining;
+    if (r.stoppedUntil)
+      return `${resolved} artists warmed; paused until ${r.stoppedUntil.toISOString()}`;
+  }
+  return `${resolved} artists warmed, ${remaining} still cold`;
+}
+
+/** D-080: Spotify calls and 429s per class, today and yesterday (UTC). */
+async function spotifyCallStats(): Promise<string> {
+  const c = container();
+  const today = await c.spotifyBudget.stats(c.clock.now());
+  const yesterday = await c.spotifyBudget.stats(new Date(c.clock.now().getTime() - DAY_MS));
+  const fmt = (s: typeof today) =>
+    Object.entries(s)
+      .map(([cls, v]) => `${cls} ${v.calls}${v.rateLimited ? ` (429×${v.rateLimited})` : ""}`)
+      .join(", ");
+  c.logger.info({ today, yesterday }, "spotify calls per class");
+  return `today: ${fmt(today)} | yesterday: ${fmt(yesterday)}`;
+}
+
 async function main(): Promise<void> {
   const c = container();
   const now = c.clock.now();
@@ -202,6 +244,8 @@ async function main(): Promise<void> {
   await task("held events", () => alertHeldEvents(alerts));
   await task("auto-publish spike", () => guardAutoPublishSpike(alerts));
   await task("publisher", () => alertPublisher(alerts));
+  await task("playlist prewarm", prewarmPlaylists);
+  await task("spotify calls", spotifyCallStats);
 
   await c.db.$close();
   if (failed) process.exitCode = 1;

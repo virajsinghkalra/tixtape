@@ -96,3 +96,31 @@ export function lineupTeaser(headliners: readonly string[], artistCount: number)
   const more = artistCount - shown.length;
   return more > 0 ? `${shown.join(", ")} + ${more} more` : joinNames(shown);
 }
+
+// ── Story copy (one voice for the event page and the home story) ─────────
+
+/** The story's header. Never counts slides. */
+export const STORY_HEADER = "The rundown";
+
+/** "34 acts. 2 days. Here's your cheat sheet." Sized to the lineup and the show length. */
+export function introLine(names: readonly string[], total: number, days: number): string {
+  const shape = lineupShape(total);
+  if (shape === "empty") return "Lineup drops soon. Watch this space.";
+  if (shape === "solo") return whoLine(names, total);
+  const when = days > 1 ? `${days} days` : "One night";
+  if (shape === "festival") return `${total} acts. ${when}. Here's your cheat sheet.`;
+  return `${joinNames(names.slice(0, total))}. ${when}.`;
+}
+
+export const STORY_KICKERS = {
+  headliners: "🔥 Top of the bill",
+  bill: "🎤 Don't sleep on",
+  gems: (n: number) => (n === 1 ? "💎 Catch this one early" : "💎 Catch these early"),
+  lineup: "🔥 The lineup",
+  playlist: "🎧 The playlist",
+} as const;
+
+/** "+ 20 more on the lineup", or null when everyone fits. */
+export function moreLine(hidden: number): string | null {
+  return hidden > 0 ? `+ ${hidden} more on the lineup` : null;
+}

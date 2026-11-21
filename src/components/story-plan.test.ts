@@ -25,6 +25,7 @@ const input = (artists: StoryArtist[], over: Partial<StoryInput> = {}): StoryInp
   preview: null,
   playlistHref: "/events/e1#playlist",
   eventHref: "/events/e1",
+  days: 1,
   ...over,
 });
 
@@ -46,7 +47,7 @@ describe("planStory: solo (1 artist)", () => {
 
   it("is 2 slides: the artist hero, then the playlist", () => {
     expect(plan.slides.map((s) => s.kind)).toEqual(["solo", "playlist"]);
-    expect(plan.heading).toBe("Your night with Bhuwin, in 2 slides");
+    expect(plan.heading).toBe("The rundown");
   });
 
   it("the hero carries the artist photo and a smaller title for a long name", () => {
@@ -120,15 +121,15 @@ describe("planStory: festival (many artists)", () => {
       "gems",
       "playlist",
     ]);
-    expect(plan.slides[1]).toMatchObject({ kicker: "🔥 The headliners" });
+    expect(plan.slides[1]).toMatchObject({ kicker: "🔥 Top of the bill" });
     expect(plan.slides[3]).toMatchObject({
-      kicker: "💎 A hidden gem",
-      footer: "Get there early for this one.",
+      kicker: "💎 Catch this one early",
+      more: null,
     });
-    expect(plan.heading).toBe("Your Lollapalooza in 5 slides");
+    expect(plan.heading).toBe("The rundown");
   });
 
-  it("a festival with one headliner says 'The headliner'", () => {
+  it("a festival with one headliner still reads naturally", () => {
     const one = planStory(
       input([
         artist("A", "headliner", 1),
@@ -137,7 +138,7 @@ describe("planStory: festival (many artists)", () => {
         artist("D", "support", 4),
       ]),
     );
-    expect(one.slides[1]).toMatchObject({ kicker: "🔥 The headliner" });
+    expect(one.slides[1]).toMatchObject({ kicker: "🔥 Top of the bill" });
   });
 });
 
@@ -145,7 +146,7 @@ describe("planStory: empty lineup", () => {
   it("is intro + playlist, saying the lineup is coming", () => {
     const plan = planStory(input([]));
     expect(plan.slides.map((s) => s.kind)).toEqual(["intro", "playlist"]);
-    expect(plan.slides[0]).toMatchObject({ who: "Lineup coming soon." });
+    expect(plan.slides[0]).toMatchObject({ who: "Lineup drops soon. Watch this space." });
   });
 });
 
@@ -158,5 +159,38 @@ describe("planStory: solo without a preview (home story)", () => {
       face: { name: "Anyma" },
       secondary: null,
     });
+  });
+});
+
+describe("planStory: a 34-act, 2-day festival fits portrait cards", () => {
+  const big = Array.from({ length: 34 }, (_, i) =>
+    artist(
+      `Act ${i + 1}`,
+      i < 2 ? "headliner" : i < 12 ? "mid" : "support",
+      i + 1,
+      i < 3 ? `https://i/${i}.jpg` : null,
+    ),
+  );
+  const plan = planStory(input(big, { title: "HOME Festival 2026", days: 2 }));
+
+  it("never counts slides, and the intro is a cheat sheet with a face stack", () => {
+    expect(JSON.stringify(plan.slides)).not.toMatch(/\bslides?\b/i);
+    expect(plan.slides[0]).toMatchObject({
+      kind: "intro",
+      who: "34 acts. 2 days. Here's your cheat sheet.",
+    });
+    expect(plan.slides[0]!.kind === "intro" && plan.slides[0]!.faces.map((f) => f.name)).toEqual([
+      "Act 1",
+      "Act 2",
+      "Act 3",
+    ]);
+  });
+
+  it("long tiers show a few names, then '+ N more on the lineup'", () => {
+    const bill = plan.slides.find((s) => s.id === "bill");
+    const gems = plan.slides.find((s) => s.id === "gems");
+    expect(bill).toMatchObject({ more: "+ 4 more on the lineup" });
+    expect(bill?.kind === "names" && bill.artists).toHaveLength(6);
+    expect(gems).toMatchObject({ more: "+ 16 more on the lineup", faces: false });
   });
 });

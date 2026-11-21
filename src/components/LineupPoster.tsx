@@ -46,9 +46,10 @@ export function LineupPoster({ title, venueLine, lineup, highlight }: Props) {
   }
   return (
     <section
+      id="lineup"
       aria-labelledby="lineup-title"
       // theme-dark: the poster is always dark, so its tokens (muted, match colours) are too.
-      className="theme-dark rounded-tile border-2 border-night bg-night p-5 text-center text-ink shadow-[5px_6px_0_0_var(--color-violet)] sm:p-10"
+      className="theme-dark scroll-mt-24 rounded-tile border-2 border-night bg-night p-5 text-center text-ink shadow-[5px_6px_0_0_var(--color-violet)] sm:p-10"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="lineup-title" className="font-display text-big font-extrabold">
