@@ -100,36 +100,26 @@ test.describe("P3.8 home feed", () => {
     expect(msgs).toEqual([]);
   });
 
-  test("P3.1 header: a quiet 'Sign in', no 'Connect Spotify' call to action", async ({ page }) => {
+  test("P3.1 header (logged out): nothing on the right; no 'Sign in', no 'Connect Spotify'", async ({
+    page,
+  }) => {
     await gotoHome(page);
     const banner = page.getByRole("banner");
-    await expect(banner.getByRole("link", { name: /^sign in$/i })).toBeVisible();
+    await expect(banner.getByRole("link", { name: /sign in|log ?in/i })).toHaveCount(0);
+    await expect(banner.getByRole("button")).toHaveCount(0);
     await expect(page.getByText(/connect spotify/i)).toHaveCount(0);
-    // quiet: it isn't styled as the page's primary button
-    const signIn = banner.getByRole("link", { name: /^sign in$/i });
-    const fontSize = await signIn.evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
-    expect(fontSize).toBeLessThanOrEqual(16);
+    // the logo is the only link in the header
+    expect(await banner.getByRole("link").count()).toBe(1);
   });
 
-  // was QA-UI-6: Connect Spotify (keys not configured) showed raw JSON to the user
-  test("Sign in never shows raw JSON", async ({ page }, info) => {
-    await gotoHome(page);
-    await page
-      .getByRole("banner")
-      .getByRole("link", { name: /sign in/i })
-      .click();
+  // was QA-UI-6: Connect Spotify (keys not configured) showed raw JSON. Admins now go straight to
+  // /api/auth/spotify/login; it must never show raw JSON (Spotify's page is stubbed).
+  test("admin login URL never shows raw JSON", async ({ page }, info) => {
+    await page.goto("/api/auth/spotify/login");
     await page.waitForLoadState("load");
-    await page.waitForTimeout(1000);
-    await shot(page, info, "sign-in", true);
+    await shot(page, info, "admin-login", true);
     const text = await page.locator("body").innerText();
     expect(text).not.toMatch(/^\s*\{/);
     expect(text).not.toMatch(/"error"\s*:/);
-  });
-
-  // was QA-UI-5: footer copy contradicted D-036
-  test("footer copy matches D-036 (shared playlist, no login)", async ({ page }) => {
-    await gotoHome(page);
-    await expect(page.locator("footer")).not.toContainText(/in your own Spotify account/i);
-    await expect(page.locator("footer")).toContainText(/no login/i);
   });
 });

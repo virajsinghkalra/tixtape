@@ -306,3 +306,36 @@ describe("seeded scenario: 200 events", () => {
       expect(metros.filter((x) => x === m).length).toBeLessThanOrEqual(2);
   });
 });
+
+describe("date-only shows stay on until the end of their IST day", () => {
+  // "Shreya Ghoshal – Bengaluru", 22 Nov 2026, date only: stored at 00:00 IST.
+  const startsAt = new Date("2026-11-21T18:30:00Z");
+  const shreya = ev({ startsAt, startsAtDateOnly: true, city: "Bengaluru" });
+  const at00_30 = new Date("2026-11-21T19:00:00Z"); // 22 Nov 00:30 IST
+  const at23_30 = new Date("2026-11-22T18:00:00Z"); // 22 Nov 23:30 IST
+  const nextDay = new Date("2026-11-22T18:31:00Z"); // 23 Nov 00:01 IST
+
+  it.each([
+    ["00:30 IST on the day", at00_30, 1],
+    ["23:30 IST on the day", at23_30, 1],
+    ["the next day", nextDay, null],
+  ])("timing at %s", (_, now, expected) => {
+    expect(timing(startsAt, null, now, true)).toBe(expected);
+  });
+
+  it("a timed show at the same instant is over once it starts (unchanged)", () => {
+    expect(timing(startsAt, null, at00_30)).toBeNull();
+  });
+
+  it("is on the home page at 00:30 and 23:30 IST, gone the next day", () => {
+    const has = (now: Date) => {
+      const page = buildFrontPage([shreya], { now, city: null });
+      return [...page.nearYou, ...page.bigOnes, ...page.thisWeek, ...page.justAnnounced].some(
+        (i) => i.kind === "event" && i.event.id === shreya.id,
+      );
+    };
+    expect(has(at00_30)).toBe(true);
+    expect(has(at23_30)).toBe(true);
+    expect(has(nextDay)).toBe(false);
+  });
+});

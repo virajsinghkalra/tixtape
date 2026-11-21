@@ -194,3 +194,19 @@ describe("planStory: a 34-act, 2-day festival fits portrait cards", () => {
     expect(gems).toMatchObject({ more: "+ 16 more on the lineup", faces: false });
   });
 });
+
+describe("planStory: nothing matched on Spotify yet", () => {
+  it("says the playlist is coming soon instead of 0 songs", () => {
+    const zero: PlaylistPreview = { ...soloPreview, songs: 0, minutes: 0, unmatched: 1 };
+    const plan = planStory(
+      input([artist("Shreya Ghoshal", "headliner", 1)], { preview: zero, matched: 0 }),
+    );
+    const last = plan.slides.at(-1)!;
+    expect(last).toMatchObject({
+      kind: "playlist",
+      headline: "Shreya Ghoshal, all night.",
+      detail: "Playlist coming soon: we're matching Shreya Ghoshal on Spotify.",
+    });
+    expect(JSON.stringify(plan.slides)).not.toMatch(/\b0 (songs|min)\b/);
+  });
+});

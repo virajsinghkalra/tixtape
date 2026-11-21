@@ -24,6 +24,7 @@ import {
   PgPublishSwitch,
   PgSearchedTerms,
 } from "./pg-gig-stores";
+import { PgArtistCities, PgCityDemandStore, PgCityShowCounts } from "./pg-demand-stores";
 import { LastfmTrendingArtists, PolitePageReader, WikidataOfficialSites } from "./web-adapters";
 
 /** D-074: the kill switch. Anything but the exact string "true" means off (fail closed). */
@@ -72,10 +73,16 @@ export function createGigsModule(deps: GigsModuleDeps) {
     },
     publishSwitch: new PgPublishSwitch(deps.db, deps.autoPublishEnabled),
     reader: (state: HostLog) => new PolitePageReader(fetcherFor(state)),
-    /** Night-level gig listings (D-073): HighApe's city pages. */
-    listings: (state: HostLog) => [
-      new HighApeSource({ fetcher: fetcherFor(state), logger: deps.logger }),
+    /** Night-level gig listings (D-073): HighApe's city pages, in demand order (D-081). */
+    listings: (state: HostLog, cities?: readonly string[]) => [
+      new HighApeSource({ fetcher: fetcherFor(state), logger: deps.logger, cities }),
     ],
+    /** D-081: visitor demand by city, shows per city, and where our artists play. */
+    demand: {
+      demand: new PgCityDemandStore(deps.db),
+      shows: new PgCityShowCounts(deps.db),
+      artistCities: new PgArtistCities(deps.db),
+    },
     /** Artist-first discovery; `state` keeps crawl pacing and the shared daily counters. */
     discovery: (state: HostLog & DoubtStore, opts: { write: boolean }) =>
       new ArtistGigDiscovery({

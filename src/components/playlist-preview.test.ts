@@ -3,6 +3,7 @@ import {
   formatDuration,
   headline,
   parsePreview,
+  previewPending,
   readyLine,
   showLine,
   tierLines,
@@ -111,5 +112,32 @@ describe("readyLine (D-080)", () => {
     [{ cachedArtists: 0, artists: 24, seconds: 117 }, "Takes about 2 min to make"],
   ])("%j → %s", (readiness, text) => {
     expect(readyLine({ ...base, readiness })).toBe(text);
+  });
+});
+
+describe("previewPending (never '0 songs · 0 min')", () => {
+  const zero: PlaylistPreview = { ...home, songs: 0, minutes: 0, perTier: [], unmatched: 1 };
+  it("is pending when no artist is matched, or the estimate is empty", () => {
+    expect(previewPending(home, 0, 12)).toBe(true);
+    expect(previewPending(null, 0, 1)).toBe(true);
+    expect(previewPending(zero, 1, 1)).toBe(true);
+    expect(previewPending({ ...home, minutes: 0.2 }, 10, 12)).toBe(true);
+  });
+  it("a partial match shows its real numbers; no lineup isn't pending", () => {
+    expect(previewPending(home, 10, 12)).toBe(false);
+    expect(previewPending(null, 3, 12)).toBe(false);
+    expect(previewPending(null, 0, 0)).toBe(false);
+  });
+  it("partial match: tiers with no songs yet are left out", () => {
+    const partial: PlaylistPreview = {
+      ...home,
+      perTier: [
+        { tier: "headliner", artists: 2, songs: 56, minutes: 210 },
+        { tier: "support", artists: 3, songs: 0, minutes: 0 },
+      ],
+    };
+    expect(tierLines(partial).map((t) => t.text)).toEqual([
+      "Headliners: 2 artists · ~28 songs each",
+    ]);
   });
 });

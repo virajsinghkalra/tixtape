@@ -19,7 +19,23 @@ import {
 } from "@/domain/gigs/watchlist";
 import type { Logger } from "@/lib/logger";
 import type { ArtistGigDiscovery, DiscoveryNote } from "./discover-artist-gigs";
-import type { CatalogueArtists, SearchedTerms, TrendingArtists } from "./ports";
+import {
+  DEMAND_WINDOW_DAYS,
+  metroDemand,
+  pickByDemand,
+  planRun,
+  type PlannedArtist,
+  type RunPlan,
+} from "@/domain/gigs/demand";
+import { isoDate } from "@/domain/gigs/extract";
+import type {
+  ArtistCities,
+  CatalogueArtists,
+  CityDemandStore,
+  CityShowCounts,
+  SearchedTerms,
+  TrendingArtists,
+} from "./ports";
 
 const DAY_MS = 86_400_000;
 const SEARCH_WINDOW_MS = 14 * DAY_MS;
@@ -93,7 +109,7 @@ export type DiscoveryRunReport = {
 /** Discovers shows for the given artists; writes candidates unless `write` is false. */
 export async function runDiscovery(
   deps: DiscoveryRunDeps,
-  artists: readonly WatchArtist[],
+  artists: ReadonlyArray<WatchArtist | PlannedArtist>,
   opts: { write: boolean },
 ): Promise<DiscoveryRunReport> {
   const now = deps.clock.now();
@@ -106,7 +122,10 @@ export async function runDiscovery(
         ? deps.validator.spotifyIdOf(artist.name)
         : null);
     if (report.blockedUntil) break;
-    const { candidates, note } = await deps.discovery.discover({ ...artist, spotifyId });
+    const { candidates, note } = await deps.discovery.discover(
+      { ...artist, spotifyId },
+      focusOf(artist),
+    );
     report.artists.push(note);
     try {
       const { validated } = await validateCandidates(deps.validator, candidates);
@@ -140,8 +159,15 @@ async function confirmOrNull(
 /** This run's artists: `only` (by name) when given, else the rotation within `perRun`. */
 export function artistsForRun(
   list: readonly WatchArtist[],
-  opts: { perRun: number; now: Date; only?: readonly string[] },
-): WatchArtist[] {
+  opts: {
+    perRun: number;
+    now: Date;
+    only?: readonly string[];
+    /** D-081: weight the run by visitor demand. */
+    plan?: RunPlan;
+    artistCities?: ReadonlyArray<{ name: string; city: string }>;
+  },
+): Array<WatchArtist | PlannedArtist> {
   if (opts.only && opts.only.length > 0) {
     const wanted = opts.only.map((n) => n.trim().toLowerCase());
     const found = list.filter(
@@ -166,7 +192,11 @@ export function artistsForRun(
       })),
     ];
   }
-  return pickForRun(list, opts.perRun, Math.floor(opts.now.getTime() / DAY_MS));
+  const runIndex = Math.floor(opts.now.getTime() / DAY_MS);
+  if (opts.plan) {
+    return pickByDemand(list, opts.artistCities ?? [], opts.plan, opts.perRun, runIndex);
+  }
+  return pickForRun(list, opts.perRun, runIndex);
 }
 
 /**
@@ -238,4 +268,47 @@ export async function runListings(
     }
   }
   return report;
+}
+
+/** D-081: floor artists get a smaller page budget; demand artists the full one. */
+export const FLOOR_PAGES_PER_ARTIST = 2;
+
+function focusOf(artist: WatchArtist | PlannedArtist): { cities?: string[]; pages?: number } {
+  if (!("reason" in artist)) return {};
+  return {
+    cities: artist.focusCities,
+    ...(artist.reason === "floor" ? { pages: FLOOR_PAGES_PER_ARTIST } : {}),
+  };
+}
+
+export type DemandDeps = {
+  demand: CityDemandStore;
+  shows: CityShowCounts;
+  artistCities: ArtistCities;
+  clock: Clock;
+  logger: Pick<Logger, "warn">;
+};
+
+const ARTIST_CITY_WINDOW_MS = 365 * DAY_MS;
+
+/**
+ * D-081: the run plan from visitor demand (last 14 days) and upcoming published shows, plus
+ * the cities our artists play in. Any failure gives an empty plan: the plain rotation.
+ */
+export async function loadRunPlan(
+  deps: DemandDeps,
+  perRun: number,
+): Promise<{ plan: RunPlan; artistCities: Array<{ name: string; city: string }> }> {
+  const now = deps.clock.now();
+  try {
+    const [counts, shows, artistCities] = await Promise.all([
+      deps.demand.since(isoDate(new Date(now.getTime() - DEMAND_WINDOW_DAYS * DAY_MS))),
+      deps.shows.upcomingPublished(now),
+      deps.artistCities.list(new Date(now.getTime() - ARTIST_CITY_WINDOW_MS)),
+    ]);
+    return { plan: planRun(metroDemand(counts, now), shows, perRun), artistCities };
+  } catch (e) {
+    deps.logger.warn({ err: e }, "gigs: demand plan unavailable; using the plain rotation");
+    return { plan: { metros: [], floorSlots: perRun }, artistCities: [] };
+  }
 }

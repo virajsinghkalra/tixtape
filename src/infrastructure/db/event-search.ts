@@ -20,6 +20,7 @@ import {
 } from "@/domain/events/search";
 import { TREND_HALF_LIFE_MS } from "@/domain/events/trend";
 import type { EventType } from "@/domain/shared/lineup";
+import { aliasCols, eventEndSql } from "./event-time";
 
 type EventRow = {
   id: string;
@@ -71,7 +72,7 @@ function phonetic(expr: SQL): SQL {
 }
 
 const upcoming = (now: Date): SQL =>
-  sql`coalesce(e.ends_at, e.starts_at + make_interval(secs => ${DEFAULT_EVENT_DURATION_MS / 1000})) >= ${ts(now)}`;
+  sql`${eventEndSql(aliasCols("e"), DEFAULT_EVENT_DURATION_MS)} >= ${ts(now)}`;
 
 /** Users only ever see published events that haven't ended (D-056). */
 const publicUpcoming = (now: Date): SQL => sql`e.visibility = 'published' and ${upcoming(now)}`;
@@ -118,7 +119,7 @@ export class PgEventSearch implements EventSearch {
         left join event_stats s on s.event_id = e.id
         where ${publicUpcoming(now)}
           and (${text(f.city)} is null or v.city = ${text(f.city)})
-          and (${ts(f.from)} is null or coalesce(e.ends_at, e.starts_at) >= ${ts(f.from)})
+          and (${ts(f.from)} is null or ${eventEndSql(aliasCols("e"))} >= ${ts(f.from)})
           and (${ts(f.to)} is null or e.starts_at <= ${ts(f.to)})
           and (${text(f.type)} is null or e.type::text = ${text(f.type)}
             or (${text(f.typeTitlePattern)} is not null and lower(e.title) like ${text(f.typeTitlePattern)}))
@@ -258,7 +259,7 @@ export class PgEventSearch implements EventSearch {
       left join event_stats s on s.event_id = e.id
       where ${publicUpcoming(now)}
         and (${text(filters.city)} is null or v.city = ${text(filters.city)})
-        and (${ts(filters.from)} is null or coalesce(e.ends_at, e.starts_at) >= ${ts(filters.from)})
+        and (${ts(filters.from)} is null or ${eventEndSql(aliasCols("e"))} >= ${ts(filters.from)})
         and (${ts(filters.to)} is null or e.starts_at <= ${ts(filters.to)})
       order by ${decayedTrend(now)} desc, e.starts_at, e.id
       limit ${limit}

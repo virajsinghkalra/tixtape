@@ -70,6 +70,8 @@ export class ArtistGigDiscovery {
   /** Grounded candidates and leads for one artist. Never throws for one page or the search. */
   async discover(
     artist: WatchArtist,
+    /** D-081: cities to search around (visitor demand) and this artist's page budget. */
+    focus: { cities?: readonly string[]; pages?: number } = {},
   ): Promise<{ candidates: GigCandidate[]; note: DiscoveryNote }> {
     const now = this.deps.clock.now();
     const note: DiscoveryNote = {
@@ -79,7 +81,7 @@ export class ArtistGigDiscovery {
       pages: [],
       leads: [],
     };
-    const budget = { pages: this.deps.pagesPerArtist ?? DEFAULT_PAGES_PER_ARTIST };
+    const budget = { pages: focus.pages ?? this.deps.pagesPerArtist ?? DEFAULT_PAGES_PER_ARTIST };
     const read = new Set<string>();
     const out: GigCandidate[] = [];
 
@@ -96,7 +98,7 @@ export class ArtistGigDiscovery {
       }
     }
 
-    const results = await this.search(artist.name, now, note);
+    const results = await this.search(artist.name, now, note, focus.cities ?? []);
     for (const r of results) {
       const domain = registrableDomain(r.url);
       if (!domain || read.has(r.url)) continue;
@@ -128,7 +130,7 @@ export class ArtistGigDiscovery {
     }
   }
 
-  private async search(name: string, now: Date, note: DiscoveryNote) {
+  private async search(name: string, now: Date, note: DiscoveryNote, cities: readonly string[]) {
     if (!this.deps.search) return [];
     const day = dayKey(now);
     const used = await this.deps.budget.usage(day);
@@ -142,8 +144,9 @@ export class ArtistGigDiscovery {
       note.searched = true;
       // Denied domains are not excluded: their results become leads, and are never fetched.
       return await this.deps.search.search(
-        // Measured 2026-11-21: naming big cities surfaces Indian ticket and venue pages best.
-        `"${name}" tickets India ${year} ${year + 1} Mumbai Delhi Bengaluru`,
+        // Measured 2026-11-21: naming cities surfaces Indian ticket and venue pages best. D-081:
+        // the cities are where visitors are looking, else the three biggest markets.
+        `"${name}" tickets India ${year} ${year + 1} ${searchCities(cities).join(" ")}`,
         { maxResults: SEARCH_RESULTS, excludeDomains: [] },
       );
     } catch (e) {
@@ -258,4 +261,11 @@ function dedupe(candidates: readonly GigCandidate[]): GigCandidate[] {
     if (!seen.has(key)) seen.set(key, c);
   }
   return [...seen.values()];
+}
+
+const DEFAULT_SEARCH_CITIES = ["Mumbai", "Delhi", "Bengaluru"];
+
+/** Up to three cities for the query: demand cities first, then the default markets. */
+export function searchCities(focus: readonly string[]): string[] {
+  return [...new Set([...focus, ...DEFAULT_SEARCH_CITIES])].slice(0, 3);
 }

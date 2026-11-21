@@ -85,6 +85,13 @@
       "when": 1795285036806,
       "tag": "0011_front_page_popularity",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795287509502,
+      "tag": "0012_city_demand",
+      "breakpoints": true
     }
   ]
 }

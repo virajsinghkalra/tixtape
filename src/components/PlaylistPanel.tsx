@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   headline,
+  previewPending,
   readyLine,
   showLine,
   tierLines,
@@ -23,7 +24,7 @@ import {
   type BuildProgress,
   type PlaylistView,
 } from "./playlist-state";
-import { orderLine, spotifyMatchLine } from "./lineup-copy";
+import { orderLine, pendingLine, spotifyMatchLine } from "./lineup-copy";
 import { ShareButton } from "./ShareButton";
 import { Button, ButtonLink } from "./ui/Button";
 import { Confetti } from "./ui/Confetti";
@@ -40,6 +41,8 @@ type Props = {
   preview: PlaylistPreview | null;
   matched: number;
   total: number;
+  /** The lineup in billing order, for "Playlist coming soon: we're matching …". */
+  names: string[];
   /** For a solo show: "~32 songs · 2 h of Bhuwin" and "Bhuwin is on Spotify." */
   soloName?: string;
   /** Billing tiers with artists: one tier means "billing order", not "openers last". */
@@ -57,10 +60,13 @@ export function PlaylistPanel({
   preview,
   matched,
   total,
+  names,
   soloName,
   tierCount,
   initialStatus,
 }: Props) {
+  // Nothing matched yet (or a 0-song estimate): never "0 songs · 0 min", no "Make playlist".
+  const pending = previewPending(preview, matched, total);
   const [view, setView] = useState<PlaylistView>(() =>
     initialStatus ? viewFromStatus(initialStatus) : { kind: "checking" },
   );
@@ -153,15 +159,24 @@ export function PlaylistPanel({
         It updates when the lineup changes.
       </p>
 
-      {preview ? <PreviewBlock preview={preview} soloName={soloName} /> : null}
-      <p className="mt-4 text-sm text-muted">
-        {[orderLine(total, tierCount), spotifyMatchLine(matched, total, soloName)]
-          .filter(Boolean)
-          .join(" ")}
-      </p>
+      {pending ? (
+        <p className="mt-5 rounded-field border-2 border-night bg-surface-2 p-4 font-semibold">
+          <span aria-hidden>⏳ </span>
+          {pendingLine(names, total)}
+        </p>
+      ) : (
+        <>
+          {preview ? <PreviewBlock preview={preview} soloName={soloName} /> : null}
+          <p className="mt-4 text-sm text-muted">
+            {[orderLine(total, tierCount), spotifyMatchLine(matched, total, soloName)]
+              .filter(Boolean)
+              .join(" ")}
+          </p>
+        </>
+      )}
 
       <div className="relative mt-6">
-        <Actions view={view} eventTitle={eventTitle} onStart={start} />
+        <Actions view={view} eventTitle={eventTitle} onStart={start} pending={pending} />
         {view.kind === "ready" && view.justMade && <Confetti key={view.url} />}
       </div>
 
@@ -208,10 +223,13 @@ function Actions({
   view,
   eventTitle,
   onStart,
+  pending,
 }: {
   view: PlaylistView;
   eventTitle: string;
   onStart: () => void;
+  /** Nothing to make yet: no "Make playlist" or "Try again". */
+  pending: boolean;
 }) {
   const toast = useToast();
   switch (view.kind) {
@@ -251,7 +269,7 @@ function Actions({
         </Button>
       );
     case "problem":
-      return (
+      return pending ? null : (
         <Button size="lg" className="w-full" onClick={onStart}>
           Try again
         </Button>
@@ -265,7 +283,7 @@ function Actions({
         />
       );
     case "idle":
-      return (
+      return pending ? null : (
         <Button size="lg" className="w-full" onClick={onStart}>
           Make playlist <span aria-hidden>→</span>
         </Button>

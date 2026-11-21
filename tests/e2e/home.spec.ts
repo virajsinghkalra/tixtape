@@ -7,9 +7,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await warmUp(browser, baseURL);
 });
 
-test("home: hero with search, the big ones ranked, See all links, a quiet Sign in", async ({
-  page,
-}) => {
+test("home: hero with search, the big ones ranked, See all links, no Sign in", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/every lineup/i);
   await expect(search(page)).toBeVisible();
@@ -27,10 +25,8 @@ test("home: hero with search, the big ones ranked, See all links, a quiet Sign i
   );
   expect(order.every((i) => i >= 0)).toBe(true);
 
-  await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
-    "href",
-    "/api/auth/spotify/login",
-  );
+  // logged out, the header shows nothing on the right (admins use /api/auth/spotify/login)
+  await expect(page.getByRole("banner").getByRole("link", { name: /sign in/i })).toHaveCount(0);
   await expect(page.locator("footer")).toContainText(/one shared playlist on spotify/i);
 });
 

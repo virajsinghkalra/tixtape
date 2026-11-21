@@ -54,7 +54,7 @@ test.describe("responsive", () => {
 });
 
 test.describe("keyboard and ARIA", () => {
-  test("skip link is first, then logo, Sign in, search; focus is visible", async ({ page }) => {
+  test("skip link is first, then logo, then search; focus is visible", async ({ page }) => {
     await gotoHome(page);
     const order: string[] = [];
     for (let i = 0; i < 5; i++) {

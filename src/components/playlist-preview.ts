@@ -38,6 +38,16 @@ export function parsePreview(raw: unknown): PlaylistPreview | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * True when there's nothing real to show yet: no artist matched on Spotify, or the estimate
+ * comes to 0 songs or 0 min. Callers show `pendingLine` and hide "Make playlist" instead.
+ * A partial match isn't pending: it shows its real numbers.
+ */
+export function previewPending(p: PlaylistPreview | null, matched: number, total: number): boolean {
+  if (total <= 0) return false;
+  return matched <= 0 || (p !== null && (p.songs <= 0 || Math.round(p.minutes) <= 0));
+}
+
 /** "45 min", "1 h", "2 h 38 min", "16 h". */
 export function formatDuration(minutes: number): string {
   const total = Math.round(minutes);
@@ -77,8 +87,9 @@ export function showLine(p: PlaylistPreview): string {
 export function tierLines(
   p: PlaylistPreview,
 ): { tier: BillingTier; text: string; songs: number }[] {
-  const tiers = p.perTier.filter((t) => t.artists > 0);
-  if (tiers.reduce((n, t) => n + t.artists, 0) <= 1) return [];
+  // A tier whose artists aren't matched yet has no songs: leave it out, never "~0 songs".
+  if (p.perTier.reduce((n, t) => n + t.artists, 0) <= 1) return [];
+  const tiers = p.perTier.filter((t) => t.artists > 0 && t.songs > 0);
   return tiers.map((t) => ({
     tier: t.tier,
     songs: t.songs,

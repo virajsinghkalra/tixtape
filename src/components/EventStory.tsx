@@ -1,6 +1,7 @@
 import type { EventDetail } from "@/application/ports/events";
 import { countdownBadge, formatDateRange, istDayCount } from "./event-format";
 import { introLine, STORY_HEADER } from "./lineup-copy";
+import { isMatched } from "./lineup-view";
 import type { PlaylistPreview } from "./playlist-preview";
 import { planStory } from "./story-plan";
 import { renderStory } from "./StorySlides";
@@ -40,6 +41,7 @@ export function EventStory({ event, now, preview }: Props) {
     playlistHref: "#playlist",
     eventHref: null,
     days,
+    matched: lineup.filter((a) => isMatched(a.matchStatus)).length,
   });
   const wall = lineup.slice(0, WALL);
   return (

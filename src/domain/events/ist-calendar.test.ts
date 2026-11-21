@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dayWindow,
+  eventEnd,
   istDay,
   monthWindow,
   upcomingMonthWindow,
@@ -94,6 +95,24 @@ describe("IST windows", () => {
   ])("%s", (_label, month, year) => {
     expect(upcomingMonthWindow(new Date("2026-11-21T06:00:00Z"), month)).toEqual(
       monthWindow(year, month),
+    );
+  });
+});
+
+describe("eventEnd", () => {
+  // 22 Nov 2026, stored at 00:00 IST = 21 Nov 18:30 UTC.
+  const show = new Date("2026-11-21T18:30:00Z");
+  it("a date-only show without an end runs to 23:59:59.999 IST on its day", () => {
+    expect(eventEnd({ startsAt: show, endsAt: null, startsAtDateOnly: true }).toISOString()).toBe(
+      "2026-11-22T18:29:59.999Z",
+    );
+  });
+  it("a real end wins; a timed show without one ends at start plus the grace", () => {
+    const endsAt = new Date("2026-11-22T10:00:00Z");
+    expect(eventEnd({ startsAt: show, endsAt, startsAtDateOnly: true })).toEqual(endsAt);
+    expect(eventEnd({ startsAt: show, endsAt: null })).toEqual(show);
+    expect(eventEnd({ startsAt: show, endsAt: null }, 3_600_000).toISOString()).toBe(
+      "2026-11-21T19:30:00.000Z",
     );
   });
 });

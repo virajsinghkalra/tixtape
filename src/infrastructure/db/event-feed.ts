@@ -8,6 +8,9 @@ import type {
 import type { Database } from "@/db/client";
 import { asEventId, asVenueId } from "@/domain/shared/ids";
 import { EVENT_STATUSES, EVENT_TYPES } from "@/domain/shared/lineup";
+import { aliasCols, eventEndSql } from "./event-time";
+
+const stillOn = eventEndSql(aliasCols("e"));
 
 const row = z.object({
   id: z.string(),
@@ -15,6 +18,7 @@ const row = z.object({
   type: z.enum(EVENT_TYPES),
   status: z.enum(EVENT_STATUSES),
   starts_at: z.coerce.date(),
+  starts_at_date_only: z.boolean(),
   ends_at: z.coerce.date().nullable(),
   genre: z.string().nullable(),
   image_url: z.string().nullable(),
@@ -43,7 +47,7 @@ export class PgEventFeed implements EventFeedReader {
   async upcoming({ from, limit }: { from: Date; limit: number }): Promise<FeedRow[]> {
     const result = await this.db.execute(sql`
       select
-        e.id, e.title, e.type, e.status, e.starts_at, e.ends_at, e.genre, e.image_url, e.created_at,
+        e.id, e.title, e.type, e.status, e.starts_at, e.starts_at_date_only, e.ends_at, e.genre, e.image_url, e.created_at,
         v.id as venue_id, v.name as venue_name, v.city as venue_city, v.country as venue_country,
         (select count(*) from event_artists ea where ea.event_id = e.id) as artist_count,
         top.names as headliners,
@@ -66,7 +70,7 @@ export class PgEventFeed implements EventFeedReader {
           select ea2.tier from event_artists ea2 where ea2.event_id = e.id
           order by ea2.billing_rank limit 1)
       ) top on true
-      where e.visibility = 'published' and coalesce(e.ends_at, e.starts_at) >= ${from.toISOString()}::timestamptz
+      where e.visibility = 'published' and ${stillOn} >= ${from.toISOString()}::timestamptz
       order by e.starts_at asc, e.id asc
       limit ${limit}
     `);
@@ -90,6 +94,7 @@ function toFeedRow(r: z.infer<typeof row>): FeedRow {
     type: r.type,
     status: r.status,
     startsAt: r.starts_at,
+    startsAtDateOnly: r.starts_at_date_only,
     endsAt: r.ends_at,
     genre: r.genre,
     imageUrl: r.image_url,
@@ -118,7 +123,7 @@ export class PgArtistPopularityStore implements ArtistPopularityStore {
       join event_artists ea on ea.artist_id = a.id
       join events e on e.id = ea.event_id
       where e.visibility = 'published'
-        and coalesce(e.ends_at, e.starts_at) >= ${now.toISOString()}::timestamptz
+        and ${stillOn} >= ${now.toISOString()}::timestamptz
         and (a.lastfm_listeners_at is null or a.lastfm_listeners_at < ${staleBefore.toISOString()}::timestamptz)
       limit ${limit}
     `);

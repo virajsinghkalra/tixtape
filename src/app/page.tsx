@@ -23,6 +23,7 @@ import { Marquee } from "@/components/ui/Marquee";
 import { Sticker } from "@/components/ui/Sticker";
 import { Tile } from "@/components/ui/Tile";
 import { cookies, headers } from "next/headers";
+import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage } from "@/server/front-page";
@@ -60,6 +61,8 @@ export default async function Home({ searchParams }: Props) {
   // D-050: chosen city (cookie) or IP city in production; null locally → "All India".
   const city =
     visitorCity({ headers: await headers(), cookie: jar.get(CITY_COOKIE)?.value })?.city ?? null;
+  // D-081: a per-city, per-day count of where people look (no personal data), after the response.
+  await noteVisitorDemand("view");
   // D-079: one feed read, ranked by size × proximity × timing (pure, in the domain).
   const [{ rows, page: front }, popular] = await Promise.all([
     frontPage({ now, city }),

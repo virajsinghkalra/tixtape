@@ -1022,3 +1022,24 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - A 429 still closes the shared gate for everyone, and the class that triggered it is logged and counted.
   - The sweep logs calls and 429s per class for today and yesterday.
 - **Steps:** a step starts no new unit after 6 s, and writes need ≥ 13 s of lease left (D-045).
+
+### D-081 · Discovery follows where visitors are (city demand)
+
+- **Status:** Accepted · **Owner:** Gig Coverage (owner request) · **Date:** 2026-11-22. Extends D-073.
+- **Recording demand, privacy-safe:**
+  - The new table `city_demand(day, city, kind, count)` (migration 0012, pure add) keeps one counter per IST day, city and kind (`view` or `search`). It never stores an IP, user, session or query.
+  - Only known Indian cities are counted (`demandCity`, canonical names), so a hand-made `city` cookie can't add rows.
+  - `search_log` has no city and stays unchanged.
+  - `noteVisitorDemand(kind)` (`src/server/demand.ts`) resolves the visitor city with `visitorCity` (switcher cookie, then Vercel IP city) and counts after the response with `next/server` `after()`. A failure is only logged.
+  - It's called from the home page, the event page (views) and `GET /api/search` when `q` is set. Type-ahead suggest is not counted.
+  - The ranking code is untouched.
+- **Weighting** (`src/domain/gigs/demand.ts`, pure):
+  - Demand per metro is views + 3 × searches over 14 days, with a 7-day half-life. Cities fold into the home page's metro clusters (`metroOf` from `front-page.ts`).
+  - The top 3 metros share 70% of a run's artist slots (`GIG_ARTISTS_PER_RUN`) in proportion to demand, and each gets at least 1 slot.
+  - The remaining 30% is a **floor** that keeps rotating through every other artist, so new markets are still covered. Slots a metro can't fill go to the floor.
+  - A metro's artists are those our lineups place there in the last 12 months (`event_artists` → `venues.city`).
+  - Their Tavily search names the metro's cities first. Floor artists get 2 pages instead of 4.
+  - HighApe city pages: every planned city is read, plus 2 rotating others.
+  - With no demand data (or if it can't be read) the run is the plain D-073 rotation.
+- **Scarcity first:** a top metro with fewer than 5 upcoming **published** shows is served before anything else, fewest first. Searched artists come next, then the other demand metros, then the floor.
+- **Retention:** counters are aggregate and anonymous. A sweep may delete rows older than 90 days (Platform, optional).

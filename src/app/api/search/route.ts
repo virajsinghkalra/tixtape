@@ -1,4 +1,5 @@
 import { SearchPageParamsSchema } from "@/application/events";
+import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
 import { json, parseWith, route } from "@/server/http";
 
@@ -12,5 +13,6 @@ export const GET = route(async (req: Request) => {
     SearchPageParamsSchema,
     Object.fromEntries(new URL(req.url).searchParams),
   );
+  if (params.q) await noteVisitorDemand("search"); // D-081: city-level count only.
   return json(await events().searchPage(params));
 });

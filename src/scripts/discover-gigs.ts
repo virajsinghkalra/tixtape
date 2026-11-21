@@ -3,7 +3,7 @@
  *
  *   npx tsx src/scripts/discover-gigs.ts [--dry-run | --candidates-only]
  *        [--artists=<name>,<name>] [--max-artists=<n>] [--report=<path.json>]
- *        [--skip-listings] [--skip-discovery] [--skip-publish] [--skip-reverify]
+ *        [--skip-listings] [--skip-discovery] [--skip-publish] [--skip-reverify] [--no-demand]
  *
  * Steps (each can be skipped):
  *  0. listings: HighApe city pages, one candidate per night (artists validated on Spotify);
@@ -26,6 +26,7 @@ import { DEFAULT_CAPS } from "@/application/ingestion/doubt-resolver";
 import { ArtistValidator } from "@/application/ingestion/validate-artists";
 import {
   artistsForRun,
+  loadRunPlan,
   loadWatchlist,
   runDiscovery,
   runListings,
@@ -33,7 +34,9 @@ import {
 } from "@/application/gigs/run-discovery";
 import { publishDueCandidates, type NightOutcome } from "@/application/gigs/publish-due-candidates";
 import { reverifyAutoPublished, type ReverifyOutcome } from "@/application/gigs/reverify-published";
+import { listingsForRun } from "@/domain/gigs/demand";
 import { isoDate } from "@/domain/gigs/extract";
+import { HIGHAPE_CITIES } from "@/infrastructure/sources/highape";
 import { createGigsModule, GigEnvSchema } from "@/infrastructure/gigs/gigs-module";
 import { FileCollectorState } from "@/infrastructure/sources/collector-state";
 import { env } from "@/lib/env";
@@ -43,6 +46,8 @@ import { events } from "@/server/events";
 import { runAsSpotifyClass } from "@/infrastructure/spotify";
 
 const line = (s: string) => console.warn(s);
+/** D-081: listing cities outside the demand plan read per run (the floor). */
+const LISTING_FLOOR_CITIES = 2;
 const arg = (argv: readonly string[], name: string) =>
   argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 
@@ -117,11 +122,35 @@ async function main(): Promise<void> {
     `Gig coverage run ${now.toISOString()} ${dryRun ? "DRY RUN (nothing written)" : candidatesOnly ? "candidates only" : "full"}`,
   );
 
+  // D-081: weight this run by where visitors are looking.
+  const perRun = Number(arg(argv, "max-artists") ?? gigEnv.GIG_ARTISTS_PER_RUN);
+  const { plan, artistCities } = argv.includes("--no-demand")
+    ? { plan: { metros: [], floorSlots: perRun }, artistCities: [] }
+    : await loadRunPlan({ ...gigs.demand, clock: c.clock, logger: c.logger }, perRun);
+  line(
+    plan.metros.length === 0
+      ? "Demand: no city data yet; plain rotation."
+      : `Demand: ${plan.metros
+          .map(
+            (m) =>
+              `${m.metro} score=${m.score} slots=${m.slots} upcoming=${m.upcoming}${m.scarce ? " (few shows: first)" : ""}`,
+          )
+          .join(" · ")} · floor=${plan.floorSlots}`,
+  );
+  const runIndex = Math.floor(now.getTime() / 86_400_000);
+  const highApeCities = listingsForRun(
+    Object.keys(HIGHAPE_CITIES),
+    (slug) => HIGHAPE_CITIES[slug] ?? slug,
+    plan,
+    LISTING_FLOOR_CITIES,
+    runIndex,
+  );
+
   const fresh: NonNullable<Parameters<typeof publishDueCandidates>[1]["extra"]>[number][] = [];
   if (!argv.includes("--skip-listings")) {
     const listings = await runListings(
       { validator, store: services.candidates, clock: c.clock, logger: c.logger },
-      gigs.listings(state),
+      gigs.listings(state, highApeCities),
       { write },
     );
     line(
@@ -139,10 +168,9 @@ async function main(): Promise<void> {
       logger: c.logger,
     });
     const only = arg(argv, "artists")?.split(",").filter(Boolean);
-    const perRun = Number(arg(argv, "max-artists") ?? gigEnv.GIG_ARTISTS_PER_RUN);
-    const artists = artistsForRun(watchlist, { perRun, now, only });
+    const artists = artistsForRun(watchlist, { perRun, now, only, plan, artistCities });
     line(
-      `Watchlist: ${watchlist.length} artist(s); this run: ${artists.map((a) => a.name).join(", ") || "none"}`,
+      `Watchlist: ${watchlist.length} artist(s); this run: ${artists.map((a) => ("reason" in a ? `${a.name} [${a.reason}]` : a.name)).join(", ") || "none"}`,
     );
     const discovery = await runDiscovery(
       {

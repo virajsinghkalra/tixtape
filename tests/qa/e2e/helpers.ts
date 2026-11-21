@@ -46,7 +46,7 @@ export const test = base.extend<{ lookupStub: void }>({
       await page.route("**/api/lookup**", (r) =>
         r.fulfill({ status: 200, contentType: "application/json", body: '{"status":"not_found"}' }),
       );
-      // The Sign in link redirects to Spotify's authorize page: never load the real one.
+      // The admin login URL redirects to Spotify's authorize page: never load the real one.
       await page.route(/accounts\.spotify\.com/, (r) =>
         r.fulfill({ status: 200, contentType: "text/html", body: "<h1>Spotify login (stub)</h1>" }),
       );

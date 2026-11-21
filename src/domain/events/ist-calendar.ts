@@ -60,3 +60,21 @@ export function upcomingMonthWindow(now: Date, month: number): DateWindow {
   const d = istDay(now);
   return monthWindow(month >= d.month ? d.year : d.year + 1, month);
 }
+
+/**
+ * When an event stops being upcoming: its `endsAt`, else (date-only, stored at 00:00 IST) the
+ * end of its IST day, 23:59:59.999, else `startsAt` plus `timedGraceMs`. One rule for the home
+ * feed, search and lists; the SQL twin is `eventEndSql` (src/infrastructure/db/event-time.ts).
+ * Never write this back to `ends_at`: the playlist length (D-065) derives from a real end.
+ */
+export function eventEnd(
+  e: { startsAt: Date; endsAt: Date | null; startsAtDateOnly?: boolean },
+  timedGraceMs = 0,
+): Date {
+  if (e.endsAt) return e.endsAt;
+  if (e.startsAtDateOnly) {
+    const d = istDay(e.startsAt);
+    return new Date(istMidnight(d.year, d.month, d.day + 1).getTime() - 1);
+  }
+  return new Date(e.startsAt.getTime() + timedGraceMs);
+}

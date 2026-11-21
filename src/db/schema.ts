@@ -578,3 +578,24 @@ export const gigLeads = pgTable(
     index("gig_leads_last_seen_idx").on(t.lastSeenAt),
   ],
 );
+
+// ── City demand (D-081) ────────────────────────────────────────────────────
+
+export const demandKind = pgEnum("demand_kind", ["view", "search"]);
+
+/**
+ * Visitor demand per city and IST day (D-081): a bare count per (day, city, kind). Never an
+ * IP, a user, a session or a query: it only tells discovery where people are looking.
+ */
+export const cityDemand = pgTable(
+  "city_demand",
+  {
+    /** IST calendar date, "YYYY-MM-DD". */
+    day: text("day").notNull(),
+    /** Canonical city name (Bombay → Mumbai). */
+    city: text("city").notNull(),
+    kind: demandKind("kind").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.city, t.kind] }), index("city_demand_day_idx").on(t.day)],
+);

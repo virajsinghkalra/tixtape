@@ -12,12 +12,13 @@ import {
   lineupShape,
   moreLine,
   orderLine,
+  pendingLine,
   STORY_HEADER,
   STORY_KICKERS,
   titleSize,
   type TitleSize,
 } from "./lineup-copy";
-import { headline, showLine, type PlaylistPreview } from "./playlist-preview";
+import { headline, previewPending, showLine, type PlaylistPreview } from "./playlist-preview";
 
 export type StoryArtist = {
   name: string;
@@ -40,6 +41,8 @@ export type StoryInput = {
   eventHref: string | null;
   /** Show length in days (IST), for "34 acts. 2 days." */
   days: number;
+  /** Artists matched on Spotify; none means "Playlist coming soon", never "0 songs". */
+  matched?: number;
 };
 
 /** How many names a slide shows before "+ N more on the lineup" (a portrait card fits these). */
@@ -193,15 +196,19 @@ function playlistSlide(
   artists: StoryArtist[],
   solo: StoryArtist | null,
 ): SlidePlan {
-  const p = input.preview;
+  const pending = previewPending(input.preview, input.matched ?? artists.length, artists.length);
+  const p = pending ? null : input.preview;
   const tiers = new Set(artists.map((a) => a.tier)).size;
   const order = orderLine(artists.length, tiers);
   const show = p ? showLine(p) : "";
-  const detail = solo
-    ? show
-      ? `One playlist, ${show}.`
-      : "One playlist to know every song by the night."
-    : [order, show ? `It ${show}.` : ""].filter(Boolean).join(" ") || "Every artist on the lineup.";
+  const detail = pending
+    ? pendingLine(artists.map((a) => a.name))
+    : solo
+      ? show
+        ? `One playlist, ${show}.`
+        : "One playlist to know every song by the night."
+      : [order, show ? `It ${show}.` : ""].filter(Boolean).join(" ") ||
+        "Every artist on the lineup.";
   return {
     id: "playlist",
     label: "The playlist",

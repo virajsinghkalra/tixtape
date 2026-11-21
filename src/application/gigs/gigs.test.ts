@@ -563,3 +563,100 @@ describe("runListings", () => {
     expect(store.rows).toHaveLength(1);
   });
 });
+
+describe("demand-weighted discovery (D-081)", () => {
+  it("searches around the artist's demand cities and gives floor artists fewer pages", async () => {
+    const { searchCities } = await import("./discover-artist-gigs");
+    expect(searchCities(["Guwahati"])).toEqual(["Guwahati", "Mumbai", "Delhi"]);
+    expect(searchCities([])).toEqual(["Mumbai", "Delhi", "Bengaluru"]);
+
+    const search = searchReturning([]);
+    const pages = ["https://a.example/1", "https://a.example/2", "https://a.example/3"];
+    const r = reader(
+      Object.fromEntries([
+        [SITE, ok(SITE, "x", { tourLinks: pages })],
+        ...pages.map((p) => [p, ok(p, "x")]),
+      ]),
+    );
+    const d = new ArtistGigDiscovery({
+      search,
+      reader: r,
+      officialSites: { sitesOf: async () => [SITE] },
+      leads: null,
+      budget: memoryBudget(),
+      clock,
+      logger,
+      caps: { searchesPerDay: 30 },
+    });
+    const artist = {
+      name: "Ghy One",
+      key: "ghy one",
+      spotifyId: "6vsLn0UxL3GhtYP7ghpF3t",
+      origins: [],
+      score: 0,
+    };
+    await d.discover(artist, { cities: ["Guwahati"] });
+    expect(search.queries[0]).toContain("Guwahati Mumbai Delhi");
+    r.calls.length = 0;
+    await d.discover(artist, { pages: 2 });
+    expect(r.calls).toHaveLength(2);
+  });
+
+  it("falls back to the plain rotation when demand can't be read", async () => {
+    const { loadRunPlan } = await import("./run-discovery");
+    const warn = vi.fn();
+    const out = await loadRunPlan(
+      {
+        demand: {
+          record: async () => {},
+          since: async () => Promise.reject(new Error("no table")),
+        },
+        shows: { upcomingPublished: async () => [] },
+        artistCities: { list: async () => [] },
+        clock,
+        logger: { warn },
+      },
+      10,
+    );
+    expect(out.plan).toEqual({ metros: [], floorSlots: 10 });
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("builds a plan from demand, shows and artist cities", async () => {
+    const { loadRunPlan, artistsForRun } = await import("./run-discovery");
+    const { plan, artistCities } = await loadRunPlan(
+      {
+        demand: {
+          record: async () => {},
+          since: async () => [
+            { day: "2026-11-21", city: "Guwahati", kind: "search" as const, count: 4 },
+          ],
+        },
+        shows: { upcomingPublished: async () => [{ city: "Guwahati", count: 1 }] },
+        artistCities: { list: async () => [{ name: "Peter Cat Recording Co.", city: "Guwahati" }] },
+        clock,
+        logger,
+      },
+      4,
+    );
+    expect(plan.metros[0]).toMatchObject({ metro: "guwahati", scarce: true, slots: 3 });
+    const list = [
+      {
+        name: "Peter Cat Recording Co.",
+        key: "peter cat recording co",
+        spotifyId: null,
+        origins: ["catalogue" as const],
+        score: 2,
+      },
+      {
+        name: "Someone Else",
+        key: "someone else",
+        spotifyId: null,
+        origins: ["trending" as const],
+        score: 1,
+      },
+    ];
+    const picked = artistsForRun(list, { perRun: 4, now, plan, artistCities });
+    expect(picked.map((a) => ("reason" in a ? a.reason : ""))).toEqual(["guwahati", "floor"]);
+  });
+});

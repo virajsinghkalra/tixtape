@@ -3,6 +3,7 @@
  * Implemented in src/infrastructure/gigs/. Small on purpose: one reason to change each.
  */
 import type { GateCheck, GateSource, GateVerdict } from "@/domain/gigs/auto-publish";
+import type { DemandCount, DemandKind } from "@/domain/gigs/demand";
 import type { ValidatedGig } from "@/domain/gigs/nights";
 import type { EventId } from "@/domain/shared/ids";
 import type { MatchStatus } from "@/domain/shared/lineup";
@@ -136,4 +137,24 @@ export interface PublishAuditLog {
 export interface PublishSwitch {
   /** Null when publishing may run now; otherwise why not. */
   blockedReason(now: Date): Promise<string | null>;
+}
+
+// ── D-081: demand by city ────────────────────────────────────────────────
+
+/** Privacy-safe visitor demand: one counter per (IST day, city, kind). */
+export interface CityDemandStore {
+  /** Adds one to the counter for the city on `at`'s IST day. */
+  record(city: string, kind: DemandKind, at: Date): Promise<void>;
+  /** Every counter on or after `sinceDay` ("YYYY-MM-DD", IST). */
+  since(sinceDay: string): Promise<DemandCount[]>;
+}
+
+/** Upcoming published shows per venue city (for "few shows here"). */
+export interface CityShowCounts {
+  upcomingPublished(now: Date): Promise<Array<{ city: string; count: number }>>;
+}
+
+/** Which artists have played or will play in which cities (our lineups). */
+export interface ArtistCities {
+  list(since: Date): Promise<Array<{ name: string; city: string }>>;
 }

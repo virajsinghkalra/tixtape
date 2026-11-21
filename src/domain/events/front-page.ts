@@ -6,6 +6,7 @@
  * one section only (the story strip may reuse them).
  */
 import type { EventType } from "@/domain/shared/lineup";
+import { eventEnd } from "./ist-calendar";
 
 const DAY_MS = 86_400_000;
 
@@ -16,6 +17,8 @@ export type FeedEvent = {
   type: EventType;
   startsAt: Date;
   endsAt: Date | null;
+  /** Date known, time not (stored at 00:00 IST): upcoming until the end of that IST day. */
+  startsAtDateOnly?: boolean;
   city: string | null;
   artistCount: number;
   /** Headliner names in billing order. */
@@ -125,8 +128,13 @@ export function proximity(eventCity: string | null, visitorCity: string | null):
 // ── Timing ───────────────────────────────────────────────────────────────
 
 /** 1.0 this week · 0.9 within 30 days · 0.75 within 90 · 0.55 beyond · null once it's over. */
-export function timing(startsAt: Date, endsAt: Date | null, now: Date): number | null {
-  if ((endsAt ?? startsAt).getTime() < now.getTime()) return null;
+export function timing(
+  startsAt: Date,
+  endsAt: Date | null,
+  now: Date,
+  startsAtDateOnly = false,
+): number | null {
+  if (eventEnd({ startsAt, endsAt, startsAtDateOnly }).getTime() < now.getTime()) return null;
   const days = (startsAt.getTime() - now.getTime()) / DAY_MS;
   if (days <= 7) return 1;
   if (days <= 30) return 0.9;
@@ -135,7 +143,7 @@ export function timing(startsAt: Date, endsAt: Date | null, now: Date): number |
 }
 
 export function score(e: FeedEvent, visitorCity: string | null, now: Date): number | null {
-  const t = timing(e.startsAt, e.endsAt, now);
+  const t = timing(e.startsAt, e.endsAt, now, e.startsAtDateOnly);
   return t === null ? null : sizeScore(e) * proximity(e.city, visitorCity) * t;
 }
 
@@ -287,7 +295,7 @@ export function buildFrontPage<T extends FeedEvent>(
   // Size × timing only: the big ones are big for everyone.
   const national = (i: FrontItem<T>) => {
     const lead = leadEvent(i);
-    return sizeScore(lead) * (timing(lead.startsAt, lead.endsAt, now) ?? 0);
+    return sizeScore(lead) * (timing(lead.startsAt, lead.endsAt, now, lead.startsAtDateOnly) ?? 0);
   };
 
   const local = city
@@ -303,7 +311,11 @@ export function buildFrontPage<T extends FeedEvent>(
   );
   const thisWeek = take(
     items
-      .filter((i) => timing(leadEvent(i).startsAt, leadEvent(i).endsAt, now) === 1)
+      .filter(
+        (i) =>
+          timing(leadEvent(i).startsAt, leadEvent(i).endsAt, now, leadEvent(i).startsAtDateOnly) ===
+          1,
+      )
       .sort((a, b) => leadEvent(a).startsAt.getTime() - leadEvent(b).startsAt.getTime()),
     LIMITS.thisWeek,
   );

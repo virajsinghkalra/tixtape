@@ -124,3 +124,15 @@ export const STORY_KICKERS = {
 export function moreLine(hidden: number): string | null {
   return hidden > 0 ? `+ ${hidden} more on the lineup` : null;
 }
+
+/**
+ * Nothing matched on Spotify yet (e.g. while Spotify rate-limits matching): a friendly pending
+ * line instead of "0 songs · 0 min". "…we're matching Shreya Ghoshal on Spotify."
+ */
+export function pendingLine(names: readonly string[], total = names.length): string {
+  const who =
+    total <= 3 && names.length >= total
+      ? joinNames(names.slice(0, total))
+      : `all ${plural(total, "artist")}`;
+  return `Playlist coming soon: we're matching ${who} on Spotify.`;
+}

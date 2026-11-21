@@ -38,6 +38,7 @@ import {
 import type { EventSource } from "@/domain/shared/lineup";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { isUniqueViolation } from "./pg-errors";
+import { eventEndSql } from "./event-time";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type EventRow = typeof events.$inferSelect;
@@ -271,7 +272,14 @@ export class PgEventRepository implements EventRepository, EventMerge {
     const conditions: SQL[] = [];
     if (filter.visibility !== null) conditions.push(eq(events.visibility, filter.visibility));
     if (filter.city !== undefined) conditions.push(eq(venues.city, filter.city));
-    if (filter.from !== undefined) conditions.push(gte(events.startsAt, filter.from));
+    // A date-only show without an end counts until the end of its IST day, so `from=now`
+    // still lists tonight's show after midnight.
+    if (filter.from !== undefined)
+      conditions.push(
+        sql`case when ${events.startsAtDateOnly} and ${events.endsAt} is null
+          then ${eventEndSql({ startsAt: events.startsAt, endsAt: events.endsAt, dateOnly: events.startsAtDateOnly })}
+          else ${events.startsAt} end >= ${filter.from.toISOString()}::timestamptz`,
+      );
     if (filter.to !== undefined) conditions.push(lte(events.startsAt, filter.to));
     if (filter.type !== undefined) conditions.push(eq(events.type, filter.type));
     if (filter.q !== undefined) conditions.push(ilike(events.title, `%${escapeLike(filter.q)}%`));

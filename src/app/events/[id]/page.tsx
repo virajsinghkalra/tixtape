@@ -15,6 +15,7 @@ import { PlaylistPanel } from "@/components/PlaylistPanel";
 import { ShareButton } from "@/components/ShareButton";
 import { BottomBar } from "@/components/ui/BottomBar";
 import { ButtonLink } from "@/components/ui/Button";
+import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
 import { playlists } from "@/server/playlists";
 
@@ -45,6 +46,7 @@ export default async function EventPage({ params, searchParams }: Params) {
   const event = await loadEvent((await params).id);
   const { artist } = await searchParams;
   if (!event) notFound();
+  await noteVisitorDemand("view"); // D-081: city-level count only, recorded after the response.
 
   const now = new Date();
   const groups = groupByTier(event.lineup);
@@ -100,6 +102,9 @@ export default async function EventPage({ params, searchParams }: Params) {
               preview={preview}
               matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}
               total={event.lineup.length}
+              names={[...event.lineup]
+                .sort((a, b) => a.billingRank - b.billingRank)
+                .map((a) => a.name)}
               soloName={event.lineup.length === 1 ? event.lineup[0]!.name : undefined}
               tierCount={groups.length}
             />

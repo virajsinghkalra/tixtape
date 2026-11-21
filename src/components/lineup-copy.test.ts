@@ -3,6 +3,7 @@ import {
   introLine,
   joinNames,
   moreLine,
+  pendingLine,
   STORY_HEADER,
   STORY_KICKERS,
   lineupTeaser,
@@ -128,5 +129,21 @@ describe("story copy", () => {
     expect(STORY_KICKERS.gems(5)).toBe("💎 Catch these early");
     expect(moreLine(20)).toBe("+ 20 more on the lineup");
     expect(moreLine(0)).toBeNull();
+  });
+});
+
+describe("pendingLine", () => {
+  it("names a solo artist, never counts songs", () => {
+    expect(pendingLine(["Shreya Ghoshal"])).toBe(
+      "Playlist coming soon: we're matching Shreya Ghoshal on Spotify.",
+    );
+  });
+  it("joins a small lineup and counts a festival", () => {
+    expect(pendingLine(["A", "B"])).toBe(
+      "Playlist coming soon: we're matching A and B on Spotify.",
+    );
+    expect(pendingLine(["A", "B", "C", "D"], 34)).toBe(
+      "Playlist coming soon: we're matching all 34 artists on Spotify.",
+    );
   });
 });

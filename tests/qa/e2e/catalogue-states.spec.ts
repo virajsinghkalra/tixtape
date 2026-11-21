@@ -92,7 +92,7 @@ test("empty catalogue: home, search and /search show a friendly empty state, not
     await finalShot(page, info, "empty-catalogue-search");
     w.assertClean();
   } finally {
-    await sql`update events set visibility = 'published' where id = any(${sql.array(ids)}::uuid[])`;
+    await sql`update events set visibility = 'published' where id in ${sql(ids)}`;
     await sql.end();
   }
 });
