@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   introLine,
   joinNames,
-  moreLine,
   PLAYLIST_SOON,
   STORY_CTA,
   STORY_HEADER,
@@ -103,8 +102,6 @@ describe("story copy", () => {
   it("kickers and overflow lines", () => {
     expect(STORY_KICKERS.gems(1)).toBe("💎 Catch this one early");
     expect(STORY_KICKERS.gems(5)).toBe("💎 Catch these early");
-    expect(moreLine(20)).toBe("+ 20 more");
-    expect(moreLine(0)).toBeNull();
   });
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef, type ReactNode } from "react";
+import { ArtistAvatar } from "../ArtistAvatar";
 import { formatDateRange } from "../event-format";
 import { cx } from "../ui/cx";
 import { highlightMatch } from "./highlight";
@@ -32,6 +33,7 @@ export const SearchRow = memo(function SearchRow({
     if (active) ref.current?.scrollIntoView({ block: "nearest" });
   }, [active]);
   const { icon, title, detail } = describe(option, query, active);
+  const face = faceOf(option);
 
   return (
     <li
@@ -48,15 +50,17 @@ export const SearchRow = memo(function SearchRow({
         active ? "bg-lime text-on-block" : "text-ink hover:bg-surface-2",
       )}
     >
-      <span
-        aria-hidden
-        className={cx(
-          "grid size-10 shrink-0 place-items-center rounded-full text-lg",
-          active ? "bg-night/10" : "bg-surface-2",
-        )}
-      >
-        {icon}
-      </span>
+      {face ?? (
+        <span
+          aria-hidden
+          className={cx(
+            "grid size-10 shrink-0 place-items-center rounded-full text-lg",
+            active ? "bg-night/10" : "bg-surface-2",
+          )}
+        >
+          {icon}
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold">{title}</span>
         {detail && (
@@ -71,6 +75,31 @@ export const SearchRow = memo(function SearchRow({
     </li>
   );
 });
+
+/**
+ * UX #11 faces: an artist's photo (else their designed fallback, D-083); an event pictured by
+ * its matched artist or its title. Decorative: the name is in the row text.
+ */
+function faceOf(o: SearchOption): ReactNode {
+  if (o.kind === "artist") {
+    return (
+      <ArtistAvatar
+        artist={{ name: o.artist.name, imageUrl: o.artist.imageUrl ?? null }}
+        size="sm"
+      />
+    );
+  }
+  if (o.kind === "event") {
+    return (
+      <ArtistAvatar
+        artist={{ name: o.event.matchedArtist ?? o.event.title, imageUrl: null }}
+        size="sm"
+        shape="rounded"
+      />
+    );
+  }
+  return null;
+}
 
 function describe(
   o: SearchOption,

@@ -14,7 +14,14 @@ export type WebPage = {
 export interface WebSearch {
   search(
     query: string,
-    opts: { maxResults: number; excludeDomains: readonly string[] },
+    opts: {
+      maxResults: number;
+      excludeDomains: readonly string[];
+      /** D-089: news search only (recent articles), limited to these sites, within `days`. */
+      topic?: "news";
+      includeDomains?: readonly string[];
+      days?: number;
+    },
   ): Promise<WebPage[]>;
 }
 

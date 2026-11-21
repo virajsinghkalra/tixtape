@@ -99,8 +99,8 @@ test("keyboard only: / focuses search, arrows + Enter open an event, Tab reaches
 }, info) => {
   test.skip(info.project.name === "phone", "keyboard journey is a desktop concern");
   const w = watch(page, {
-    allowStatus: (u, s) => /\/playlist$/.test(u) && s === 422,
-    allowConsole: /status of 422/,
+    allowStatus: (u, s) => /\/playlist$/.test(u) && (s === 422 || s === 503),
+    allowConsole: /status of (422|503)/,
   });
   await page.goto("/");
   await settle(page);
@@ -129,6 +129,6 @@ test("keyboard only: / focuses search, arrows + Enter open an event, Tab reaches
   }
   expect(reached).toBe("visible");
   await page.keyboard.press("Enter");
-  await expect(page.locator("main")).toContainText(/aren.t on Spotify yet|nothing to add/i);
+  await expect(page.locator("#playlist")).toContainText(/unavailable|opens soon|try again later/i);
   w.assertClean();
 });

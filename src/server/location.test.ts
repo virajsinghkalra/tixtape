@@ -21,6 +21,11 @@ describe("visitorCity (D-050)", () => {
     ["old names are canonicalised", { headers: h("Bombay") }, { city: "Mumbai", source: "ip" }],
     ["no data → null", { headers: h() }, null],
     [
+      "an explicit All India choice wins over the IP city",
+      { headers: h("Bengaluru"), cookie: "all" },
+      null,
+    ],
+    [
       "garbage cookie ignored, falls back to IP",
       { headers: h("Pune"), cookie: "<script>" },
       { city: "Pune", source: "ip" },

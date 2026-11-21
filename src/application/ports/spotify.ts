@@ -80,6 +80,15 @@ export interface PlaylistWriter {
     playlistId: SpotifyPlaylistId,
     trackIds: SpotifyTrackId[],
   ): Promise<{ snapshotId: string }>;
+  /**
+   * `PUT /playlists/{id}`: rename and re-describe a playlist (D-043 follow-up, D-085). Optional
+   * so older fakes keep compiling; the engine skips the rename when a writer lacks it.
+   */
+  updateDetails?(
+    userId: string,
+    playlistId: SpotifyPlaylistId,
+    details: { name: string; description: string },
+  ): Promise<void>;
   /** `POST /playlists/{id}/items`. At most 100 URIs. */
   addItems(
     userId: string,

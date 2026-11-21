@@ -47,8 +47,8 @@ test("security headers on pages and APIs", async ({ request }) => {
 test("CSP doesn't break client JS: full journey with no violations", async ({ page }) => {
   const check = await cspWatch(page);
   const w = watch(page, {
-    allowStatus: (u, s) => /\/playlist$/.test(u) && s === 422,
-    allowConsole: /status of 422/,
+    allowStatus: (u, s) => /\/playlist$/.test(u) && (s === 422 || s === 503),
+    allowConsole: /status of (422|503)/,
   });
   await gotoHome(page);
   await openSearch(page);

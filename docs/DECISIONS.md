@@ -1070,3 +1070,161 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   2. **A collage** of the top tier's Spotify photos (up to 4).
   3. **A branded gradient** with a sticker.
   - Plain lazy `<img>` with `referrerPolicy="no-referrer"`; no `next/image` remote patterns.
+
+### D-083 · One image pipeline: pluggable providers, a pure selection policy, credited free images
+
+- **Status:** Accepted · **Owner:** Matching (Lead request) · **Date:** 2026-11-22. Extends D-082.
+- **Decision:** Every picture (artist photo, event poster) comes from one provider chain: `ImageProvider` adapters each propose at most one candidate, and a pure policy (`selectImage`, `src/domain/images/image.ts`) picks one by trust order (`spotify` > `official` > `wikimedia`), licence (free Creative Commons / public domain, or an official organiser or Spotify asset) and a 0.7 minimum confidence. A wrong photo is worse than none, so ambiguous cases store nothing.
+- **Artists without a Spotify image** get a Wikidata/Commons photo in `artists.alt_image_url`, `alt_image_credit`, `alt_image_source`, `alt_image_checked_at` (migration 0014, pure add). `image_url` stays Spotify's. Identity rules (`identifyArtist`):
+  - A Wikidata item whose P1902 equals our Spotify ID (or P434 our MBID) is the artist (confidence 1).
+  - Otherwise exactly one item that is a human with a music occupation, or a musical group, whose label or alias matches the name by the D-066 rules, and isn't linked to a different Spotify/MusicBrainz artist (0.8). Two such namesakes: nothing.
+  - Short or common names (the D-066 list) need the P1902 match.
+  - The photo is P18, else the English Wikipedia summary image if it is a Commons file. Served from `upload.wikimedia.org` at a standard width (500 px; 330/500/960 only). The credit comes from Commons `Artist` and `LicenseShortName`.
+- **Event posters** use the same chain: the official-page og:image (D-082) is the first event provider. `events.poster_credit`, `poster_source`, `poster_checked_at` are added in 0014.
+- **Re-checks:** a stored image is HEAD-checked after 30 days and replaced when it answers 404/410. Nothing found: checked again in 30 days. A provider outage writes nothing, so it retries next run.
+- **Runs:** `src/scripts/fill-artist-images.ts [--dry-run] [--limit]`, after matching in `resolve-artists` and in the weekly `revalidate` (100 per run), and `fill-event-images.ts` for posters. Wikidata, Wikipedia and Commons only, through PoliteFetcher; no Spotify calls.
+- **Extending:** a new source (MusicBrainz, Deezer, an organiser API) is one `ImageProvider` adapter plus one entry in `src/infrastructure/images/images-module.ts` (skill `add-image-provider`).
+
+### D-087 · "Press-confirmed" events, for shows ticketed only on platforms we may not read
+
+- **Status:** Accepted · **Owner:** Lead · **Date:** 2026-11-22
+- **Context:** Major shows, including Diljit Dosanjh's Aura tour, Foo Fighters, Gorillaz, Rolling Loud India, Khalid and Weverse Con, are ticketed only on BookMyShow or District, whose terms forbid automated reading. No official page we may read lists them, so the "≥1 official source" rule (D-074) could never pass them, although several independent outlets report them consistently.
+- **Decision:** add a second verification path, **press-confirmed**, for Lead-reviewed publishing only. The auto-publish gate is unchanged.
+  - **≥3 independent reputable outlets** (Rolling Stone India, HT, TOI, Indian Express, NDTV, Mint, ThePrint, Business Today, Esquire India, Hollywood Reporter India, Pollstar, Billboard, Time Out India, Mid-day, The Hindu, DJ Mag). Each must be its own article: different publishers, and not syndicated copies of one wire or press release.
+  - They must agree on date, city and headliner, and on the venue when one is stated. **Any conflict excludes the event.**
+  - Each article was published within the last 90 days and states the year explicitly.
+  - The event is upcoming and not cancelled or postponed. Each night is its own event.
+  - Stored with `verification.fields.*.status = "press"` and confidence ≤ 0.85. A later official source upgrades it.
+  - The weekly revalidate re-checks press-confirmed events. If the outlets now disagree, or a cancellation appears, the event is held.
+- **Addendum (first-party):** an artist's or organiser's **own** official tour page that lists the explicit year, date and city is sufficient on its own for Lead-reviewed publishing (for example pcrc.in/tour). It is the source of truth. Confidence ≤ 0.85 until a second source confirms it. The weekly revalidate re-reads the page, and a removed date is held.
+
+### D-085 · Old playlists upgrade themselves; live setlists join the song ranking
+
+- **Status:** Accepted · **Owner:** Engine (Lead P0, user feedback "songs kam hai") · **Date:** 2026-11-22. Extends D-065 and D-080.
+- **Context:** The 3 prod playlists were built before D-065 with fixed per-tier counts: Johnnie & Co. (Charlie Puth) 10, Sunburn 39, Bhuwin 16.
+- **Why Johnnie got 10 songs:** the old algorithm gave a headliner exactly 10. Under D-065 it would also have been wrong. The event is typed `festival`, has one billed artist, no end time and a midnight-IST (date-only) start, and the solo-show rule only applied to `concert`, so it would have planned an 8 h festival day (~128 songs).
+  - **Fix:** a one-artist lineup is a single set, whatever the event type. With no usable times it gets 2 h 30 m (~40 songs).
+- **Algorithm version:**
+  - `PLAYLIST_ALGORITHM_VERSION = 2` (D-065 + D-080 + D-085) is stored in `shared_playlists.options_version` on every build and in the job options.
+  - A playlist built by an older version is **stale**, exactly like a lineup change. Opening the event page auto-refreshes it.
+  - The sweep's new `stale playlists` task starts up to 5 refreshes per run for upcoming events: older version, or older lineup. They step as the engine's `build` class within the D-080 budget, under the start limit (key `sweep`).
+  - A refresh always rebuilds into the **same** Spotify playlist (same URL, same followers). It never creates a second one.
+  - A refresh also renames it and updates the description with `PUT /playlists/{id}` (`PlaylistWriter.updateDetails`): "{Event} · Tixtape", the "Updated" date and the data credits. That fixes the old "· Lineup Mix" names.
+- **setlist.fm, a new song signal:**
+  - It's a pluggable provider (`SongScoreProvider`, id `setlistfm`). One `search/setlists?artistName=…` request per artist gives the 20 newest setlists.
+  - Each song's score is its share of the artist's non-empty setlists, +0.25 if the current tour (the newest setlist's tour) plays it, capped at 1. Intro/outro tapes and other artists' setlists don't count.
+  - **Blend:** score = 0.6 × Last.fm (rank 1 → 1.0, falling to 0 over the top 50) + 0.4 × setlist.fm, averaged over the providers that _know_ the artist.
+    - No setlists (common for Indian indie acts) means Last.fm alone, never a penalty.
+    - The blend replaces D-038's "most listened" order, and the tier mix and D-065 fill are unchanged.
+    - Top live titles the search pages missed get targeted searches within the same ≤ 3-call artist budget.
+  - **Caching:** only derived per-song scores are kept, with the D-080 song cache (14 days). Entries cached before setlist.fm get its scores added in place, with **no Spotify calls**.
+  - **Terms:** free for non-commercial use, with attribution wherever its data is used. The playlist description now says "Live setlists: setlist.fm" (`SETLISTFM_ATTRIBUTION`); the UI should credit it too.
+    - Their terms allow cached copies only "for short periods". 14 days of derived scores is our reading of that; the Lead may shorten it.
+  - **Pacing:** 1 request a second, at most 1,000 a day, a 4 s timeout, `x-api-key` from `SETLISTFM_API_KEY`.
+- **Rejected: "search all playlists and mix them up":**
+  - Spotify's editorial playlists are closed to new Development Mode apps.
+  - Items of other users' playlists aren't returned to Dev Mode apps (February 2026 changes).
+  - User playlists are noisy.
+  - Reading them would spend the Spotify budget that builds need (D-080).
+- **Tests:**
+  - The version bump marks old playlists stale and refreshes them in place, renamed, with no second create.
+  - Blend ordering, the no-setlist fallback, and enriching old cache entries without Spotify calls.
+  - Johnnie's 40 songs, and the stale listing on Postgres.
+
+### D-084 · Robustness and polish: instant navigation, PWA, link previews, resilience and UX counters
+
+- **Status:** Accepted · **Owner:** Robustness and Polish (owner request; UX plan #1, #3, #8, #13, #14) · **Date:** 2026-11-22. Lead decisions OD-1 (pictures in share cards) and OD-4 (`ux_counters`) applied; OD-2 (web push) deferred.
+- **Budgets (mobile, Fast 4G):** LCP < 2.0 s, CLS < 0.05, INP < 200 ms, a11y ≥ 95.
+- **Navigation:**
+  - **No `loading.tsx` on `/events/[id]` or at the app root.** A root one would wrap every route and stream a 200 before `notFound()`, breaking the hard 404s of events and admin (QA-UI-1). `/search` gets one (it has no 404 path).
+  - `NavShell` (in the root layout) gives event links instant feedback with no change to the cards. A plain click shows the event's colour block, its title and skeletons after 120 ms, until the route commits; then focus moves to the new `h1`. After 8 s it shows "Still loading…" with Retry. Back/forward never shows it.
+  - **Intent prefetch:** a full `router.prefetch` on hover (90 ms dwell), touchstart or keyboard focus, never on Save-Data or 2G. There's no viewport prefetch, because it would render pages nobody opens. A prefetch can't be told apart from a view on the server, so a hovered page counts as a D-081 view.
+  - `MotionProvider` (`MotionConfig reducedMotion="user"`) covers every `motion` animation. New CSS animations crossfade instead of moving under reduced motion.
+- **Errors:**
+  - `error.tsx` retries with `router.refresh()` + `reset()`.
+  - `global-error.tsx` renders its own document.
+  - `not-found.tsx` offers "Find a gig".
+  - `SectionBoundary` (`components/ui`) isolates one section ("Couldn't load this · Retry") for the UI team to wrap sections with.
+  - Raw error text never reaches users.
+- **Resilience:**
+  - `withTimeout` (`src/lib/timeout.ts`) bounds optional reads: the header's session read (1.5 s, then logged out) and the share card's playlist state (1.5 s).
+  - `GET /api/health` pings Postgres (2.5 s) and answers `{status, db, dbMs}`, 200 or 503, `no-store`, with no error text.
+  - **Images:** `ImageGuard` marks any failed `<img>` `data-broken` (hidden by CSS), so the designed background shows instead of a broken icon. This includes images that failed before hydration. `useImageFallback(src)` gives components (e.g. `ArtistAvatar`, `EventVisual`) a `failed` flag to render their designed fallback.
+- **PWA:**
+  - `public/sw.js` is hand-written, registered in production builds only, so the dev and E2E servers never get one.
+  - Navigations go to the network first; a saved copy is served if the network is slower than 3 s, and `/offline` only when the network fails and nothing is saved.
+  - It keeps `/` and the last 10 event pages, and caches `/_next/static` and icons cache-first. It never touches `/api`, `/admin`, RSC fetches or other origins.
+  - Updates wait for "New version · Refresh".
+  - The `/offline` page ("You're offline 📴") lists saved gigs. `NetworkBanner` shows "You're offline" and "Back online".
+  - **Manifest:** `id`, `scope`, full-bleed maskable icons (`icon-maskable-*.png`) and a Search shortcut.
+  - **Install nudge:** shown once ever, from the 2nd visit on, after real intent (a Spotify playlist link, Share, or a `tixtape:engaged` window event). It uses Chromium's prompt, or a two-step hint on iOS Safari, and never appears in in-app browsers or once installed.
+- **Link previews (OD-1):**
+  - `/events/[id]/share-image` renders a 1200×630 JPEG (`next/og`, then `sharp`; about 60–100 KB): the title, "date · city", up to 4 names and "Playlist live/soon" on the left, and the poster or up to 4 artist photos on the right.
+  - Pictures are fetched with a 2.5 s timeout, public https only, JPEG/PNG, ≤ 3 MB. If any of that fails, the card is typographic (the logo on the event's colour).
+  - `Cache-Control: max-age=86400, swr 7d`. The URL carries `?v=<card hash>`, so it changes with the lineup, picture or playlist state.
+  - Fonts are in `public/fonts` (OFL), traced via `outputFileTracingIncludes`.
+  - Home and search use `app/opengraph-image.tsx` (the brand card).
+  - Event metadata lives in `app/events/[id]/layout.tsx`, so the page stays the UI team's: description "date · city · top 3", canonical, OG and Twitter `summary_large_image`, plus schema.org `MusicEvent` JSON-LD (escaped).
+  - `metadataBase` = `APP_URL` when it's https, else `https://tixtape.vercel.app`.
+- **SEO:**
+  - `sitemap.xml`: home, search, and the published upcoming events.
+  - `robots.txt`: allow all; disallow `/admin`, `/api/` and `/offline`.
+- **UX counters (OD-4):**
+  - Migration **0015** (pure add): `ux_counters(day, metric, count)`, PK `(day, metric)`.
+  - Metrics are an allow-list (`src/domain/ux/counters.ts`); no IP, id, path or query is stored.
+  - `POST /api/ux` takes `{metric}` or `{vital, value, path}`. A vital is stored as `vitals:<home|event|search|other>:<lcp|inp|cls>:<good|ni|poor>`, sampled at 25%.
+  - `og_hit` is counted by the share-image route. Install and offline views are counted by the client.
+- **Share:** "Link copied" shows at once (optimistic); `copyText` falls back to `execCommand` where the Clipboard API is missing.
+
+### D-088 · Remind me, app deep links, zero-result discovery and on-device saves
+
+- **Status:** Accepted · **Owner:** Features · **Date:** 2026-11-22. Builds UX_PLAN #2, #7, #10, #11, #12 (OD-8 yes, OD-9 home row only).
+- **Calendar:** `GET /api/events/:id/calendar.ics` (pure `src/domain/events/calendar.ts`). UID `<id>@tixtape` (re-adding updates), alarms −P1D and −PT3H. Timed shows in UTC; date-only shows (flag, else 00:00 IST) are all-day on their IST dates (DTEND exclusive). No end: concert +4 h, festival to IST midnight. Google Calendar template link for Android and in-app browsers; iOS Safari gets the .ics; desktop gets a small menu (`platform.ts` `remindRoute`).
+- **Spotify app links:** `SpotifyOpenLink` keeps the https `href`; Android uses an `intent://…;S.browser_fallback_url=…`, iOS `spotify:<kind>:<id>` then the web URL after 1.2 s if still visible. In Instagram/Facebook/WhatsApp/Line webviews a stuck tap shows "⋯ → Open in browser". No Spotify API calls.
+- **Zero results:** "Not in India yet 🫠", the artist as the lookup names it (else as typed, never lowercased), "🔔 Ping me", "Sounds like this" and the visitor's city row. Similar artists: Last.fm `artist.getSimilar` (`LastfmSimilarArtists`, shared `LastfmClient`, 7-day cache), checked against our lineups (≤ 8 names, ≤ 6 shows) by `GET /api/search/similar?artist=` (Postgres per-client limit 20/min, answers cached 10 min). Built in `src/server/discovery.ts`, not the container.
+- **On-device lists** (localStorage, versioned, unknown shapes dropped): `tixtape.saved.v1` (≤ 50), `tixtape.artists.v1` (≤ 20; **Ping me and Follow are the same list**), `tixtape.reminded.v1`, `tixtape.landed-seen.v1`. Home "Your gigs" row: upcoming saved shows plus "🎉 X just landed" (≤ 5 `GET /api/search?artist=` after paint).
+- **Search polish:** artist/event faces via `ArtistAvatar`, a typo chip (`Diljit?`) on top, Recent with Clear, Tonight / This weekend / This month and top-4 city chips.
+- **Copy:** `src/components/ux-copy.ts`, word-limit tested.
+
+### D-089 · Auto-publish paths for first-party and press-confirmed shows (behind a flag, off)
+
+- **Status:** In progress, flag off · **Owner:** Gig Coverage · **Date:** 2026-11-22. Extends D-074 with the D-087 paths.
+- **Built** (`src/domain/gigs/auto-publish.ts`, `press.ts`):
+  - `autoPublishDecision` still evaluates the D-074 standard path. It now also reports a **first_party** check (the artist's or organiser's own site quotes the date with its year, the city and the headliner; confidence 0.85) and a **press** check in `alternatives`.
+  - **Press check:**
+    - ≥ 3 independent articles on readable D-087 outlets, each published ≤ 90 days ago, quoting the date with its year, the city and the headliner.
+    - Different publishers. One wire story (PTI/ANI/IANS…) counts once, and syndicated copies with the same opening text count once.
+    - Venues must agree. Confidence 0.8, `status: "press"`.
+  - The shared rules still apply to every path: no conflicts, future and ≤ 18 months, Spotify match, not a re-run, not cancelled.
+- **Switch:** publishing via these paths needs `AUTO_PUBLISH_EXTRA_PATHS=true` (default off) on top of `AUTO_PUBLISH_ENABLED`. Until then the paths are evaluated and reported, never used to publish.
+- **Outlets:** one list, `PRESS_OUTLETS`. Only outlets we may also read count, because facts must be grounded on text we fetch.
+  - Readable: Rolling Stone India, Pollstar, Esquire India, DJ Mag, Indian Express, Mid-day, Hollywood Reporter India, ThePrint.
+  - Not readable: HT, The Hindu, Time Out (D-033), Mint and Billboard (terms ban scraping, so now denied), and TOI, NDTV and Business Today (terms not verified).
+- **Discovery:**
+  - A Tavily news search per artist (readable outlets, last 90 days) runs within the same daily cap.
+  - The reader returns article `datePublished` and byline.
+  - `enrichPress` re-reads stored RSS/news candidates to add publisher, date, wire and quotes.
+- **Re-verification:** first-party and press events weekly. A press date disappearing, a conflict or a cancellation means held plus an alert.
+- **Schema:** migration 0017 adds a `path` column to `gate_decisions` and `publish_audit` (pure add).
+- **Remaining before the flag is turned on:** unit tests for the new rules (wire de-duplication, the 90-day window, the syndicated-copy, conflict and stale-tour-page traps, and the Ed Sheeran and Sunburn regressions on the new paths), plus a dry run.
+
+### D-086 · Performance: Server-Timing everywhere, edge-cached suggest, growth indexes
+
+- **Status:** Accepted · **Owner:** Backend Performance (owner request) · **Date:** 2026-11-22. Details: `docs/PERF_REPORT.md`, `docs/CODE_QUALITY.md`.
+- **Finding:** warm prod is already within target (API p95 ≤ 245 ms, page TTFB p95 ≤ 323 ms from India). About 95 ms of each dynamic request is the `bom1 → sin1` hop; DB time is 0.05–8 ms. Cold start is ~1.07 s.
+- **Server-Timing:**
+  - `route()` runs every API handler in `timed()` (`src/lib/server-timing.ts`).
+  - `src/db/client.ts` subscribes once to postgres.js `diagnostics_channel` (`postgres:query`, `postgres:connect`).
+  - Header: `db;dur;desc="Nx"` (wall time with ≥ 1 query in flight), `db-connect`, `total`.
+  - Pages are not wrapped (UI-owned).
+- **Edge cache:** `EDGE_CACHE_SHORT` (`public, s-maxage=60, stale-while-revalidate=300`) is only for public GETs that depend on the URL alone. Today that's `/api/events/suggest`.
+  - Never for logged, counted or per-user responses (`/api/search`, playlist status, estimate).
+  - Staleness: up to 60 s, plus one stale serve.
+- **Migration 0016** (pure add): `event_sources(event_id)` and `event_artists(artist_id)`. At 30× data, the home feed goes from 174 ms to 18–26 ms.
+- **Connections, checked:** the app uses Neon's pooled URL; `prepare: false` holds (no named statements); `DB_POOL_MAX` stays 2 on Vercel.
+- **Layers:** a new ESLint rule stops `src/components/**` importing `@/infrastructure`, `@/db` or `@/server`.
+- **DRY:** Wikidata response schemas now live in one place, `src/infrastructure/sources/wikidata.ts`.
+- **Proposed, for other owners:**
+  - Split the container to cut cold start (Platform).
+  - Stop the event page loading the event 3× and estimate reading the cache 2× (Engine, UI).
+  - Filter-then-score in suggest, plus a stored phonetic key (Events).

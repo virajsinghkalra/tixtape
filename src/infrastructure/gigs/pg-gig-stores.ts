@@ -84,6 +84,9 @@ const GateSourceSchema = z.object({
   artists: z.array(z.string()),
   quotes: z.record(z.string(), z.string()),
   cancelled: z.boolean(),
+  firstParty: z.boolean().optional(),
+  venue: z.string().nullable().optional(),
+  press: GigProvenanceSchema.shape.press,
 });
 
 export class PgGateDecisionStore implements GateDecisionStore {
@@ -101,6 +104,7 @@ export class PgGateDecisionStore implements GateDecisionStore {
       checks: r.checks,
       sources: r.sources,
       confidence: r.confidence,
+      path: r.path ?? null,
       eventId: r.eventId,
       decidedAt: r.decidedAt,
     };
@@ -133,6 +137,7 @@ export class PgGateDecisionStore implements GateDecisionStore {
       checks: [],
       sources: [],
       confidence: r.confidence,
+      path: r.path === "standard" || r.path === "first_party" || r.path === "press" ? r.path : null,
       eventId: (r.eventId as EventId | null) ?? null,
       decidedAt: r.decidedAt,
     };
@@ -151,6 +156,7 @@ export class PgPublishAuditLog implements PublishAuditLog {
       reasons: e.reasons,
       sources: e.sources,
       changes: e.changes,
+      path: e.path ?? null,
       at: e.at,
     });
   }
@@ -162,10 +168,13 @@ export class PgPublishAuditLog implements PublishAuditLog {
       night_key: string;
       action: string;
       sources: unknown;
+      path: string | null;
       at: string | Date;
     }>(sql`
-      select distinct on (event_id) event_id, night_key, action, sources, at
-      from publish_audit where event_id is not null and actor = 'auto-gate'
+      select distinct on (event_id) event_id, night_key, action, sources, at,
+        (select p.path from publish_audit p where p.event_id = a.event_id and p.path is not null
+          order by p.at desc limit 1) as path
+      from publish_audit a where event_id is not null and actor = 'auto-gate'
       order by event_id, at desc`);
     const out: AutoPublished[] = [];
     for (const r of rows) {
@@ -178,6 +187,8 @@ export class PgPublishAuditLog implements PublishAuditLog {
         nightKey: r.night_key,
         sources: sources.data,
         lastCheckedAt: at,
+        path:
+          r.path === "first_party" || r.path === "press" || r.path === "standard" ? r.path : null,
       });
     }
     return out;

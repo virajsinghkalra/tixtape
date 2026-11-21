@@ -1,6 +1,7 @@
 /** Shared playlist jobs in Postgres, the job queue (D-005, D-036). */
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { PLAYLIST_ALGORITHM_VERSION } from "@/application/playlists";
 import {
   ACTIVE_JOB_STATUSES,
   BUILD_STAGES,
@@ -17,8 +18,8 @@ import { asEventId, asPlaylistJobId, type EventId, type PlaylistJobId } from "@/
 
 type JobRow = typeof playlistJobs.$inferSelect;
 
-/** Bumped when the selection rules change in a way that should rebuild playlists. */
-const SHARED_JOB_OPTIONS = { optionsVersion: 1 };
+/** Which selection algorithm the job builds with (D-085). */
+const SHARED_JOB_OPTIONS = { optionsVersion: PLAYLIST_ALGORITHM_VERSION };
 
 const isStage = (s: string | null): s is BuildStage =>
   s !== null && (BUILD_STAGES as readonly string[]).includes(s);

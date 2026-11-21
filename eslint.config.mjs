@@ -85,6 +85,17 @@ const eslintConfig = [
       },
     ],
   ),
+  layer(
+    ["src/components/**"],
+    [
+      {
+        // D-086: components render data they are given; pages and routes fetch it.
+        group: ["@/infrastructure/*", "@/db/*", "@/server/*"],
+        message:
+          "components get data from their page or route; never import infrastructure, the db or src/server.",
+      },
+    ],
+  ),
   {
     // Browser test specs log diagnostics and poke at page internals; relax style rules there only.
     files: ["tests/**/*.spec.ts"],
@@ -108,6 +119,7 @@ const eslintConfig = [
       "tests/**/*.d.ts",
       "tests/e2e/.report/**",
       ".next-e2e/**",
+      ".next-*/**",
       "tests/qa/e2e/.results/**",
       "test-results/**",
     ],

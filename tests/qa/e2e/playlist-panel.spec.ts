@@ -250,24 +250,19 @@ test.describe("D. playlist panel", () => {
     await finalShot(page, info, "D-unavailable");
   });
 
-  test("422 (no artist on Spotify yet): explained in plain words, nothing pretends to be ready", async ({
+  test("no artist on Spotify yet: 'coming soon', no Make playlist; the API says 422 in plain words", async ({
     page,
   }, info) => {
-    // real server answer: no fixture artist is Spotify-matched in concert_e2e
-    const id = await eventId(page.request, LOLLA_TITLE);
+    const id = await eventId(page.request, "Diljit Dosanjh Live in Bengaluru"); // unmatched
     await page.goto(`/events/${id}`);
     await settle(page);
-    const res = page.waitForResponse(
-      (r) => STATUS.test(r.url()) && r.request().method() === "POST",
-    );
-    await panel(page)
-      .getByRole("button", { name: /make playlist/i })
-      .click();
-    expect((await res).status()).toBe(422);
-    await expect(panel(page)).toContainText(/aren.t on Spotify yet|nothing to add/i);
+    await expect(panel(page)).toContainText(/coming soon|aren.t on Spotify yet/i);
+    await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
     await expect(openInSpotify(page)).toHaveCount(0);
-    await expect(page.locator("body")).not.toContainText(/no_matched_artists|\{"error"/);
-    await finalShot(page, info, "D-422");
+    const r = await page.request.post(`/api/events/${id}/playlist`, { data: {} });
+    expect(r.status()).toBe(422);
+    expect(await r.text()).toMatch(/aren.t on Spotify yet/i);
+    await finalShot(page, info, "D-no-matched-artists");
   });
 
   test("leaving mid-build and coming back shows the current progress", async ({ page }) => {
@@ -379,6 +374,15 @@ test.describe("D. estimate, checking, share and copy", () => {
       await page.goto(`/events/${id}`);
       await settle(page);
       const text = (await panel(page).innerText()).replace(/\s+/g, " ");
+      if (title.startsWith("Diljit")) expect(est.showMinutes).toBe(150);
+      // was QA-F-11: with no artist matched the preview read "0 songs · about 0 min" and still
+      // offered Make playlist.
+      if (est.songs === 0) {
+        expect(text, title).not.toMatch(/\b0 songs\b|about 0 min/);
+        expect(text, title).toMatch(/coming soon/i);
+        await expect(panel(page).getByRole("button", { name: /make playlist/i })).toHaveCount(0);
+        continue;
+      }
       expect(text).toContain(`${est.songs} songs`);
       const fmt = (min: number) => {
         const h = Math.floor(min / 60);
@@ -390,13 +394,6 @@ test.describe("D. estimate, checking, share and copy", () => {
         text.includes(fmt(est.showMinutes)) || (perDay !== "" && text.includes(perDay)),
         `show length ${fmt(est.showMinutes)} / ${perDay} in: ${text.slice(0, 300)}`,
       ).toBe(true);
-      if (title.startsWith("Diljit")) expect(est.showMinutes).toBe(150);
-      // BUG: QA-F-11 with no artist matched the preview reads "0 songs · about 0 min … matches the
-      // show (2 h 30 min)" and still offers Make playlist, which can only fail.
-      if (est.songs === 0) {
-        expect(text, title).not.toMatch(/\b0 songs\b/);
-        expect(text, title).not.toMatch(/about 0 min/);
-      }
     }
   });
 

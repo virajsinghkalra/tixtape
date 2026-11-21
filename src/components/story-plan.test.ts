@@ -67,7 +67,7 @@ describe("planStory: duo and trio", () => {
       }),
     );
     expect(plan.slides.map((s) => s.kind)).toEqual(["intro", "names", "playlist"]);
-    expect(plan.slides[1]).toMatchObject({ kicker: "🔥 The lineup", faces: true });
+    expect(plan.slides[1]).toMatchObject({ kicker: "🔥 The lineup", size: "lg", more: null });
     expect(plan.slides[2]).toMatchObject({
       headline: "Every act. One playlist.",
       secondary: { text: "See event" },
@@ -123,20 +123,30 @@ describe("planStory: a 34-act festival fits portrait cards", () => {
   );
   const plan = planStory(input(big, { title: "HOME Festival 2026" }));
 
-  it("the intro has a face stack of the photos it has", () => {
+  it("the intro face stack puts photos first, then designed fallbacks fill (D-083)", () => {
     expect(plan.slides[0]!.kind === "intro" && plan.slides[0]!.faces.map((f) => f.name)).toEqual([
       "Act 1",
       "Act 2",
       "Act 3",
+      "Act 4",
+      "Act 5",
     ]);
   });
 
-  it("long tiers show a few names, then '+ N more'", () => {
+  it("long tiers show avatar chips, then one '+N' avatar stack linking to the lineup", () => {
+    const head = plan.slides.find((s) => s.id === "headliners");
     const bill = plan.slides.find((s) => s.id === "bill");
     const gems = plan.slides.find((s) => s.id === "gems");
-    expect(bill).toMatchObject({ more: "+ 4 more" });
+    expect(head).toMatchObject({ size: "xl", more: null });
     expect(bill?.kind === "names" && bill.artists).toHaveLength(6);
-    expect(gems).toMatchObject({ more: "+ 16 more", faces: false });
+    expect(bill).toMatchObject({ size: "md", more: { count: 4, href: "/events/e1#lineup" } });
+    expect(bill?.kind === "names" && bill.more?.artists).toHaveLength(3);
+    expect(gems).toMatchObject({ size: "sm", more: { count: 16 } });
+  });
+
+  it("within a tier, artists with photos come first (deterministic)", () => {
+    const bill = plan.slides.find((s) => s.id === "bill");
+    expect(bill?.kind === "names" && bill.artists[0]!.name).toBe("Act 3");
   });
 });
 
@@ -161,5 +171,17 @@ describe("minimal copy (D-082)", () => {
     const plan = planStory(input([artist("Shreya Ghoshal", "headliner", 1)], { matched: 0 }));
     expect(plan.slides.at(-1)).toMatchObject({ kind: "playlist", headline: "Playlist soon ⏳" });
     expect(words(plan.slides)).not.toMatch(/\b0 (songs|min)\b/);
+  });
+});
+
+describe("planStory: never a '+1' chip", () => {
+  it("one artist over the cap just shows", () => {
+    const seven = Array.from({ length: 12 }, (_, i) =>
+      artist(`B${i}`, i < 2 ? "headliner" : i < 9 ? "sub" : "support", i + 1),
+    );
+    const plan = planStory(input(seven));
+    const bill = plan.slides.find((s) => s.id === "bill");
+    expect(bill?.kind === "names" && bill.artists).toHaveLength(7);
+    expect(bill).toMatchObject({ more: null });
   });
 });

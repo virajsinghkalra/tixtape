@@ -19,7 +19,7 @@
  */
 import "dotenv/config";
 import { AdminListEventsQuerySchema, ListEventsQuerySchema } from "@/application/events";
-import type { BuildProgress } from "@/application/playlists";
+import { PLAYLIST_ALGORITHM_VERSION, type BuildProgress } from "@/application/playlists";
 import { ACTIVE_JOB_STATUSES } from "@/application/ports/playlists";
 import type { PlaylistJobId } from "@/domain/shared/ids";
 import { ThrottledAlerts } from "@/infrastructure/alerts";
@@ -27,9 +27,10 @@ import { AUTO_PUBLISH_SPIKE_LIMIT, countAutoPublished } from "@/infrastructure/a
 import { PgAutoPublishPause } from "@/infrastructure/db/auto-publish-pause";
 import { deleteExpiredRateLimits } from "@/infrastructure/db/pg-rate-limiter";
 import { PgPlaylistJobRepository } from "@/infrastructure/db/playlist-job-repository";
+import { listStaleSharedPlaylists } from "@/infrastructure/db/shared-playlist-repository";
 import { FileCollectorState } from "@/infrastructure/sources/collector-state";
 import { runAsSpotifyClass } from "@/infrastructure/spotify";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { AppError, ConflictError, NotFoundError } from "@/lib/errors";
 import { container } from "@/server/container";
 import { events } from "@/server/events";
 import { playlists } from "@/server/playlists";
@@ -181,6 +182,34 @@ async function guardAutoPublishSpike(alerts: ThrottledAlerts): Promise<string> {
   return `${count} auto-published in 24 h: SPIKE, paused until ${until.toISOString()}`;
 }
 
+/** D-085: stale shared playlists (older algorithm or lineup) refreshed per sweep. */
+const MAX_REFRESHES = 5;
+
+/**
+ * D-085: starts a rebuild for stale shared playlists, into the same Spotify playlist. The
+ * "playlist jobs" task right after steps them (as the engine's `build` class, D-080 budget).
+ * Unpublished events are skipped (404), and the start limit (key "sweep") caps the rate.
+ */
+async function refreshStalePlaylists(): Promise<string> {
+  const c = container();
+  const ids = await listStaleSharedPlaylists(c.db, {
+    currentVersion: PLAYLIST_ALGORITHM_VERSION,
+    now: c.clock.now(),
+    limit: MAX_REFRESHES,
+  });
+  let started = 0;
+  for (const id of ids) {
+    try {
+      const r = await playlists().startSharedBuild(id, "sweep");
+      if (r.status === "building") started++;
+    } catch (e) {
+      if (e instanceof NotFoundError || (e instanceof AppError && e.httpStatus < 500)) continue;
+      throw e;
+    }
+  }
+  return `${ids.length} stale, ${started} rebuilding`;
+}
+
 /** D-080: how long one sweep may spend warming the playlist song cache. */
 const PREWARM_BUDGET_MS = 4 * 60_000;
 
@@ -229,6 +258,7 @@ async function main(): Promise<void> {
   const { verification, candidates } = events().collectorServices(new FileCollectorState());
   line(`Sweep ${now.toISOString()}`);
 
+  await task("stale playlists", refreshStalePlaylists);
   await task("playlist jobs", stepAbandonedJobs);
   await task("archive past events", async () => `${await verification.archivePast(now)} archived`);
   await task("stale candidates", async () => {

@@ -23,7 +23,9 @@ import { eventNameTokens } from "@/domain/events/dedupe";
 import { RawEventSchema, type RawEvent } from "@/domain/events/raw-event";
 import {
   autoPublishDecision,
+  firstPartyGaps,
   groundingGaps,
+  pressGaps,
   type GateDecision,
   type GateSource,
 } from "@/domain/gigs/auto-publish";
@@ -66,6 +68,8 @@ export type NightOutcome = {
   night: string;
   city: string;
   decision: GateDecision["decision"];
+  /** D-089: "standard", "first_party" or "press" when the gate passed. */
+  path: GateDecision["path"];
   reasons: string[];
   confidence: number;
   sources: Array<{ source: string; url: string; official: boolean }>;
@@ -82,6 +86,8 @@ export type PublishOptions = {
   record: boolean;
   /** This run's candidates when they weren't stored (dry run). */
   extra?: readonly ValidatedGig[];
+  /** D-089 publishing paths; off by default. */
+  extraPaths?: { firstParty?: boolean; press?: boolean };
 };
 
 export async function publishDueCandidates(
@@ -129,8 +135,9 @@ async function decideNight(
     headlinerMatch: match?.matchStatus ?? null,
     archivedLineups: pastLineups,
     confidence: verification.confidence,
+    extraPaths: opts.extraPaths,
   });
-  const official = pickOfficial(members);
+  const official = factSource(members, gate, now);
   // A dry run reads nothing it would write (the table may not even be migrated yet).
   const previous = opts.record ? await deps.decisions.get(night.key) : null;
   const outcome: NightOutcome = {
@@ -139,8 +146,9 @@ async function decideNight(
     night: night.night,
     city: night.city,
     decision: gate.decision,
+    path: gate.path,
     reasons: gate.reasons,
-    confidence: verification.confidence,
+    confidence: gate.confidence ?? verification.confidence,
     sources: members.map((m) => ({
       source: m.source,
       url: m.url,
@@ -166,14 +174,33 @@ async function decideNight(
   return outcome;
 }
 
-/** The official member the gate grounded on (all quotes present), if any. */
-function pickOfficial(members: readonly ValidatedGig[]): ValidatedGig | undefined {
-  return members.find(
-    (m) =>
-      m.provenance?.officialKind !== null &&
-      m.provenance?.officialKind !== undefined &&
-      groundingGaps(toGateSource(m)).length === 0,
-  );
+/**
+ * The member whose facts are stored: the grounded official source (standard), the grounded own
+ * site (first_party, D-089) or a counted press article (press, D-089). Without a publishing
+ * path, the best official source, for the record. A venue another member states fills a gap
+ * (the gate has already checked that venues agree).
+ */
+function factSource(
+  members: readonly ValidatedGig[],
+  gate: GateDecision,
+  now: Date,
+): ValidatedGig | undefined {
+  const grounded = (m: ValidatedGig) => groundingGaps(toGateSource(m)).length === 0;
+  const isOfficial = (m: ValidatedGig) =>
+    m.provenance?.officialKind !== undefined && m.provenance.officialKind !== null;
+  const pick =
+    gate.path === "first_party"
+      ? members.find(
+          (m) => toGateSource(m).firstParty && firstPartyGaps(toGateSource(m)).length === 0,
+        )
+      : gate.path === "press"
+        ? members.find((m) => m.provenance?.press && pressGaps(toGateSource(m), now).length === 0)
+        : members.find((m) => isOfficial(m) && grounded(m));
+  if (!pick) return undefined;
+  return {
+    ...pick,
+    venueName: pick.venueName ?? members.find((m) => m.venueName)?.venueName ?? null,
+  };
 }
 
 async function publishNight(
@@ -211,11 +238,7 @@ async function publishNight(
     outcome.detail = "event is archived";
     return;
   }
-  const withGate = {
-    ...verification,
-    gate: { decision: gate.decision, reasons: gate.reasons, checks: gate.checks },
-    reviewedBy: "auto-gate" as const,
-  };
+  const withGate = withGateResult(verification, gate);
   await deps.verification.save(eventId, withGate, now);
   if (stored.visibility === "published") {
     outcome.action = "already_published";
@@ -230,9 +253,16 @@ async function publishNight(
     nightKey: night.key,
     action: "published",
     actor: "auto-gate",
-    reasons: gate.checks.map((c) => `${c.rule}: ${c.detail}`),
+    reasons: [
+      `path: ${gate.path}`,
+      ...gate.checks.map((c) => `${c.rule}: ${c.detail}`),
+      ...(gate.path === "standard"
+        ? []
+        : [`${gate.path}: ${gate.alternatives[gate.path!].detail}`]),
+    ],
     sources,
     changes: null,
+    path: gate.path,
     at: now,
   });
   outcome.action = "published";
@@ -342,7 +372,41 @@ function toRecord(
       officialKind: sources[i]!.officialKind,
     })),
     confidence: o.confidence,
+    path: gate.path,
     eventId: o.eventId,
     decidedAt: now,
   };
+}
+
+/**
+ * The verification stored with an auto-published event: the D-056 result plus the gate's
+ * verdict, its path and `reviewedBy: "auto-gate"`. First-party and press events (D-089) carry
+ * the path's confidence (0.85 / 0.8); press events are marked `status: "press"` per field.
+ */
+export function withGateResult(verification: Verification, gate: GateDecision): Verification {
+  const path = gate.path ?? "standard";
+  const press = path === "press";
+  const fields = press
+    ? {
+        ...verification.fields,
+        date: { ...verification.fields.date, status: "press" as const },
+        city: { ...verification.fields.city, status: "press" as const },
+        headliners: { ...verification.fields.headliners, status: "press" as const },
+      }
+    : verification.fields;
+  const result: Verification & Record<string, unknown> = {
+    ...verification,
+    fields,
+    confidence: gate.confidence ?? verification.confidence,
+    status: press ? "press" : path === "first_party" ? "first_party" : "verified",
+    gate: {
+      decision: gate.decision,
+      path: gate.path,
+      reasons: gate.reasons,
+      checks: gate.checks,
+      alternatives: gate.alternatives,
+    },
+    reviewedBy: "auto-gate",
+  };
+  return result;
 }

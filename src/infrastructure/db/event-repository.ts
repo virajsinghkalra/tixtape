@@ -56,6 +56,7 @@ const toSummary = (e: EventRow, v: VenueRow | null, count: number): AdminEventSu
   genre: e.genre,
   imageUrl: e.imageUrl,
   posterUrl: e.posterUrl,
+  posterCredit: e.posterCredit,
   venue: v ? { id: asVenueId(v.id), name: v.name, city: v.city, country: v.country } : null,
   artistCount: count,
   visibility: e.visibility,
@@ -95,15 +96,7 @@ export class PgEventRepository implements EventRepository, EventMerge {
       .where(eq(eventSources.eventId, id));
     return {
       id: asEventId(e.id),
-      title: e.title,
-      type: e.type,
-      status: e.status,
-      startsAt: e.startsAt,
-      startsAtDateOnly: e.startsAtDateOnly,
-      endsAt: e.endsAt,
-      genre: e.genre,
-      imageUrl: e.imageUrl,
-      venueId: e.venueId === null ? null : asVenueId(e.venueId),
+      ...fieldsOf(e),
       dedupeKey: e.dedupeKey,
       lineupHash: e.lineupHash,
       sources: [...new Set(sources.map((s) => s.source))],
@@ -257,6 +250,8 @@ export class PgEventRepository implements EventRepository, EventMerge {
         matchStatus: artist.matchStatus,
         spotifyId: artist.spotifyId === null ? null : asSpotifyArtistId(artist.spotifyId),
         imageUrl: artist.imageUrl,
+        altImageUrl: artist.altImageUrl,
+        altImageCredit: artist.altImageCredit,
       })),
       sources: sources.map((s) => ({
         source: s.source,

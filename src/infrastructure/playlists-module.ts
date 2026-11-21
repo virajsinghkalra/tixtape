@@ -20,6 +20,7 @@ import { PgPlaylistJobRepository } from "./db/playlist-job-repository";
 import { PgPublisherRepository } from "./db/publisher-repository";
 import { PgSharedPlaylistRepository } from "./db/shared-playlist-repository";
 import { AppleMusicTrending } from "./music-signals/apple-chart";
+import { SetlistfmScores } from "./music-signals/setlistfm";
 import {
   LastfmClient,
   LastfmMostListened,
@@ -29,6 +30,7 @@ import {
 import type { SpotifyHttpConfig } from "./spotify";
 
 export { LASTFM_ATTRIBUTION } from "./music-signals/lastfm";
+export { SETLISTFM_ATTRIBUTION } from "./music-signals/setlistfm";
 
 /**
  * D-020, D-045: Spotify retry settings that fit the 8 s step budget and the write lease margin
@@ -63,6 +65,8 @@ export type PlaylistsModuleDeps = {
   tokens: Pick<SpotifyTokenRepository, "find">;
   /** LASTFM_API_KEY. Without it the most-listened signal is empty and slots roll over. */
   lastfmApiKey?: string;
+  /** SETLISTFM_API_KEY (D-085). Without it songs aren't ranked by live setlists. */
+  setlistfmApiKey?: string;
   /** Build-start limit (D-036). Defaults to the in-memory one; production passes Postgres (D-070). */
   limiter?: StartLimiter;
   fetch?: typeof fetch;
@@ -92,6 +96,16 @@ export function createPlaylistsModule(deps: PlaylistsModuleDeps): PlaylistsModul
       lastfm && lastfmClient ? new LastfmMostListened(lastfm, lastfmClient) : noMostListened,
     popularity: lastfm && lastfmClient ? new LastfmPopularity(lastfm, lastfmClient) : undefined,
     trending: new AppleMusicTrending({ fetch: fetchFn, clock: deps.clock }),
+    songScores: deps.setlistfmApiKey
+      ? [
+          new SetlistfmScores({
+            apiKey: deps.setlistfmApiKey,
+            fetch: fetchFn,
+            sleep,
+            clock: deps.clock,
+          }),
+        ]
+      : [],
     songsCache: new PgArtistSongsCache(deps.db),
     jobs: new PgPlaylistJobRepository(deps.db),
     shared: new PgSharedPlaylistRepository(deps.db),

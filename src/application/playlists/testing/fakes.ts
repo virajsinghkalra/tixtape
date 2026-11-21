@@ -4,6 +4,7 @@ import type { Clock } from "@/application/ports/clock";
 import type { EventDetail, LineupArtist } from "@/application/ports/events";
 import type {
   ArtistPopularitySource,
+  SongScoreProvider,
   ChartEntry,
   MostListenedSource,
   MostListenedTrack,
@@ -180,7 +181,13 @@ export class InMemorySharedPlaylists implements SharedPlaylistRepository {
 
   async markBuilt(
     eventId: EventId,
-    b: { trackIds: string[]; snapshotId: string | null; lineupHash: string | null; at: Date },
+    b: {
+      trackIds: string[];
+      snapshotId: string | null;
+      lineupHash: string | null;
+      at: Date;
+      optionsVersion?: number;
+    },
   ) {
     const row = this.rows.get(eventId);
     if (!row) throw new Error("markBuilt before saveCreated");
@@ -189,6 +196,7 @@ export class InMemorySharedPlaylists implements SharedPlaylistRepository {
       snapshotId: b.snapshotId,
       lineupHashAtBuild: b.lineupHash,
       builtAt: b.at,
+      optionsVersion: b.optionsVersion ?? 1,
     });
   }
 }
@@ -221,7 +229,7 @@ export class FakeTokens implements Pick<SpotifyTokenRepository, "find"> {
 }
 
 type FakeArtist = { id: SpotifyArtistId; name: string; tracks: SpotifyTrack[] };
-type Op = "search" | "albums" | "albumTracks" | "create" | "replace" | "add";
+type Op = "search" | "albums" | "albumTracks" | "create" | "details" | "replace" | "add";
 
 /**
  * An in-memory Spotify: a catalog for `TrackCatalog` and playlists for `PlaylistWriter`.
@@ -230,6 +238,7 @@ type Op = "search" | "albums" | "albumTracks" | "create" | "replace" | "add";
 export class FakeSpotify implements TrackCatalog, PlaylistWriter {
   readonly artists: FakeArtist[] = [];
   readonly playlists = new Map<SpotifyPlaylistId, SpotifyTrackId[]>();
+  readonly details = new Map<SpotifyPlaylistId, { name: string; description: string }>();
   readonly calls: Op[] = [];
   private readonly failures: { op: Op; error: Error; afterEffect: boolean }[] = [];
   private nextPlaylist = 1;
@@ -319,10 +328,24 @@ export class FakeSpotify implements TrackCatalog, PlaylistWriter {
     return this.artists.flatMap((a) => a.tracks).filter((t) => t.albumId === albumId);
   }
 
-  async createPlaylist(): Promise<CreatedPlaylist> {
+  async createPlaylist(
+    _u?: string,
+    input?: { name: string; description: string },
+  ): Promise<CreatedPlaylist> {
     const id = asSpotifyPlaylistId(`pl${this.nextPlaylist++}`);
-    await this.call("create", () => this.playlists.set(id, []));
+    await this.call("create", () => {
+      this.playlists.set(id, []);
+      if (input) this.details.set(id, { name: input.name, description: input.description });
+    });
     return { id, url: `https://open.spotify.com/playlist/${id}`, snapshotId: "s0" };
+  }
+
+  async updateDetails(
+    _u: string,
+    playlistId: SpotifyPlaylistId,
+    d: { name: string; description: string },
+  ) {
+    await this.call("details", () => this.details.set(playlistId, d));
   }
 
   async replaceItems(_u: string, playlistId: SpotifyPlaylistId, ids: SpotifyTrackId[]) {
@@ -423,7 +446,9 @@ export class FakeEvents implements EventLineupReader {
 export const PUBLISHER_ID = asUserId("11111111-1111-4111-8111-111111111111");
 
 /** Everything wired together with a connected, healthy publisher. */
-export function playlistWorld(opts: { callMs?: number; startsPerHour?: number } = {}) {
+export function playlistWorld(
+  opts: { callMs?: number; startsPerHour?: number; songScores?: SongScoreProvider[] } = {},
+) {
   const clock = new FakeClock();
   const spotify = new FakeSpotify(clock, opts.callMs);
   const signals = new FakeSignals();
@@ -444,6 +469,7 @@ export function playlistWorld(opts: { callMs?: number; startsPerHour?: number } 
     mostListened: signals,
     trending: signals,
     popularity: signals,
+    songScores: opts.songScores ?? [],
     songsCache,
     jobs,
     shared,
@@ -477,3 +503,19 @@ const publisherUser = {
   market: "IN",
   role: "admin" as const,
 };
+
+/** A setlist.fm-like provider backed by a map; `null` means "no setlists for this artist". */
+export function fakeSetlists(
+  byArtist: Record<string, { title: string; score: number }[] | null>,
+): SongScoreProvider & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    id: "setlistfm",
+    calls,
+    async scores(artistName: string) {
+      calls.push(artistName);
+      const songs = byArtist[artistName];
+      return songs ? { known: true, songs } : { known: false, songs: [] };
+    },
+  };
+}

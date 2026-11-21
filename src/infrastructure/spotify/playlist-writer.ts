@@ -1,4 +1,5 @@
 /** Playlist writes for the signed-in user (P1.3, D-007, LLD §7.3). */
+import { z } from "zod";
 import type { CreatedPlaylist, PlaylistWriter } from "@/application/ports/spotify";
 import {
   asSpotifyPlaylistId,
@@ -43,6 +44,31 @@ export class SpotifyPlaylistWriter implements PlaylistWriter {
       url: body.external_urls.spotify,
       snapshotId: body.snapshot_id ?? null,
     };
+  }
+
+  /** Renames and re-describes a playlist the user owns (`PUT /playlists/{id}`). */
+  async updateDetails(
+    userId: string,
+    playlistId: SpotifyPlaylistId,
+    details: { name: string; description: string },
+  ): Promise<void> {
+    const name = details.name.trim();
+    if (name === "" || name.length > MAX_NAME_LENGTH) {
+      throw new ValidationError(`Playlist name must be 1 to ${MAX_NAME_LENGTH} characters.`);
+    }
+    if (details.description.length > MAX_DESCRIPTION_LENGTH) {
+      throw new ValidationError(
+        `Playlist description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+      );
+    }
+    await this.http.request({
+      method: "PUT",
+      path: `/playlists/${checkId(playlistId, "playlist")}`,
+      body: { name, description: details.description },
+      auth: { kind: "user", userId },
+      // Spotify answers 200 with an empty body.
+      schema: z.unknown(),
+    });
   }
 
   /** Replaces every item. An empty list clears the playlist. */

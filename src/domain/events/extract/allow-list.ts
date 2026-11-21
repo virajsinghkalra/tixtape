@@ -31,6 +31,11 @@ export const ALLOWED_DOMAINS: readonly AllowedDomain[] = [
   { domain: "en.wikipedia.org", trust: "trusted", source: "wikipedia" },
   // D-073: robots allows city and event pages; terms have no automated-access clause.
   { domain: "highape.com", trust: "trusted", source: "highape" },
+  // D-089: readable D-087 press outlets (robots allows articles; terms have no ban; D-033 list).
+  { domain: "indianexpress.com", trust: "trusted" },
+  { domain: "mid-day.com", trust: "trusted" },
+  { domain: "hollywoodreporterindia.com", trust: "trusted" },
+  { domain: "theprint.in", trust: "trusted" },
 ];
 
 export const DENIED_DOMAINS: readonly string[] = [
@@ -51,6 +56,9 @@ export const DENIED_DOMAINS: readonly string[] = [
   "music.apple.com",
   "x.com",
   "twitter.com",
+  // D-089 research: terms forbid robots/spiders/scraping.
+  "livemint.com",
+  "billboard.com",
 ];
 
 const matches = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`);

@@ -13,6 +13,8 @@ export type RingEvent = {
   day: string;
   month: string;
   tone: BlockTone;
+  /** A headliner photo (or the poster) behind the date, when there is one. */
+  image?: string | null;
   /** Planned on the server (`planStory`): 2 slides for a solo show, more for a festival. */
   story: StoryPlan;
 };
@@ -33,6 +35,7 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
               face={e.day}
               subface={e.month}
               tone={e.tone}
+              image={e.image}
               seen={seen.has(e.id)}
               aria-label={`Story: ${e.title}`}
               onClick={() => {

@@ -6,6 +6,7 @@
  *   npx tsx src/scripts/revalidate.ts [maxArtists=500]
  */
 import "dotenv/config";
+import { createImagesModule } from "@/infrastructure/images/images-module";
 import { container } from "@/server/container";
 import { refreshPopularity } from "@/server/front-page";
 import { matching } from "@/server/matching";
@@ -47,6 +48,17 @@ async function main(): Promise<void> {
     return null;
   });
   if (pop) console.warn(`popularity: checked=${pop.checked} known=${pop.known}`);
+  // D-083: photo re-checks (30 days, broken links at once). Wikimedia only; never fails the run.
+  const images = await createImagesModule(c)
+    .fillArtistImages({ limit: 100, dryRun: false })
+    .catch((e: unknown) => {
+      console.warn("artist images failed", e);
+      return [];
+    });
+  const imageCount = (a: string) => images.filter((o) => o.action === a).length;
+  console.warn(
+    `artist images: checked=${images.length} set=${imageCount("set")} kept=${imageCount("kept")} cleared=${imageCount("cleared")}`,
+  );
   await c.db.$close();
   if (failures > 0) process.exitCode = 1;
 }

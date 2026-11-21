@@ -137,9 +137,10 @@ describe("tours", () => {
     expect(featuredDate(tour, null).city).toBe("Mumbai");
   });
 
-  it("doesn't join dates more than ~90 days apart", () => {
-    const far = ev({ ...tour[0]!, id: "far", startsAt: inDays(300) });
-    expect(groupTours([...tour, far], null, NOW).filter((i) => i.kind === "tour")).toHaveLength(1);
+  it("joins stops within a year, but not beyond", () => {
+    const later = ev({ ...tour[0]!, id: "later", startsAt: inDays(300) });
+    expect(groupTours([...tour, later], null, NOW)).toHaveLength(1);
+    const far = ev({ ...tour[0]!, id: "far", startsAt: inDays(500) });
     expect(groupTours([...tour, far], null, NOW)).toHaveLength(2);
   });
 });
@@ -337,5 +338,62 @@ describe("date-only shows stay on until the end of their IST day", () => {
     expect(has(at00_30)).toBe(true);
     expect(has(at23_30)).toBe(true);
     expect(has(nextDay)).toBe(false);
+  });
+});
+
+describe("a long tour stays one card (Shreya Ghoshal, 14 stops over 4+ months)", () => {
+  const cities = [
+    "Bengaluru",
+    "Hyderabad",
+    "Chennai",
+    "Pune",
+    "Mumbai",
+    "Ahmedabad",
+    "Jaipur",
+    "Delhi NCR",
+    "Lucknow",
+    "Kolkata",
+    "Guwahati",
+    "Indore",
+    "Kochi",
+    "Chandigarh",
+  ];
+  // 22 Nov 2026 → 3 Apr 2027, roughly every 10 days.
+  const stops = cities.map((city, i) =>
+    ev({
+      title: `Shreya Ghoshal – The Unstoppable India Tour – ${city}`,
+      headliners: ["Shreya Ghoshal"],
+      city,
+      startsAt: new Date(new Date("2026-11-22T14:30:00Z").getTime() + i * 10.85 * DAY),
+    }),
+  );
+
+  it("groups all 14 stops into one tour and features the visitor's city", () => {
+    const items = groupTours(stops, "Kolkata", NOW);
+    expect(items).toHaveLength(1);
+    const tour = items[0]!;
+    expect(tour.kind).toBe("tour");
+    if (tour.kind !== "tour") return;
+    expect(tour.tour.events).toHaveLength(14);
+    expect(tour.tour.cityCount).toBe(14);
+    expect(tour.tour.featured.city).toBe("Kolkata");
+  });
+
+  it("two different tours by the same artist (different stems) stay separate", () => {
+    const other = ev({
+      title: "Shreya Ghoshal – All Hearts Tour – Mumbai",
+      headliners: ["Shreya Ghoshal"],
+      city: "Mumbai",
+      startsAt: inDays(40),
+    });
+    const items = groupTours([...stops, other], null, NOW);
+    expect(items).toHaveLength(2);
+  });
+
+  it("titles without a stop suffix still use the ~90-day window", () => {
+    const night = (d: number) =>
+      ev({ title: "Sunburn Arena", headliners: ["DJ Snake"], startsAt: inDays(d) });
+    expect(groupTours([night(1), night(200)], null, NOW)).toHaveLength(2);
+    expect(groupTours([night(1), night(60)], null, NOW)).toHaveLength(1);
   });
 });

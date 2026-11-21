@@ -9,11 +9,21 @@
  *   otherwise `held`, audit, alert.
  * - Unchanged → audited `reverified` (this also restarts its 3-day clock).
  * A transient failure (timeout, robots, 5xx) changes nothing; the next run tries again.
+ *
+ * D-089: first-party and press events are re-checked **weekly**. First-party events re-read
+ * their own site as above. Press events re-read every article: a cancellation, an article now
+ * giving another date for the same city, or fewer than 3 independent articles still stating
+ * the night means `held`, audit and alert (the digest lists it).
  */
 import type { EventVerificationStore } from "@/application/ingestion/ports";
 import type { Alerts } from "@/application/ports/alerts";
 import type { Clock } from "@/application/ports/clock";
-import { autoPublishDecision, type GateSource } from "@/domain/gigs/auto-publish";
+import {
+  autoPublishDecision,
+  PRESS_MIN_ARTICLES,
+  type GateSource,
+} from "@/domain/gigs/auto-publish";
+import { independentArticles } from "@/domain/gigs/press";
 import {
   extractArtistGigs,
   gigsFromJsonLd,
@@ -28,6 +38,11 @@ import type { Logger } from "@/lib/logger";
 import type { ArtistMatches, AutoPublished, PageReader, PublishAuditLog } from "./ports";
 
 export const REVERIFY_EVERY_MS = 3 * 86_400_000;
+/** D-089: weekly for first-party and press events. */
+export const REVERIFY_WEEKLY_MS = 7 * 86_400_000;
+
+const intervalFor = (path: AutoPublished["path"]) =>
+  path === "first_party" || path === "press" ? REVERIFY_WEEKLY_MS : REVERIFY_EVERY_MS;
 
 export type ReverifyDeps = {
   audit: PublishAuditLog;
@@ -53,6 +68,7 @@ export async function reverifyAutoPublished(deps: ReverifyDeps): Promise<Reverif
   const due = await deps.audit.dueForReverification(new Date(now.getTime() - REVERIFY_EVERY_MS));
   const out: ReverifyOutcome[] = [];
   for (const item of due) {
+    if (now.getTime() - item.lastCheckedAt.getTime() < intervalFor(item.path)) continue;
     try {
       out.push(await reverifyOne(deps, item, now));
     } catch (e) {
@@ -81,7 +97,11 @@ async function reverifyOne(
   if ((stored.endsAt ?? stored.startsAt).getTime() < now.getTime()) {
     return { ...ids(item), result: "skipped", detail: "in the past" };
   }
-  const official = item.sources.find((s) => s.officialKind !== null);
+  if (item.path === "press") return reverifyPress(deps, item, now);
+  const official =
+    item.path === "first_party"
+      ? item.sources.find((s) => s.firstParty === true)
+      : item.sources.find((s) => s.officialKind !== null);
   if (!official) return { ...ids(item), result: "skipped", detail: "no official source on record" };
   const headliner = official.artists[0] ?? "";
 
@@ -212,4 +232,90 @@ async function audit(
     changes,
     at: now,
   });
+}
+
+/** D-089: re-reads every press article of a press-published night. */
+async function reverifyPress(
+  deps: ReverifyDeps,
+  item: AutoPublished,
+  now: Date,
+): Promise<ReverifyOutcome> {
+  const articles = item.sources.filter((s) => s.press);
+  const night = articles[0]?.night;
+  if (!night) return { ...ids(item), result: "skipped", detail: "no press articles on record" };
+  const stating: GateSource[] = [];
+  const otherNights = new Set<string>();
+  let unreachable = 0;
+  for (const a of articles) {
+    const headliner = a.artists[0] ?? "";
+    let page;
+    try {
+      page = await deps.reader.read(a.url);
+    } catch {
+      unreachable++;
+      continue;
+    }
+    if (page.status === "gone") continue;
+    const fresh = extractArtistGigs(page, headliner, {
+      now,
+      source: "gig_web",
+      trust: "trusted",
+      officialKind: null,
+      via: "press",
+    }).filter((c) => normalizeCity(c.city) === normalizeCity(a.city));
+    if (fresh.some((c) => c.cancelled)) {
+      return hold(deps, item, now, `${a.domain} now says it is cancelled or postponed`, null);
+    }
+    const nights = fresh.map((c) => toGateSource(validated(c)).night);
+    if (nights.includes(night)) stating.push(a);
+    else nights.forEach((n) => otherNights.add(n));
+  }
+  if (
+    unreachable > 0 &&
+    stating.length + unreachable >= PRESS_MIN_ARTICLES &&
+    otherNights.size === 0
+  ) {
+    return {
+      ...ids(item),
+      result: "skipped",
+      detail: `${unreachable} article(s) not reachable now`,
+    };
+  }
+  if (otherNights.size > 0) {
+    return hold(
+      deps,
+      item,
+      now,
+      `press now disagrees on the date: ${[...otherNights].join(", ")}`,
+      {
+        night: { from: night, to: [...otherNights] },
+      },
+    );
+  }
+  const groups = independentArticles(
+    stating.map((s) => ({
+      url: s.url,
+      domain: s.domain,
+      wire: s.press!.wire,
+      fingerprint: s.press!.fingerprint,
+    })),
+  );
+  if (groups.length < PRESS_MIN_ARTICLES) {
+    return hold(
+      deps,
+      item,
+      now,
+      `only ${groups.length} independent article(s) still state ${night} (needs ${PRESS_MIN_ARTICLES})`,
+      null,
+    );
+  }
+  await audit(
+    deps,
+    item,
+    now,
+    "reverified",
+    [`press: ${groups.length} articles still agree`],
+    null,
+  );
+  return { ...ids(item), result: "unchanged", detail: `${groups.length} articles agree` };
 }

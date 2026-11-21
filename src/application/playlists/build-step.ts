@@ -30,14 +30,24 @@ import { NotFoundError, UpstreamError } from "@/lib/errors";
 import { UNAVAILABLE_MESSAGE } from "./errors";
 import { budgetsFor, planBuild, type BuildPlan } from "./plan";
 import {
+  enrichArtistSongs,
   entryFor,
   isUsable,
+  missingProviders,
   pickFromSongs,
   resolveArtistSongs,
   type ArtistSongsDeps,
 } from "./artist-songs";
 import { CHUNK_SIZE, progressFor, toProgress, type BuildProgress } from "./progress";
 import { getPublisher, type PublisherDeps, type PublisherProblem } from "./publisher";
+
+/**
+ * D-085: the song-selection algorithm version, stored with every built playlist. A playlist
+ * built by an older version is stale, exactly like a lineup change, and is rebuilt into the
+ * same Spotify playlist. 1 = fixed per-tier counts (D-038); 2 = show-length budgets (D-065),
+ * cached songs (D-080) and live setlists (D-085). Bump it when picking changes for everyone.
+ */
+export const PLAYLIST_ALGORITHM_VERSION = 2;
 
 export const STEP_BUDGET_MS = 8_000;
 /**
@@ -196,17 +206,24 @@ class BuildRun {
     let index = cp.artistIndex;
     while (index < plan.artists.length) {
       const artist = plan.artists[index]!;
-      if (!isUsable(entryFor(cache, artist), targets[index]?.songs ?? 1, now)) break;
+      const entry = entryFor(cache, artist);
+      const usable = isUsable(entry, targets[index]?.songs ?? 1, now);
+      if (!usable || missingProviders(this.deps, entry!).length > 0) break;
       index++;
     }
     const artist = plan.artists[index];
     if (!artist) return this.finishSelection(plan, cp, cache);
-    const songs = await resolveArtistSongs(this.deps, {
-      artist,
-      market: plan.market,
-      targetSongs: targets[index]?.songs ?? 1,
-      now,
-    });
+    const entry = entryFor(cache, artist);
+    // D-085: an entry cached before a provider existed only needs that provider (no Spotify).
+    const songs =
+      entry && isUsable(entry, targets[index]?.songs ?? 1, now)
+        ? await enrichArtistSongs(this.deps, entry, artist.name)
+        : await resolveArtistSongs(this.deps, {
+            artist,
+            market: plan.market,
+            targetSongs: targets[index]?.songs ?? 1,
+            now,
+          });
     await this.deps.songsCache.put(artist.artistId, plan.market, songs);
     this.cache?.set(artist.artistId, songs);
     await this.advance({ ...cp, artistIndex: index + 1 });
@@ -241,6 +258,7 @@ class BuildRun {
       const tracks = pickFromSongs({
         artist,
         songs: entryFor(cache, artist)?.songs ?? [],
+        providers: entryFor(cache, artist)?.providers,
         chart,
         budgetMs: (budget?.minutes ?? 0) * 60_000,
         minSongs: Math.min(2, budget?.songs ?? 1),
@@ -291,6 +309,14 @@ class BuildRun {
           "another build saved this event's playlist first; the new one is unused",
         );
       }
+    } else if (this.deps.writer.updateDetails) {
+      // D-085: a refresh keeps the same playlist (URL, followers) but brings its name and
+      // description up to date ("· Tixtape", the "Updated" date, data credits).
+      await this.checkLeaseForWrite();
+      await this.deps.writer.updateDetails(publisherId, row.spotifyPlaylistId, {
+        name: playlistName(plan.title),
+        description: playlistDescription(plan.title, this.deps.clock.now()),
+      });
     }
     await this.advance({
       ...cp,
@@ -332,6 +358,7 @@ class BuildRun {
       snapshotId: cp.snapshotId,
       lineupHash: cp.lineupHash,
       at: this.deps.clock.now(),
+      optionsVersion: PLAYLIST_ALGORITHM_VERSION,
     });
     const done: JobCheckpoint = { ...cp, stage: "done" };
     this.cp = done;

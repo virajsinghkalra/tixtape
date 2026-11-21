@@ -15,6 +15,15 @@
  *  7. confidence ≥ 0.9;
  *  8. no source says it's cancelled or postponed.
  * A failed 4 (past or too far) or 6 rejects; anything else failing holds it for review.
+ *
+ * D-089 adds two more paths with the same shared rules (3–6 and 8 above, plus no conflicts):
+ *  - **first_party**: the artist's or organiser's OWN site (Wikidata P856 or our organiser
+ *    allow-list) quotes the date with its year, the city and the headliner. Confidence 0.85.
+ *  - **press**: ≥ 3 independent articles on readable D-087 outlets (different publishers; one
+ *    wire story or press release counts once), each published ≤ 90 days ago, each quoting the
+ *    date with its year, the city and the headliner, agreeing with each other (venue too, when
+ *    stated). Confidence 0.8, status "press".
+ * The standard path is tried first, then first_party, then press.
  */
 import { findCity } from "../events/extract/places";
 import { foldText } from "../events/text";
@@ -22,6 +31,7 @@ import { normalizeCity } from "../events/venue";
 import type { MatchStatus } from "../shared/lineup";
 import { normalizeArtistName } from "../shared/normalize";
 import { isoDate, parseJsonLdStart } from "./extract";
+import { independentArticles, pressOutlet } from "./press";
 import type { GigProvenance, OfficialKind } from "./provenance";
 import { findDateMentions, findShowTime } from "./show-dates";
 
@@ -46,6 +56,12 @@ export type GateSource = {
   artists: readonly string[];
   quotes: GigProvenance["quotes"];
   cancelled: boolean;
+  /** D-089: the artist's or organiser's own site (P856 / organiser allow-list). */
+  firstParty?: boolean;
+  /** D-089: the venue as the source states it, when it does. */
+  venue?: string | null;
+  /** D-089: news-article facts, when the source is a press article. */
+  press?: GigProvenance["press"];
 };
 
 export type GateInput = {
@@ -55,6 +71,8 @@ export type GateInput = {
   /** Archived editions of the same series (lineups of normalized-or-display names). */
   archivedLineups: ReadonlyArray<readonly string[]>;
   confidence: number;
+  /** D-089 paths, off unless enabled (`AUTO_PUBLISH_EXTRA_PATHS`): evaluated and reported only. */
+  extraPaths?: { firstParty?: boolean; press?: boolean };
 };
 
 export type GateRule =
@@ -65,11 +83,31 @@ export type GateRule =
   | "headliner_matched"
   | "not_a_rerun"
   | "confidence"
-  | "not_cancelled";
+  | "not_cancelled"
+  | "first_party_grounded"
+  | "press_confirmed";
 
 export type GateCheck = { rule: GateRule; ok: boolean; detail: string };
 export type GateVerdict = "publish" | "hold" | "reject";
-export type GateDecision = { decision: GateVerdict; reasons: string[]; checks: GateCheck[] };
+export const PUBLISH_PATHS = ["standard", "first_party", "press"] as const;
+export type PublishPath = (typeof PUBLISH_PATHS)[number];
+/** D-089: the confidence each path publishes with (standard: the D-056 score itself). */
+export const PATH_CONFIDENCE = { first_party: 0.85, press: 0.8 } as const;
+export const PRESS_MIN_ARTICLES = 3;
+export const PRESS_MAX_AGE_DAYS = 90;
+
+export type GateDecision = {
+  decision: GateVerdict;
+  reasons: string[];
+  /** Shared rules plus the standard path's rules (the D-074 checks). */
+  checks: GateCheck[];
+  /** D-089: the path that published, or null. */
+  path: PublishPath | null;
+  /** The confidence to store when published (null when not published). */
+  confidence: number | null;
+  /** D-089: each alternative path's own check. */
+  alternatives: Record<Exclude<PublishPath, "standard">, GateCheck>;
+};
 
 const REJECTING: ReadonlySet<GateRule> = new Set(["date_window", "not_a_rerun"]);
 
@@ -163,21 +201,112 @@ const sameLineup = (a: readonly string[], b: readonly string[]) => {
   return x.size > 0 && x.size === y.size && [...x].every((n) => y.has(n));
 };
 
+/** Whether a first-party source grounds date (with year), city and headliner (D-089). */
+export function firstPartyGaps(s: GateSource): string[] {
+  return groundingGaps(s).filter((g) => g !== "title" && g !== "time");
+}
+
+function firstPartyCheck(usable: readonly GateSource[]): {
+  check: GateCheck;
+  source: GateSource | undefined;
+} {
+  const own = usable.filter((s) => s.firstParty === true);
+  const source = own.find((s) => firstPartyGaps(s).length === 0);
+  return {
+    source,
+    check: {
+      rule: "first_party_grounded",
+      ok: source !== undefined,
+      detail: source
+        ? `grounded on the own site ${source.domain}`
+        : own.length === 0
+          ? "no artist or organiser own site"
+          : own
+              .map((s) => `${s.domain} lacks quotes for ${firstPartyGaps(s).join(", ")}`)
+              .join("; "),
+    },
+  };
+}
+
+/** Why a press source doesn't count (empty = it counts). */
+export function pressGaps(s: GateSource, now: Date): string[] {
+  const gaps: string[] = [];
+  const outlet = pressOutlet(s.url);
+  if (!outlet?.readable) gaps.push("not a readable D-087 outlet");
+  const published = s.press?.publishedAt ? Date.parse(s.press.publishedAt) : NaN;
+  if (Number.isNaN(published)) gaps.push("no publication date");
+  else if (published > now.getTime() + DAY_MS) gaps.push("publication date in the future");
+  else if (now.getTime() - published > PRESS_MAX_AGE_DAYS * DAY_MS) {
+    gaps.push(`published more than ${PRESS_MAX_AGE_DAYS} days ago`);
+  }
+  gaps.push(...firstPartyGaps(s));
+  return gaps;
+}
+
+function venueConflict(sources: readonly GateSource[]): string | null {
+  const venues = [
+    ...new Set(
+      sources.flatMap((s) =>
+        s.venue
+          ? [
+              foldText(s.venue)
+                .replace(/\bthe\b/gu, "")
+                .trim(),
+            ]
+          : [],
+      ),
+    ),
+  ];
+  return venues.length > 1 ? `venue: ${venues.join(" ≠ ")}` : null;
+}
+
+function pressCheck(usable: readonly GateSource[], now: Date): GateCheck {
+  const articles = usable.filter((s) => s.press);
+  const counted = articles.filter((s) => pressGaps(s, now).length === 0);
+  const groups = independentArticles(
+    counted.map((s) => ({
+      url: s.url,
+      domain: s.domain,
+      wire: s.press!.wire,
+      fingerprint: s.press!.fingerprint,
+    })),
+  );
+  const venue = venueConflict(articles);
+  const ok = groups.length >= PRESS_MIN_ARTICLES && venue === null;
+  const skipped = articles
+    .filter((s) => !counted.includes(s))
+    .map((s) => `${s.domain}: ${pressGaps(s, now).join(", ")}`);
+  return {
+    rule: "press_confirmed",
+    ok,
+    detail:
+      `${groups.length} independent article(s) of ${articles.length} (needs ${PRESS_MIN_ARTICLES})` +
+      (venue ? `; ${venue}` : "") +
+      (skipped.length > 0 ? `; not counted: ${skipped.join("; ")}` : ""),
+  };
+}
+
 /** The gate's verdict for one night, with every rule's result. */
 export function autoPublishDecision(input: GateInput): GateDecision {
   const usable = input.sources.filter((s) => !s.dateRange);
   const domains = new Set(usable.map((s) => s.domain));
   const officials = usable.filter((s) => s.officialKind !== null);
   const grounded = officials.find((s) => groundingGaps(s).length === 0);
-  const checks: GateCheck[] = [];
-  const add = (rule: GateRule, ok: boolean, detail: string) => checks.push({ rule, ok, detail });
+  const firstParty = firstPartyCheck(usable);
+  const press = pressCheck(usable, input.now);
+  const shared: GateCheck[] = [];
+  const standard: GateCheck[] = [];
+  const add = (to: GateCheck[], rule: GateRule, ok: boolean, detail: string) =>
+    to.push({ rule, ok, detail });
 
   add(
+    standard,
     "independent_sources",
     domains.size >= 2 && officials.length >= 1,
     `${domains.size} independent domain(s) [${[...domains].join(", ")}], ${officials.length} official`,
   );
   add(
+    standard,
     "official_grounded",
     grounded !== undefined,
     grounded
@@ -189,24 +318,33 @@ export function autoPublishDecision(input: GateInput): GateDecision {
             .join("; "),
   );
   const conflict = conflicts(input.sources);
-  add("no_conflicts", conflict.length === 0, conflict.join("; ") || "sources agree");
-  const window = dateWindow(input, grounded ?? officials[0]);
-  add(window.rule, window.ok, window.detail);
+  add(shared, "no_conflicts", conflict.length === 0, conflict.join("; ") || "sources agree");
+  // The date that matters is the one the deciding source states.
+  const window = dateWindow(input, grounded ?? firstParty.source ?? officials[0]);
+  add(shared, window.rule, window.ok, window.detail);
   add(
+    shared,
     "headliner_matched",
     input.headlinerMatch === "auto" || input.headlinerMatch === "manual",
     `Spotify match: ${input.headlinerMatch ?? "none"}`,
   );
-  const lineup = (grounded ?? usable[0])?.artists ?? [];
+  const lineup = (grounded ?? firstParty.source ?? usable[0])?.artists ?? [];
   const rerun = input.archivedLineups.some((past) => sameLineup(lineup, past));
-  add("not_a_rerun", !rerun, rerun ? "lineup identical to an archived edition" : "new lineup");
   add(
+    shared,
+    "not_a_rerun",
+    !rerun,
+    rerun ? "lineup identical to an archived edition" : "new lineup",
+  );
+  add(
+    standard,
     "confidence",
     input.confidence >= AUTO_PUBLISH_MIN_CONFIDENCE,
     `${input.confidence} (needs ${AUTO_PUBLISH_MIN_CONFIDENCE})`,
   );
   const cancelled = input.sources.filter((s) => s.cancelled);
   add(
+    shared,
     "not_cancelled",
     cancelled.length === 0,
     cancelled.length === 0
@@ -214,11 +352,55 @@ export function autoPublishDecision(input: GateInput): GateDecision {
       : `cancelled per ${cancelled.map((s) => s.domain).join(", ")}`,
   );
 
+  // Keep the D-074 check order: sources, grounding, conflicts, window, match, re-run, confidence, cancel.
+  const order: GateRule[] = [
+    "independent_sources",
+    "official_grounded",
+    "no_conflicts",
+    "date_window",
+    "headliner_matched",
+    "not_a_rerun",
+    "confidence",
+    "not_cancelled",
+  ];
+  const checks = [...shared, ...standard].sort(
+    (a, b) => order.indexOf(a.rule) - order.indexOf(b.rule),
+  );
+  const alternatives = { first_party: firstParty.check, press };
+  const sharedFailed = shared.filter((c) => !c.ok);
+  const path: PublishPath | null =
+    sharedFailed.length > 0
+      ? null
+      : standard.every((c) => c.ok)
+        ? "standard"
+        : firstParty.check.ok && input.extraPaths?.firstParty === true
+          ? "first_party"
+          : press.ok && input.extraPaths?.press === true
+            ? "press"
+            : null;
+  if (path !== null) {
+    return {
+      decision: "publish",
+      reasons: [],
+      checks,
+      path,
+      confidence: path === "standard" ? input.confidence : PATH_CONFIDENCE[path],
+      alternatives,
+    };
+  }
   const failed = checks.filter((c) => !c.ok);
-  const decision: GateVerdict = failed.some((c) => REJECTING.has(c.rule))
-    ? "reject"
-    : failed.length > 0
-      ? "hold"
-      : "publish";
-  return { decision, reasons: failed.map((c) => `${c.rule}: ${c.detail}`), checks };
+  const decision: GateVerdict = failed.some((c) => REJECTING.has(c.rule)) ? "reject" : "hold";
+  return {
+    decision,
+    reasons: [
+      ...failed.map((c) => `${c.rule}: ${c.detail}`),
+      ...(sharedFailed.length === 0
+        ? [`first_party: ${firstParty.check.detail}`, `press: ${press.detail}`]
+        : []),
+    ],
+    checks,
+    path: null,
+    confidence: null,
+    alternatives,
+  };
 }

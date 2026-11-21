@@ -39,6 +39,11 @@ const nextConfig: NextConfig = {
   // E2E tests run a second dev server with its own build folder and database (D-049).
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   poweredByHeader: false,
+  // D-084: link-preview cards read their fonts and logo from disk at request time.
+  outputFileTracingIncludes: {
+    "/events/[id]/share-image": ["./public/fonts/*.ttf", "./src/app/icon.svg"],
+    "/opengraph-image": ["./public/fonts/*.ttf", "./src/app/icon.svg"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

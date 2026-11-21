@@ -210,3 +210,6 @@ export function canonicalCity(raw: string): string {
 export function normalizeCity(raw: string): string {
   return fold(canonicalCity(raw));
 }
+
+/** D-050: the `city` cookie value for an explicit "All India" choice (wins over the IP city). */
+export const ALL_INDIA_CITY = "all";

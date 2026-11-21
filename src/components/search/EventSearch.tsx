@@ -18,6 +18,7 @@ import { Sheet } from "../ui/Sheet";
 import { MAX_CHARS, MIN_CHARS, normalizeQuery, type SearchState } from "./event-search";
 import { EventShell } from "./EventShell";
 import { liveLookup, worthLookingUp, type LookupView } from "./live-lookup";
+import { cityChips, dateChips } from "./quick-chips";
 import { pushRecent, readRecent, writeRecent } from "./recent-searches";
 import { RUN_SEARCH_EVENT } from "./run-search";
 import { RecommendationsPanel, ResultsPanel } from "./SearchPanels";
@@ -115,8 +116,8 @@ export function EventSearch({
     [options],
   );
   const showResults = (focused || restored) && typed && state.status !== "idle";
-  const showRecommendations =
-    within && !typed && (recent.length > 0 || sections.length > 0 || value.trim().length === 1);
+  // UX #11: date chips are always there, so the empty sheet is never blank.
+  const showRecommendations = within && !typed;
   const top = state.status === "done" ? state.response.results[0] : undefined;
   const ghost = focused ? ghostCompletion(value, top) : "";
 
@@ -405,6 +406,14 @@ export function EventSearch({
               inputRef.current?.focus();
             }}
             onOpenEvent={(e) => setOpening(e)}
+            dates={dateChips(new Date())}
+            cities={cityChips(sections, city)}
+            onClearRecent={() => {
+              setRecent([]);
+              writeRecent([]);
+              inputRef.current?.focus();
+            }}
+            onGo={go}
           />
         )}
 

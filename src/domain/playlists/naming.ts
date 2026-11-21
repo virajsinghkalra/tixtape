@@ -33,10 +33,13 @@ export function playlistName(eventTitle: string): string {
   return clip(eventTitle.trim(), MAX_PLAYLIST_NAME - NAME_SUFFIX.length) + NAME_SUFFIX;
 }
 
-/** "Songs from the {title} lineup. Updated {d MMM}. Popularity data: Last.fm. Made with Tixtape." */
+/**
+ * "Songs from the {title} lineup. Updated {d MMM}. Popularity data: Last.fm. Live setlists:
+ * setlist.fm. Made with Tixtape." Both data sources require credit where their data is used.
+ */
 export function playlistDescription(eventTitle: string, updatedAt: Date): string {
   const date = `${updatedAt.getUTCDate()} ${MONTHS[updatedAt.getUTCMonth()]}`;
-  const tail = ` lineup. Updated ${date}. Popularity data: Last.fm. Made with Tixtape.`;
+  const tail = ` lineup. Updated ${date}. Popularity data: Last.fm. Live setlists: setlist.fm. Made with Tixtape.`;
   const head = "Songs from the ";
   return (
     head + clip(eventTitle.trim(), MAX_PLAYLIST_DESCRIPTION - head.length - tail.length) + tail

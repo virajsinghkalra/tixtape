@@ -24,6 +24,8 @@ import {
   namesArtist,
   type ExtractContext,
 } from "@/domain/gigs/extract";
+import { PRESS_MAX_AGE_DAYS } from "@/domain/gigs/auto-publish";
+import { PRESS_OUTLETS, pressMeta, pressOutlet } from "@/domain/gigs/press";
 import type { GigCandidate } from "@/domain/gigs/provenance";
 import { findDateMentions } from "@/domain/gigs/show-dates";
 import { onDomain, registrableDomain } from "@/domain/gigs/registrable-domain";
@@ -32,6 +34,8 @@ import type { Logger } from "@/lib/logger";
 import type { GigLead, GigLeadStore, OfficialSites, PageReader, ReadResult } from "./ports";
 
 const SEARCH_RESULTS = 10;
+/** D-089: press articles read per artist (3 are needed; one spare). */
+const PRESS_PAGES_PER_ARTIST = 4;
 const DAY_MS = 86_400_000;
 /** Leads per artist per run: enough for a human to act on, not a dump of search results. */
 const MAX_LEADS = 5;
@@ -111,6 +115,16 @@ export class ArtistGigDiscovery {
       const page = await this.read(r.url, note, read, budget);
       if (page?.status === "ok") out.push(...this.extract(page, artist.name, ctx));
     }
+    // D-089: press articles for the press path, within the same daily search cap.
+    const news = await this.search(artist.name, now, note, focus.cities ?? [], "news");
+    const pressBudget = { pages: PRESS_PAGES_PER_ARTIST };
+    for (const r of news) {
+      if (read.has(r.url) || !pressOutlet(r.url)?.readable) continue;
+      const ctx = contextFor(r.url, officialDomains, now);
+      if (!ctx) continue;
+      const page = await this.read(r.url, note, read, pressBudget);
+      if (page?.status === "ok") out.push(...this.extract(page, artist.name, ctx));
+    }
     for (const lead of note.leads) {
       try {
         await this.deps.leads?.upsert(lead, now);
@@ -130,7 +144,13 @@ export class ArtistGigDiscovery {
     }
   }
 
-  private async search(name: string, now: Date, note: DiscoveryNote, cities: readonly string[]) {
+  private async search(
+    name: string,
+    now: Date,
+    note: DiscoveryNote,
+    cities: readonly string[],
+    kind: "tickets" | "news" = "tickets",
+  ) {
     if (!this.deps.search) return [];
     const day = dayKey(now);
     const used = await this.deps.budget.usage(day);
@@ -143,6 +163,19 @@ export class ArtistGigDiscovery {
       await this.deps.budget.addUsage(day, { searches: 1 });
       note.searched = true;
       // Denied domains are not excluded: their results become leads, and are never fetched.
+      if (kind === "news") {
+        // D-089: recent articles on the readable D-087 outlets only.
+        return await this.deps.search.search(
+          `"${name}" concert India ${year} ${searchCities(cities).join(" ")}`,
+          {
+            maxResults: SEARCH_RESULTS,
+            excludeDomains: [],
+            topic: "news",
+            days: PRESS_MAX_AGE_DAYS,
+            includeDomains: PRESS_OUTLETS.filter((o) => o.readable).map((o) => o.domain),
+          },
+        );
+      }
       return await this.deps.search.search(
         // Measured 2026-11-21: naming cities surfaces Indian ticket and venue pages best. D-081:
         // the cities are where visitors are looking, else the three biggest markets.
@@ -190,7 +223,16 @@ export class ArtistGigDiscovery {
       { url: page.url, city: null, cityQuote: null },
       { ...ctx, acts: () => [{ name: artist, parts: [] }] },
     );
-    const found = dedupe([...structured, ...text]);
+    // D-089: an article on a readable D-087 outlet carries its publisher, date and wire.
+    const press = pressMeta({
+      url: page.url,
+      text: page.text,
+      published: page.published ?? null,
+      byline: page.byline ?? null,
+    });
+    const found = dedupe([...structured, ...text]).map((c) =>
+      press ? { ...c, provenance: { ...c.provenance, press } } : c,
+    );
     const entry = { url: page.url, found: found.length };
     this.deps.logger.info(entry, "gigs: page read");
     return found;

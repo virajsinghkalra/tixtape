@@ -56,6 +56,21 @@ describe("PgArtistSongsCache (D-080)", () => {
     expect(got.get(a)).toEqual(songs(3));
   });
 
+  it("keeps provider data (D-085), and reads rows written before it", async () => {
+    const a = await newArtist("Charlie Puth");
+    const withLive: ArtistSongs = {
+      ...songs(2),
+      providers: { setlistfm: { known: true } },
+      songs: songs(2).songs.map((s, i) =>
+        i === 0 ? { ...s, providerScores: { setlistfm: 0.75 } } : s,
+      ),
+    };
+    await cache.put(a, "IN", withLive);
+    await expect(cache.getMany([a], "IN")).resolves.toEqual(new Map([[a, withLive]]));
+    await cache.put(a, "IN", songs(1));
+    expect((await cache.getMany([a], "IN")).get(a)?.providers).toBeUndefined();
+  });
+
   it("treats a row it can't decode as a miss", async () => {
     const a = await newArtist("Odd");
     await db.execute(

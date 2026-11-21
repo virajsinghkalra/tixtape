@@ -3,8 +3,17 @@
 import { useEffect } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Sticker } from "@/components/ui/Sticker";
+import { useRetry } from "@/components/ui/use-retry";
 
-export default function ErrorPage({ error, reset }: { error: Error; reset: () => void }) {
+/** Any page that throws lands here. The error is logged, never shown (D-084). */
+export default function ErrorPage({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  const { retry, retrying } = useRetry(reset);
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -16,8 +25,8 @@ export default function ErrorPage({ error, reset }: { error: Error; reset: () =>
       </Sticker>
       <h1 className="mt-5 font-display text-huge font-extrabold">We lost the signal</h1>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <Button size="lg" onClick={reset}>
-          Try again
+        <Button size="lg" onClick={retry} disabled={retrying} aria-disabled={retrying}>
+          {retrying ? "Retrying…" : "Try again"}
         </Button>
         <ButtonLink href="/" variant="secondary" size="lg">
           Back home

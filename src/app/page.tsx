@@ -2,12 +2,15 @@ import Link from "next/link";
 import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
 import type { Tour } from "@/domain/events/front-page";
-import type { EventSummary } from "@/application/ports/events";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CitySwitcher } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
 import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
+import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
+import { HeroBoard } from "@/components/HeroBoard";
+import { shortTitle } from "@/components/hero-copy";
+import { HeroNextUp, type NextUpItem } from "@/components/HeroNextUp";
 import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
 import { EventSearch } from "@/components/search/EventSearch";
@@ -27,6 +30,7 @@ import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage } from "@/server/front-page";
+import { YourGigs } from "@/components/YourGigs";
 
 export const dynamic = "force-dynamic";
 
@@ -131,18 +135,8 @@ export default async function Home({ searchParams }: Props) {
 
           {next ? (
             <>
-              <NextUpTile event={next} now={now} />
-              <Tile tone="sky" className="pop-in [--i:2]">
-                <p className="text-sm font-bold">On the board</p>
-                <p className="mt-2 flex items-baseline gap-3 font-display font-extrabold">
-                  <span className="text-huge">{rows.length}</span>
-                  <span className="text-xl">{rows.length === 1 ? "gig" : "gigs"}</span>
-                </p>
-                <p className="flex items-baseline gap-3 font-display font-extrabold">
-                  <span className="text-huge">{cities.size}</span>
-                  <span className="text-xl">{cities.size === 1 ? "city" : "cities"}</span>
-                </p>
-              </Tile>
+              <HeroNextUp items={rows.slice(0, 3).map(nextUpItem)} now={now.toISOString()} />
+              <HeroBoard gigs={rows.length} cities={citiesByCount(rows)} />
             </>
           ) : (
             <div className="lg:row-span-2 lg:flex">
@@ -151,6 +145,8 @@ export default async function Home({ searchParams }: Props) {
           )}
         </div>
       </section>
+
+      <YourGigs />
 
       {/* The story strip may repeat cards from the sections below. */}
       {thisWeek.length > 0 && (
@@ -177,7 +173,7 @@ export default async function Home({ searchParams }: Props) {
         title="The big ones"
         blurb={
           city && front.nearYou.length === 0 && !empty
-            ? `Quiet in ${city}. All India ↓`
+            ? `Quiet in ${city} · All India`
             : "All India"
         }
         items={front.bigOnes}
@@ -223,24 +219,33 @@ export default async function Home({ searchParams }: Props) {
   );
 }
 
-function NextUpTile({ event, now }: { event: EventSummary; now: Date }) {
-  const badge = countdownBadge(event.startsAt, event.endsAt, now);
-  return (
-    <Tile tone="violet" className="pop-in flex flex-col justify-between gap-6 [--i:1]">
-      <p className="text-sm font-bold">
-        <span aria-hidden>{badge.emoji} </span>Next up
-      </p>
-      <Link
-        href={`/events/${event.id}`}
-        className="group block rounded-field outline-offset-4 focus-visible:outline-white"
-      >
-        <span className="block font-display text-big font-extrabold">{badge.label}</span>
-        <span className="mt-1 block text-lg font-semibold underline-offset-4 group-hover:underline">
-          {event.title} <span aria-hidden>→</span>
-        </span>
-      </Link>
-    </Tile>
-  );
+/** D-082 hero: the next shows, picture first, with a short title (`shortTitle`). */
+function nextUpItem(e: FeedRow): NextUpItem {
+  return {
+    id: e.id,
+    title: shortTitle(e.title, e.headliners[0]),
+    poster: e.posterUrl ?? null,
+    artists: e.headlinerArtists,
+    label: e.headliners[0] ?? e.title,
+    startsAt: e.startsAt.toISOString(),
+    endsAt: e.endsAt?.toISOString() ?? null,
+    dateOnly: e.startsAtDateOnly ?? false,
+  };
+}
+
+/** The ring's picture: the first headliner photo (D-083 order), else the poster. */
+function ringImage(e: FeedRow): string | null {
+  const v = orderForVisuals(e.headlinerArtists)
+    .map(artistVisual)
+    .find((x) => x.kind === "photo");
+  return v?.kind === "photo" ? v.url : (e.posterUrl ?? null);
+}
+
+/** Cities with the most shows first. */
+function citiesByCount(rows: FeedRow[]): string[] {
+  const n = new Map<string, number>();
+  for (const r of rows) if (r.city) n.set(r.city, (n.get(r.city) ?? 0) + 1);
+  return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([c]) => c);
 }
 
 function ringEvent(e: FeedRow, now: Date): RingEvent {
@@ -251,6 +256,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
     day,
     month,
     tone: toneSequence(e.id, 1)[0]!,
+    image: ringImage(e),
     story: planStory({
       id: e.id,
       title: e.title,
@@ -258,9 +264,8 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       city: e.city,
       badge: countdownBadge(e.startsAt, e.endsAt, now),
       // The feed carries the top-billed names (and a solo photo), enough for the story.
-      artists: e.headliners.map((name, i) => ({
-        name,
-        imageUrl: e.headlinerImages[i] ?? (e.artistCount === 1 ? e.soloImage : null),
+      artists: e.headlinerArtists.map((a, i) => ({
+        ...a,
         tier: "headliner" as const,
         billingRank: i + 1,
       })),

@@ -40,7 +40,7 @@ export function istParts(date: Date): DateParts {
   };
 }
 
-function istDayNumber(date: Date): number {
+export function istDayNumber(date: Date): number {
   return Math.floor((date.getTime() + IST_OFFSET_MS) / DAY_MS);
 }
 

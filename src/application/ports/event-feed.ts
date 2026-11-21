@@ -3,16 +3,19 @@
  * in one round trip (no per-card lookups). Implemented in src/infrastructure/db/event-feed.ts.
  */
 import type { FeedEvent } from "@/domain/events/front-page";
+import type { VisualArtist } from "@/domain/visuals/visuals";
 import type { EventSummary } from "./events";
 
 export type FeedRow = EventSummary &
   FeedEvent & {
     /** A solo show's artist photo (Spotify), for cards and stories. */
     soloImage: string | null;
-    /** Spotify photos of the top-billed tier, in billing order (null where missing). */
-    headlinerImages: (string | null)[];
+    /** The top-billed tier with their photos (Spotify, alt + credit), in billing order (D-083). */
+    headlinerArtists: VisualArtist[];
     /** The first official page any source gave ("Buy tickets"). */
     ticketUrl: string | null;
+    /** UX #6: the shared playlist is live, being made, or not started. */
+    playlistStatus: "ready" | "building" | null;
   };
 
 export interface EventFeedReader {

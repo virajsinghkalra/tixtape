@@ -12,7 +12,11 @@ import {
 } from "@/domain/shared/ids";
 import { NotFoundError } from "@/lib/errors";
 import type { Result } from "@/lib/result";
-import type { ArtistPopularitySource, NewReleaseSource } from "@/application/ports/music-signals";
+import type {
+  ArtistPopularitySource,
+  NewReleaseSource,
+  SongScoreProvider,
+} from "@/application/ports/music-signals";
 import type { ArtistSongsCache } from "@/application/ports/playlists";
 import { entryFor } from "./artist-songs";
 import { MemoryArtistSongsCache } from "./memory-songs-cache";
@@ -45,6 +49,7 @@ export type { StartLimiter } from "./start-limiter";
 export { NoMatchedArtistsError, PlaylistUnavailableError, UNAVAILABLE_MESSAGE } from "./errors";
 export {
   LEASE_MS,
+  PLAYLIST_ALGORITHM_VERSION,
   REQUEST_TIMEOUT_MS,
   SHORT_PAUSE_MS,
   STEP_BUDGET_MS,
@@ -81,7 +86,12 @@ export type PlaylistsUseCases = {
   prewarmEvent(eventId: EventId, opts: { deadline: Date }): Promise<PrewarmResult>;
 };
 
-export type PlaylistsPorts = Omit<BuildDeps, "alertUnavailable" | "popularity" | "songsCache"> & {
+export type PlaylistsPorts = Omit<
+  BuildDeps,
+  "alertUnavailable" | "popularity" | "songsCache" | "songScores"
+> & {
+  /** D-085: extra per-song signals such as setlist.fm. None: Last.fm alone ranks songs. */
+  songScores?: readonly SongScoreProvider[];
   clock: Clock;
   limiter?: StartLimiter;
   /** D-065. Without it every artist's popularity is unknown (factor 1.0: tier decides). */
@@ -102,6 +112,7 @@ export function createPlaylistsUseCases(ports: PlaylistsPorts): PlaylistsUseCase
     limiter,
     popularity: ports.popularity ?? unknownPopularity,
     songsCache: ports.songsCache ?? new MemoryArtistSongsCache(),
+    songScores: ports.songScores ?? [],
     alertUnavailable: unavailableAlert(ports.logger, ports.clock),
   };
   return {

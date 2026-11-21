@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { EventSummary } from "@/application/ports/events";
 import { eventTone } from "./event-color";
+import { ticketLink } from "./links";
+import { hasPhoto, type VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { lineupTeaser } from "./lineup-copy";
 import { formatStartTime, istParts } from "./event-format";
@@ -24,8 +26,8 @@ type Props = {
   note?: string | null;
   /** D-082: the official poster; fills the colour block when there is one. */
   poster?: string | null;
-  /** D-082: headliner photos (billing order); a collage when there's no poster. */
-  faces?: readonly (string | null)[];
+  /** D-083: the top-billed artists; a collage (photos first) when there's no poster. */
+  artists?: readonly VisualArtist[];
   /** A tour shown as one card (D-079): the featured date is `event`; the rest are listed. */
   tour?: TourInfo;
 };
@@ -48,11 +50,13 @@ export function EventCard({
   variant = "feed",
   note,
   poster,
-  faces = [],
+  artists = [],
   tour,
 }: Props) {
-  const photo = Boolean(poster ?? event.posterUrl) || faces.some(Boolean);
+  const photo = Boolean(poster ?? event.posterUrl) || artists.some(hasPhoto);
   const { day, month, weekday } = istParts(event.startsAt);
+  // OD-5: a news page is "Info ↗", never "Buy tickets".
+  const outbound = ticketLink([ticketUrl]);
   const compact = variant === "compact";
   const place = event.venue ? `${event.venue.city} · ${event.venue.name}` : "Venue TBA";
 
@@ -80,7 +84,7 @@ export function EventCard({
             <div aria-hidden className="absolute inset-0 -z-10">
               <EventVisual
                 poster={poster ?? event.posterUrl}
-                faces={faces}
+                artists={artists}
                 label={event.title}
                 className="transition-transform duration-(--duration-slow) group-hover:scale-105"
               />
@@ -164,10 +168,10 @@ export function EventCard({
           </ul>
         </details>
       )}
-      {ticketUrl && !tour && (
+      {outbound && !tour && (
         <div className="px-4 pb-4">
-          <ButtonLink href={ticketUrl} external variant="secondary" className="w-full">
-            <span aria-hidden>🎟️</span> Buy tickets
+          <ButtonLink href={outbound.url} external variant="secondary" className="w-full">
+            {outbound.label}
           </ButtonLink>
         </div>
       )}

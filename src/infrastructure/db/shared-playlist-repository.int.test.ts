@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { events } from "@/db/schema";
 import { asEventId, asSpotifyPlaylistId, type EventId } from "@/domain/shared/ids";
 import { testDb, truncateAll } from "../../../tests/setup/db";
-import { PgSharedPlaylistRepository } from "./shared-playlist-repository";
+import { listStaleSharedPlaylists, PgSharedPlaylistRepository } from "./shared-playlist-repository";
 
 const db = testDb();
 const repo = new PgSharedPlaylistRepository(db);
@@ -60,5 +60,63 @@ describe("PgSharedPlaylistRepository", () => {
       lineupHashAtBuild: "h",
       builtAt: at,
     });
+  });
+});
+
+describe("algorithm version and stale listing (D-085)", () => {
+  it("stores the version a playlist was built with (missing = 1)", async () => {
+    const eventId = await newEvent();
+    await repo.saveCreated(eventId, pl("pl1"));
+    const at = new Date("2026-11-22T10:00:00.000Z");
+    await repo.markBuilt(eventId, { trackIds: ["t"], snapshotId: null, lineupHash: "h", at });
+    await expect(repo.findByEvent(eventId)).resolves.toMatchObject({ optionsVersion: 1 });
+    await repo.markBuilt(eventId, {
+      trackIds: ["t"],
+      snapshotId: null,
+      lineupHash: "h",
+      at,
+      optionsVersion: 2,
+    });
+    await expect(repo.findByEvent(eventId)).resolves.toMatchObject({ optionsVersion: 2 });
+  });
+
+  it("lists upcoming playlists built by an older version or for an older lineup", async () => {
+    const now = new Date("2026-11-22T10:00:00.000Z");
+    const at = now;
+    const make = async (
+      key: string,
+      startsAt: string,
+      lineupHash: string | null,
+      built: string,
+      v: number,
+    ) => {
+      const rows = await db
+        .insert(events)
+        .values({
+          title: key,
+          type: "concert",
+          startsAt: new Date(startsAt),
+          dedupeKey: key,
+          lineupHash,
+        })
+        .returning({ id: events.id });
+      const id = asEventId(rows[0]!.id);
+      await repo.saveCreated(id, pl(`pl-${key}`));
+      await repo.markBuilt(id, {
+        trackIds: [],
+        snapshotId: null,
+        lineupHash: built,
+        at,
+        optionsVersion: v,
+      });
+      return id;
+    };
+    const oldVersion = await make("old-version", "2026-12-20T10:00:00Z", "h", "h", 1);
+    const newLineup = await make("new-lineup", "2026-12-10T10:00:00Z", "h2", "h1", 2);
+    await make("current", "2026-12-01T10:00:00Z", "h", "h", 2);
+    await make("past", "2026-11-01T10:00:00Z", "h", "h", 1);
+    await expect(
+      listStaleSharedPlaylists(db, { currentVersion: 2, now, limit: 10 }),
+    ).resolves.toEqual([newLineup, oldVersion]);
   });
 });

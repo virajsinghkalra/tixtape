@@ -99,6 +99,34 @@
       "when": 1795288362819,
       "tag": "0013_event_poster",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795289953168,
+      "tag": "0014_artist_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795290874278,
+      "tag": "0015_ux_counters",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795290975997,
+      "tag": "0016_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795291782872,
+      "tag": "0017_publish_paths",
+      "breakpoints": true
     }
   ]
 }

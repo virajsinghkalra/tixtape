@@ -17,32 +17,27 @@ import {
 } from "./helpers";
 
 async function story(page: Page) {
-  const region = page.getByRole("region", { name: /in \d+ slides?/i });
-  const name = (await region.getAttribute("aria-label")) ?? (await region.innerText());
-  // progress segments: the largest group of thin (≤ 8 px tall), equal-width siblings above the slides
-  const bars = await page.evaluate(() => {
-    const r = [...document.querySelectorAll("section, div")].find((e) =>
-      /in \d+ slides?/i.test(e.getAttribute("aria-label") ?? ""),
+  // the story is the carousel whose slides are labelled "1/N: …"
+  return page.evaluate(() => {
+    const slides = [...document.querySelectorAll("li[aria-label]")].filter((l) =>
+      /^\d+\/\d+:/.test(l.getAttribute("aria-label") ?? ""),
     );
-    const root = r?.closest("section") ?? r?.parentElement ?? document.body;
-    let best = 0;
+    const declared = Number(
+      /^\d+\/(\d+):/.exec(slides[0]?.getAttribute("aria-label") ?? "")?.[1] ?? NaN,
+    );
+    const root = slides[0]?.closest("section") ?? document.body;
+    // progress segments: the largest group of thin (≤ 8 px tall) siblings in the story
+    let bars = 0;
     for (const el of root.querySelectorAll("*")) {
       const kids = [...el.children].filter((c) => {
         const b = c.getBoundingClientRect();
         return b.height > 0 && b.height <= 8 && b.width > 10;
       });
       if (kids.length >= 2 && kids.length === el.children.length)
-        best = Math.max(best, kids.length);
+        bars = Math.max(bars, kids.length);
     }
-    return best;
+    return { declared, slides: slides.length, bars };
   });
-  const declared = Number(/in (\d+) slides?/i.exec(name)?.[1] ?? NaN);
-  const slides = await region
-    .locator("li[aria-label]")
-    .evaluateAll(
-      (ls) => ls.filter((l) => /^\d+\/\d+/.test(l.getAttribute("aria-label") ?? "")).length,
-    );
-  return { declared, slides, bars };
 }
 
 for (const [title, kind, expected] of [

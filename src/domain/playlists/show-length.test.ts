@@ -64,3 +64,31 @@ describe("eventPerformanceMinutes", () => {
     expect(eventPerformanceMinutes(show(over))).toMatchObject({ minutes, source });
   });
 });
+
+describe("one-artist shows (D-085)", () => {
+  it.each<[string, Partial<ShowLengthInput>, number]>([
+    [
+      "Johnnie & Co.: a 'festival' with only Charlie Puth, date-only start, no end",
+      {
+        type: "festival",
+        isSingleArtist: true,
+        startsAt: ist("2027-02-13T00:00:00"),
+        endsAt: null,
+      },
+      150,
+    ],
+    ["a solo concert with no end", { type: "concert", isSingleArtist: true }, 150],
+    [
+      "Bhuwin: a solo show with real times keeps them (2 h)",
+      {
+        type: "concert",
+        isSingleArtist: true,
+        startsAt: ist("2026-12-05T19:30:00"),
+        endsAt: ist("2026-12-05T21:30:00"),
+      },
+      120,
+    ],
+  ])("%s → %i min", (_n, over, minutes) => {
+    expect(eventPerformanceMinutes(show(over)).minutes).toBe(minutes);
+  });
+});

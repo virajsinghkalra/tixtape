@@ -4,9 +4,13 @@ import type { EventDetail } from "@/application/ports/events";
 import type { BillingTier } from "@/domain/shared/lineup";
 import { asArtistId, type PlaylistJobId } from "@/domain/shared/ids";
 import { RateLimitedError, UpstreamError } from "@/lib/errors";
-import { UNIT_START_LIMIT_MS, WRITE_LEASE_MARGIN_MS } from "./build-step";
+import {
+  PLAYLIST_ALGORITHM_VERSION,
+  UNIT_START_LIMIT_MS,
+  WRITE_LEASE_MARGIN_MS,
+} from "./build-step";
 import { NoMatchedArtistsError, PlaylistUnavailableError, UNAVAILABLE_MESSAGE } from "./errors";
-import { PUBLISHER_ID, playlistWorld } from "./testing/fakes";
+import { fakeSetlists, PUBLISHER_ID, playlistWorld } from "./testing/fakes";
 
 type World = ReturnType<typeof playlistWorld>;
 
@@ -656,5 +660,114 @@ describe("D-070", () => {
     await expect(w.useCases.step(jobId)).rejects.toMatchObject({ code: "not_found" });
     expect(w.spotify.calls).toEqual([]);
     w.events.rows.set(event.id, stored);
+  });
+});
+
+describe("D-085: algorithm upgrades, solo shows and live setlists", () => {
+  it("a playlist built by an older algorithm is stale and is refreshed in place, renamed", async () => {
+    const w = playlistWorld();
+    const event = festival(w, [["Ritviz", "headliner"]], ONE_HOUR);
+    await runToEnd(w, await start(w));
+    const row = w.shared.rows.get(event.id)!;
+    // As built on prod before D-065: version 1, the old name.
+    row.optionsVersion = 1;
+    w.spotify.details.set(row.spotifyPlaylistId, {
+      name: "NH7 Weekender · Lineup Mix",
+      description: "old",
+    });
+
+    await expect(w.useCases.getSharedStatus(event.id)).resolves.toMatchObject({
+      status: "ready",
+      stale: true,
+    });
+    const jobId = await start(w); // a page open auto-refreshes stale playlists
+    await expect(runToEnd(w, jobId)).resolves.toMatchObject({ status: "succeeded" });
+
+    expect(w.spotify.calls.filter((c) => c === "create")).toHaveLength(1);
+    expect(w.spotify.playlists.size).toBe(1);
+    expect(w.shared.rows.get(event.id)).toMatchObject({
+      spotifyPlaylistId: row.spotifyPlaylistId,
+      optionsVersion: PLAYLIST_ALGORITHM_VERSION,
+    });
+    expect(w.spotify.details.get(row.spotifyPlaylistId)?.name).toBe("NH7 Weekender · Tixtape");
+    await expect(w.useCases.getSharedStatus(event.id)).resolves.toMatchObject({ stale: false });
+    await expect(w.useCases.startSharedBuild(event.id, "ip")).resolves.toMatchObject({
+      status: "ready",
+    });
+  });
+
+  it("Johnnie & Co.: a 'festival' with only Charlie Puth and no end time gets ~40 songs", async () => {
+    const w = playlistWorld();
+    const puth = w.spotify.addArtist("Charlie Puth", 80, 225_000);
+    w.events.add([{ name: "Charlie Puth", tier: "headliner", spotifyId: puth.id }], {
+      title: "Johnnie & Co. Music Festival",
+      type: "festival",
+      startsAt: new Date("2027-02-12T18:30:00Z"), // midnight IST: a date-only start
+      endsAt: null,
+    });
+    await runToEnd(w, await start(w));
+    expect(onlyPlaylist(w)).toHaveLength(40); // 150 min of 3.75-min songs, not 10
+  });
+
+  it("ranks by Last.fm blended with live setlists, with a current-tour boost", async () => {
+    const live = fakeSetlists({
+      Ritviz: [
+        { title: "Ritviz Song 11", score: 1 },
+        { title: "Ritviz Song 5", score: 0.9 },
+      ],
+    });
+    const w = playlistWorld({ songScores: [live] });
+    festival(w, [["Ritviz", "headliner"]], ONE_HOUR);
+    w.signals.top.set(
+      "Ritviz",
+      ["Ritviz Song 0", "Ritviz Song 1", "Ritviz Song 5"].map((title, i) => ({
+        title,
+        playcount: 100 - i,
+        listeners: 1,
+      })),
+    );
+    await runToEnd(w, await start(w));
+    // Song 5: Last.fm #3 and played live → first. Song 11: only live, mapped by a targeted
+    // search. Then Last.fm #1 and #2.
+    expect(onlyPlaylist(w).slice(0, 4)).toEqual(["RitvizT5", "RitvizT0", "RitvizT1", "RitvizT11"]);
+    expect(live.calls).toEqual(["Ritviz"]);
+  });
+
+  it("falls back to Last.fm alone when setlist.fm has nothing for the artist", async () => {
+    const w = playlistWorld({ songScores: [fakeSetlists({ Ritviz: null })] });
+    festival(w, [["Ritviz", "headliner"]], ONE_HOUR);
+    w.signals.top.set(
+      "Ritviz",
+      ["Ritviz Song 3", "Ritviz Song 7"].map((title, i) => ({
+        title,
+        playcount: 9 - i,
+        listeners: 1,
+      })),
+    );
+    await runToEnd(w, await start(w));
+    expect(onlyPlaylist(w).slice(0, 2)).toEqual(["RitvizT3", "RitvizT7"]);
+  });
+
+  it("adds setlist scores to songs cached before setlist.fm, without Spotify calls", async () => {
+    const plain = playlistWorld();
+    festival(plain, [["Ritviz", "headliner"]], ONE_HOUR);
+    await runToEnd(plain, await start(plain));
+    const cached = [...plain.songsCache.rows.entries()];
+
+    const live = fakeSetlists({ Ritviz: [{ title: "Ritviz Song 9", score: 1 }] });
+    const w = playlistWorld({ songScores: [live] });
+    const event = festival(w, [["Ritviz", "headliner"]], ONE_HOUR);
+    for (const [key, value] of cached) w.songsCache.rows.set(key, structuredClone(value));
+    // Same artist row as the plain world (fakes number artists the same way).
+    w.events.rows.get(event.id)!.lineup = structuredClone(
+      plain.events.rows.values().next().value!.lineup,
+    );
+
+    await runToEnd(w, await start(w));
+    expect(w.spotify.calls.filter((c) => c === "search")).toHaveLength(0);
+    expect(live.calls).toEqual(["Ritviz"]);
+    expect(onlyPlaylist(w)[0]).toBe("RitvizT9");
+    const [entry] = [...w.songsCache.rows.values()];
+    expect(entry?.providers).toEqual({ setlistfm: { known: true } });
   });
 });

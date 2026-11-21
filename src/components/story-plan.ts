@@ -8,8 +8,14 @@
  */
 import type { BillingTier } from "@/domain/shared/lineup";
 import {
+  lineupLayout,
+  orderForVisuals,
+  type AvatarSize,
+  type LineupLayout,
+  type VisualArtist,
+} from "@/domain/visuals/visuals";
+import {
   lineupShape,
-  moreLine,
   PLAYLIST_SOON,
   STORY_CTA,
   STORY_HEADER,
@@ -18,12 +24,8 @@ import {
   type TitleSize,
 } from "./lineup-copy";
 
-export type StoryArtist = {
-  name: string;
-  imageUrl: string | null;
-  tier: BillingTier;
-  billingRank: number;
-};
+/** D-083: any artist the visuals system can picture (photo, alt photo + credit, or fallback). */
+export type StoryArtist = VisualArtist & { tier: BillingTier; billingRank: number };
 
 export type StoryInput = {
   id: string;
@@ -41,9 +43,6 @@ export type StoryInput = {
   /** Artists matched on Spotify; none means "Playlist soon ⏳". Unknown counts as all. */
   matched?: number;
 };
-
-/** How many names a slide shows before "+ N more on the lineup" (a portrait card fits these). */
-const SHOWN = { headliners: 4, bill: 6, gems: 6, faces: 5 } as const;
 
 type Common = { id: string; label: string };
 export type SlidePlan =
@@ -68,12 +67,11 @@ export type SlidePlan =
   | (Common & {
       kind: "names";
       kicker: string;
+      /** Avatar chips, ordered by `orderForVisuals` (photos first within the tier). */
       artists: StoryArtist[];
-      size: "huge" | "big" | "small";
-      /** "+ 20 more" when the tier doesn't fit. */
-      more: string | null;
-      /** Show round photos next to the names (when any artist here has one). */
-      faces: boolean;
+      size: AvatarSize;
+      /** Who didn't fit: drawn as one "+N" avatar-stack chip linking to the lineup. */
+      more: { count: number; artists: StoryArtist[]; href: string } | null;
     })
   | (Common & {
       kind: "playlist";
@@ -92,6 +90,7 @@ export function planStory(input: StoryInput): StoryPlan {
   const where = { dateLine: input.dateLine, city: input.city, badge: input.badge };
   const slides: SlidePlan[] = [];
   const solo = shape === "solo" ? artists[0]! : null;
+  const layout = lineupLayout(artists.length);
 
   if (solo) {
     slides.push({
@@ -108,7 +107,7 @@ export function planStory(input: StoryInput): StoryPlan {
       kind: "intro",
       title: input.title,
       titleSize: titleSize(input.title),
-      faces: artists.filter((a) => a.imageUrl).slice(0, SHOWN.faces),
+      faces: orderForVisuals(artists).slice(0, layout.faceStack),
       poster: input.poster ?? null,
       ...where,
     });
@@ -119,12 +118,11 @@ export function planStory(input: StoryInput): StoryPlan {
         kind: "names",
         kicker: STORY_KICKERS.lineup,
         artists,
-        size: "big",
+        size: "lg",
         more: null,
-        faces: true,
       });
     } else if (shape === "festival") {
-      slides.push(...festivalSlides(artists));
+      slides.push(...festivalSlides(artists, layout, `${input.eventHref ?? ""}#lineup`));
     }
   }
 
@@ -132,54 +130,57 @@ export function planStory(input: StoryInput): StoryPlan {
   return { heading: STORY_HEADER, slides };
 }
 
-function festivalSlides(artists: StoryArtist[]): SlidePlan[] {
-  const of = (...tiers: BillingTier[]) => artists.filter((a) => tiers.includes(a.tier));
-  const groups: {
-    id: string;
-    label: string;
-    kicker: string;
-    artists: StoryArtist[];
-    shown: number;
-    size: "huge" | "big" | "small";
-  }[] = [
+function festivalSlides(
+  artists: StoryArtist[],
+  layout: LineupLayout,
+  lineupHref: string,
+): SlidePlan[] {
+  const of = (...tiers: BillingTier[]) =>
+    orderForVisuals(artists.filter((a) => tiers.includes(a.tier)));
+  const gems = of("support");
+  const groups = [
     {
       id: "headliners",
       label: "Top of the bill",
       kicker: STORY_KICKERS.headliners,
       artists: of("headliner"),
-      shown: SHOWN.headliners,
-      size: "huge",
+      tier: "headliner" as const,
     },
     {
       id: "bill",
       label: "Don't sleep on",
       kicker: STORY_KICKERS.bill,
       artists: of("sub", "mid"),
-      shown: SHOWN.bill,
-      size: "big",
+      tier: "sub" as const,
+    },
+    {
+      id: "gems",
+      label: "Catch these early",
+      kicker: STORY_KICKERS.gems(gems.length),
+      artists: gems,
+      tier: "support" as const,
     },
   ];
-  const gems = of("support");
-  groups.push({
-    id: "gems",
-    label: "Catch these early",
-    kicker: STORY_KICKERS.gems(gems.length),
-    artists: gems,
-    shown: SHOWN.gems,
-    size: "small",
-  });
   return groups
     .filter((g) => g.artists.length > 0)
-    .map((g) => ({
-      id: g.id,
-      label: g.label,
-      kind: "names" as const,
-      kicker: g.kicker,
-      artists: g.artists.slice(0, g.shown),
-      size: g.size,
-      more: moreLine(g.artists.length - g.shown),
-      faces: g.artists.some((a) => a.imageUrl),
-    }));
+    .map((g) => {
+      // Never "+1": one extra artist just shows.
+      const cap = layout.perSlide[g.tier];
+      const shown = g.artists.length === cap + 1 ? cap + 1 : cap;
+      const hidden = g.artists.slice(shown);
+      return {
+        id: g.id,
+        label: g.label,
+        kind: "names" as const,
+        kicker: g.kicker,
+        artists: g.artists.slice(0, shown),
+        size: layout.size[g.tier],
+        more:
+          hidden.length > 0
+            ? { count: hidden.length, artists: hidden.slice(0, 3), href: lineupHref }
+            : null,
+      };
+    });
 }
 
 function playlistSlide(

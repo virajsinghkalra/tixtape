@@ -5,15 +5,19 @@ import type { EventDetail } from "@/application/ports/events";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
 import { groupByTier } from "@/components/lineup-view";
-import { ticketUrl } from "@/components/links";
+import { ticketLink } from "@/components/links";
 import { EventSearch } from "@/components/search/EventSearch";
-import { SearchPageLookup } from "@/components/search/SearchPageLookup";
+import { ZeroResults } from "@/components/search/ZeroResults";
 import { weekendRange } from "@/components/search/local-sections";
 import { cityHref, reasonLabel, upcomingLabel } from "@/components/search/search-view";
 import type { MatchReason } from "@/components/search/types";
 import { ChipLink } from "@/components/ui/ChipLink";
 import { buttonClass } from "@/components/ui/Button";
+import type { ShowRowItem } from "@/components/ShowRow";
+import { COPY, inCity } from "@/components/ux-copy";
 import { events } from "@/server/events";
+import { CITY_COOKIE, visitorCity } from "@/server/location";
+import { cookies, headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Search" };
@@ -58,7 +62,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const page = Math.max(1, Number(params.page) || 1);
   const now = new Date();
   const data = await load(params, page, now);
-  const details = await detailsFor([...data.rows, ...data.fallback].map((r) => r.id));
+  // UX #7: a text or artist search with nothing found becomes discovery, not a dead end.
+  const lookedFor = data.rows.length === 0 ? (params.artist ?? params.q)?.trim() : undefined;
+  const near = lookedFor ? await nearYou(now) : null;
+  const details = await detailsFor(
+    [...data.rows, ...(lookedFor ? [] : data.fallback)].map((r) => r.id),
+  );
   const heading = params.artist
     ? `Shows by ${params.artist}`
     : params.city && !params.q
@@ -74,9 +83,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       </div>
 
       <h1 className="mt-10 font-display text-huge font-extrabold">{heading}</h1>
-      <p className="mt-2 text-muted">
-        {data.total} {data.total === 1 ? "show" : "shows"}
-      </p>
+      {!lookedFor && (
+        <p className="mt-2 text-muted">
+          {data.total} {data.total === 1 ? "show" : "shows"}
+        </p>
+      )}
 
       <nav aria-label="Dates" className="mt-5 flex flex-wrap gap-2">
         {dateChips(params, now).map((c) => (
@@ -101,10 +112,18 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </div>
       )}
 
-      {data.rows.length === 0 ? (
+      {lookedFor ? (
+        <div className="mt-8">
+          {/* The live lookup and similar artists run after paint (D-057). */}
+          <ZeroResults
+            query={lookedFor}
+            nearTitle={near?.title ?? COPY.upNext}
+            nearRow={near?.items ?? []}
+            didYouMean={data.didYouMean}
+          />
+        </div>
+      ) : data.rows.length === 0 ? (
         <div className="mt-8 space-y-8">
-          {/* After paint, in the browser: the server render never waits on a lookup (D-057). */}
-          {params.q && <SearchPageLookup query={params.q} />}
           <EmptyState
             emoji="🔍"
             title={`No ${params.artist ?? params.q ?? params.city ?? ""} shows yet`}
@@ -142,6 +161,34 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   );
 }
 
+/** UX #7 "In your city": the visitor's city, soonest first; All India's soonest without one. */
+async function nearYou(now: Date): Promise<{ title: string; items: ShowRowItem[] }> {
+  const city =
+    visitorCity({ headers: await headers(), cookie: (await cookies()).get(CITY_COOKIE)?.value })
+      ?.city ?? null;
+  try {
+    const r = await events().searchPage(
+      SearchPageParamsSchema.parse({
+        from: now.toISOString(),
+        ...(city ? { city } : {}),
+        pageSize: "6",
+      }),
+    );
+    return {
+      title: city ? inCity(city) : COPY.upNext,
+      items: r.results.map((e) => ({
+        id: e.id,
+        title: e.title,
+        startsAt: e.startsAt.toISOString(),
+        city: e.city,
+      })),
+    };
+  } catch (err) {
+    console.error("Search page: near-you row unavailable", err);
+    return { title: COPY.upNext, items: [] };
+  }
+}
+
 function ResultGrid(props: {
   title?: string;
   rows: Row[];
@@ -162,8 +209,8 @@ function ResultGrid(props: {
                 now={props.now}
                 index={i}
                 headliners={groupByTier(d.lineup)[0]?.artists.map((a) => a.name) ?? []}
-                faces={groupByTier(d.lineup)[0]?.artists.map((a) => a.imageUrl) ?? []}
-                ticketUrl={ticketUrl(d.sources)}
+                artists={d.lineup}
+                ticketUrl={ticketLink(d.sources.map((x) => x.url))?.url}
                 note={reasonLabel({
                   ...r,
                   title: d.title,

@@ -235,3 +235,57 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- D-084: robustness and feel ---------- */
+
+/* Taps feel native: no grey flash on Android, no double-tap zoom delay on controls. */
+a,
+button,
+[role="button"],
+summary,
+label {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* A hotlinked image that failed (ImageGuard) hides, so the designed background shows instead of
+   a broken-image icon. */
+img[data-broken] {
+  visibility: hidden;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.fade-in {
+  animation: fade-in var(--duration-fast) var(--ease-out-expo) both;
+}
+.slide-down {
+  animation: slide-down var(--duration-base) var(--ease-out-expo) both;
+}
+.slide-up {
+  animation: slide-up var(--duration-base) var(--ease-out-expo) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A short crossfade instead of movement (UX plan §4). */
+  .slide-down,
+  .slide-up {
+    animation-name: fade-in;
+    animation-duration: 120ms;
+  }
+}

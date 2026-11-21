@@ -35,6 +35,11 @@ export const GigEnvSchema = z.object({
     .transform((v) => v?.trim().toLowerCase() === "true"),
   /** Watchlist artists per scheduled run (searches are also capped by DOUBT_SEARCHES_PER_DAY). */
   GIG_ARTISTS_PER_RUN: z.coerce.number().int().min(0).max(100).default(15),
+  /** D-089: the first-party and press paths may publish. Off unless exactly "true". */
+  AUTO_PUBLISH_EXTRA_PATHS: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim().toLowerCase() === "true"),
 });
 export type GigEnv = z.infer<typeof GigEnvSchema>;
 

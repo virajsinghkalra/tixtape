@@ -9,7 +9,9 @@ import type { Clock } from "@/application/ports/clock";
 import type { EventId } from "@/domain/shared/ids";
 import {
   callsFor,
+  enrichArtistSongs,
   entryFor,
+  missingProviders,
   isUsable,
   resolveArtistSongs,
   type ArtistSongsDeps,
@@ -39,7 +41,10 @@ export type BuildReadiness = { cachedArtists: number; artists: number; seconds: 
 const SECONDS_PER_CALL = 1.25;
 const WRITE_SECONDS = 5;
 
-async function cachedState(deps: Pick<PrewarmDeps, "songsCache" | "clock">, plan: BuildPlan) {
+async function cachedState(
+  deps: Pick<PrewarmDeps, "songsCache" | "clock"> & Partial<Pick<PrewarmDeps, "songScores">>,
+  plan: BuildPlan,
+) {
   const cache = await deps.songsCache.getMany(
     plan.artists.map((a) => a.artistId),
     plan.market,
@@ -49,11 +54,14 @@ async function cachedState(deps: Pick<PrewarmDeps, "songsCache" | "clock">, plan
     plan.artists.map((a) => entryFor(cache, a)?.listeners ?? null),
   );
   const now = deps.clock.now();
-  const missing = plan.artists.flatMap((a, i) =>
-    isUsable(entryFor(cache, a), targets[i]?.songs ?? 1, now)
-      ? []
-      : [{ artist: a, targetSongs: targets[i]?.songs ?? 1 }],
-  );
+  const missing = plan.artists.flatMap((a, i) => {
+    const entry = entryFor(cache, a);
+    const targetSongs = targets[i]?.songs ?? 1;
+    if (!isUsable(entry, targetSongs, now)) return [{ artist: a, targetSongs, entry: undefined }];
+    return deps.songScores && missingProviders({ songScores: deps.songScores }, entry!).length > 0
+      ? [{ artist: a, targetSongs, entry }]
+      : [];
+  });
   return { missing, cached: plan.artists.length - missing.length };
 }
 
@@ -62,7 +70,8 @@ export async function buildReadiness(
   plan: BuildPlan,
 ): Promise<BuildReadiness> {
   const { missing, cached } = await cachedState(deps, plan);
-  const calls = missing.reduce((sum, m) => sum + callsFor(m.targetSongs), 0);
+  // Enriching a cached entry costs no Spotify calls (D-085).
+  const calls = missing.reduce((sum, m) => sum + (m.entry ? 0 : callsFor(m.targetSongs)), 0);
   return {
     cachedArtists: cached,
     artists: plan.artists.length,
@@ -78,15 +87,17 @@ export async function prewarmEvent(
   const plan = planBuild(await deps.events.getEvent(eventId));
   const { missing, cached } = await cachedState(deps, plan);
   let resolved = 0;
-  for (const { artist, targetSongs } of missing) {
+  for (const { artist, targetSongs, entry } of missing) {
     if (deps.clock.now() >= opts.deadline) break;
     try {
-      const songs = await resolveArtistSongs(deps, {
-        artist,
-        market: plan.market,
-        targetSongs,
-        now: deps.clock.now(),
-      });
+      const songs = entry
+        ? await enrichArtistSongs(deps, entry, artist.name)
+        : await resolveArtistSongs(deps, {
+            artist,
+            market: plan.market,
+            targetSongs,
+            now: deps.clock.now(),
+          });
       await deps.songsCache.put(artist.artistId, plan.market, songs);
       resolved++;
     } catch (e) {

@@ -3,7 +3,8 @@
  *
  *   npx tsx src/scripts/discover-gigs.ts [--dry-run | --candidates-only]
  *        [--artists=<name>,<name>] [--max-artists=<n>] [--report=<path.json>]
- *        [--skip-listings] [--skip-discovery] [--skip-publish] [--skip-reverify] [--no-demand]
+ *        [--skip-listings] [--skip-discovery] [--skip-enrich] [--skip-publish] [--skip-reverify]
+ *        [--no-demand]
  *
  * Steps (each can be skipped):
  *  0. listings: HighApe city pages, one candidate per night (artists validated on Spotify);
@@ -32,6 +33,7 @@ import {
   runListings,
   type DiscoveryRunReport,
 } from "@/application/gigs/run-discovery";
+import { enrichPress } from "@/application/gigs/enrich-press";
 import { publishDueCandidates, type NightOutcome } from "@/application/gigs/publish-due-candidates";
 import { reverifyAutoPublished, type ReverifyOutcome } from "@/application/gigs/reverify-published";
 import { listingsForRun } from "@/domain/gigs/demand";
@@ -77,7 +79,7 @@ function printGate(outcomes: readonly NightOutcome[]): void {
   );
   for (const o of outcomes) {
     line(
-      `\n■ ${o.night} ${o.city} · ${o.title} → ${o.decision.toUpperCase()} (${o.action}${o.detail ? `: ${o.detail}` : ""})`,
+      `\n■ ${o.night} ${o.city} · ${o.title} → ${o.decision.toUpperCase()}${o.path ? ` via ${o.path}` : ""} (${o.action}${o.detail ? `: ${o.detail}` : ""})`,
     );
     line(`  confidence ${o.confidence}${o.eventId ? ` · eventId ${o.eventId}` : ""}`);
     for (const s of o.sources)
@@ -188,6 +190,25 @@ async function main(): Promise<void> {
     report.discovery = discovery;
   }
 
+  if (!argv.includes("--skip-enrich")) {
+    // D-089: give already-collected news articles their publisher, date and quotes.
+    const enriched = await enrichPress(
+      {
+        candidates: gigs.stores.candidates,
+        reader: gigs.reader(state),
+        store: services.candidates,
+        clock: c.clock,
+        logger: c.logger,
+      },
+      { write },
+    );
+    line(
+      `\nPress enrichment: ${enriched.read} article(s) read, ${enriched.enriched.length} candidate(s) now carry press provenance${enriched.failed.length ? `, ${enriched.failed.length} failed` : ""}`,
+    );
+    fresh.push(...enriched.enriched);
+    report.enrich = enriched;
+  }
+
   if (!candidatesOnly && !argv.includes("--skip-publish")) {
     const blockedReason = dryRun ? "dry run" : await gigs.publishSwitch.blockedReason(now);
     if (blockedReason)
@@ -206,6 +227,10 @@ async function main(): Promise<void> {
       {
         blockedReason,
         record: write,
+        extraPaths: {
+          firstParty: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
+          press: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
+        },
         extra: fresh,
       },
     );

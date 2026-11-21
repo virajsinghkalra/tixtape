@@ -10,6 +10,8 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
   subface?: string;
   tone: BlockTone;
   seen?: boolean;
+  /** A photo behind the face text (darkened so the date stays readable). */
+  image?: string | null;
 };
 
 /** An Instagram-like story ring: a gradient ring around a colour face, label underneath. */
@@ -19,6 +21,7 @@ export function StoryRing({
   subface,
   tone,
   seen = false,
+  image,
   className,
   type = "button",
   ...rest
@@ -46,8 +49,17 @@ export function StoryRing({
           className={cx(
             "relative grid size-16 place-items-center rounded-full border-[3px] border-bg leading-none",
             "transition-transform duration-(--duration-base) ease-spring group-hover:scale-105 group-active:scale-95",
-            TONE_CLASS[tone],
+            image
+              ? "overflow-hidden bg-night bg-cover bg-[center_10%] text-white"
+              : TONE_CLASS[tone],
           )}
+          style={
+            image
+              ? {
+                  backgroundImage: `linear-gradient(rgb(11 11 15/0.45),rgb(11 11 15/0.45)),url("${image}")`,
+                }
+              : undefined
+          }
         >
           <span className="flex flex-col items-center">
             <span className="font-display text-xl font-extrabold">{face}</span>

@@ -5,14 +5,32 @@
 import { ZodError, type ZodType } from "zod";
 import { isAppError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { timed, withServerTiming } from "@/lib/server-timing";
 
 export type ErrorBody = { error: { code: string; message: string; issues?: unknown } };
+
+/**
+ * D-086: for public reads that depend only on the URL (no cookies, no user). Vercel's edge
+ * serves them for 60 s, then up to 5 min stale while one request refreshes in the background,
+ * so most hits never reach the function in Singapore. Never for anything logged or per user.
+ */
+export const EDGE_CACHE_SHORT = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
 
 export function json<T>(body: T, status = 200, headers?: HeadersInit): Response {
   return Response.json(body, { status, headers });
 }
 
 export function route<Ctx>(
+  handler: (req: Request, ctx: Ctx) => Promise<Response>,
+): (req: Request, ctx: Ctx) => Promise<Response> {
+  const handle = errorsToResponses(handler);
+  // D-086: every route reports where its time went (db, db-connect, total).
+  return (req, ctx) => timed(async () => withServerTiming(await handle(req, ctx)));
+}
+
+function errorsToResponses<Ctx>(
   handler: (req: Request, ctx: Ctx) => Promise<Response>,
 ): (req: Request, ctx: Ctx) => Promise<Response> {
   return async (req, ctx) => {

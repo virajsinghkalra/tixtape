@@ -1,9 +1,9 @@
 import type { EventDetail } from "@/application/ports/events";
 import { eventTone } from "./event-color";
+import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { formatDateRange, formatStartTime } from "./event-format";
-import { shareText, titleSize, type TitleSize } from "./lineup-copy";
-import { ShareButton } from "./ShareButton";
+import { titleSize, type TitleSize } from "./lineup-copy";
 import { cx } from "./ui/cx";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
@@ -17,19 +17,24 @@ const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = 
   cancelled: { emoji: "🚫", label: "Cancelled" },
 };
 
-type Props = { event: EventDetail; ticketUrl: string | null; now: Date };
+type Props = { event: EventDetail; now: Date };
 
 /** Long titles step down a size so they never stack into four giant lines. */
 const H1: Record<TitleSize, string> = { xl: "text-mega", lg: "text-huge", md: "text-big" };
 
-/** Event page header: back link, stickers, the title as a loud block, and the key facts. */
-export function EventHeader({ event, ticketUrl, now }: Props) {
+/**
+ * Event page header (UX #5): back link, the picture, stickers, the title and one facts row.
+ * No buttons here: the playlist card right below holds the one primary action.
+ */
+export function EventHeader({ event, now }: Props) {
   const status = STATUS[event.status];
   const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
   const ordered = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
-  const names = ordered.map((a) => a.name);
-  const top = ordered.filter((a) => a.tier === ordered[0]?.tier);
+  const time = formatStartTime(event.startsAt);
+  const when = [formatDateRange(event.startsAt, event.endsAt), time === "Time TBA" ? null : time]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <header>
       <ButtonLink href="/" variant="ghost" className="-ml-3">
@@ -37,13 +42,14 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
       </ButtonLink>
       <Tile
         tone={eventTone(event.id)}
-        className="pop-in mt-3 grid gap-6 md:grid-cols-[minmax(0,1fr)_18rem] md:items-center"
+        className="pop-in mt-3 grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem] md:items-center"
       >
         <HeroPicture
           poster={event.posterUrl}
-          faces={top.map((a) => a.imageUrl)}
-          label={names[0] ?? event.title}
+          artists={ordered}
+          label={ordered[0]?.name ?? event.title}
           caption={solo?.name ?? null}
+          credit={event.posterUrl ? (event.posterCredit ?? null) : null}
         />
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
@@ -73,22 +79,16 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
           >
             {event.title}
           </h1>
-          <dl className="mt-6 grid gap-4 sm:grid-cols-3">
-            <Fact term="When" value={formatDateRange(event.startsAt, event.endsAt)} />
-            <Fact term="Starts" value={formatStartTime(event.startsAt)} />
-            <Fact term="Where" value={where} />
-          </dl>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <ButtonLink href="#playlist" variant="night" size="lg">
-              <span aria-hidden>🎧</span> Get the playlist
-            </ButtonLink>
-            {ticketUrl && (
-              <ButtonLink href={ticketUrl} external variant="secondary" size="lg">
-                <span aria-hidden>🎟️</span> Buy tickets
-              </ButtonLink>
-            )}
-            <ShareButton title={event.title} text={shareText(event.title, names)} size="lg" />
-          </div>
+          <p className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-lg font-semibold">
+            <span>
+              <span aria-hidden>📅 </span>
+              <time dateTime={event.startsAt.toISOString()}>{when}</time>
+            </span>
+            <span>
+              <span aria-hidden>📍 </span>
+              {where}
+            </span>
+          </p>
         </div>
       </Tile>
     </header>
@@ -101,19 +101,22 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
  */
 function HeroPicture({
   poster,
-  faces,
+  artists,
   label,
   caption,
+  credit,
 }: {
   poster: string | null | undefined;
-  faces: (string | null)[];
+  artists: VisualArtist[];
   label: string;
   caption: string | null;
+  /** D-083: shown tiny under the picture when the poster needs attribution. */
+  credit: string | null;
 }) {
   return (
     <figure className="relative order-first md:order-last">
-      <div className="relative aspect-[4/3] w-full rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] md:aspect-square">
-        <EventVisual poster={poster} faces={faces} label={label} />
+      <div className="relative aspect-[4/5] max-h-[26rem] w-full rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] max-md:aspect-[4/3]">
+        <EventVisual poster={poster} artists={artists} label={label} />
       </div>
       {caption && (
         <figcaption className="absolute -bottom-3 left-3">
@@ -122,15 +125,7 @@ function HeroPicture({
           </span>
         </figcaption>
       )}
+      {credit && <p className="mt-3 text-right text-[0.6875rem] opacity-70">📷 {credit}</p>}
     </figure>
-  );
-}
-
-function Fact({ term, value }: { term: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-sm font-bold">{term}</dt>
-      <dd className="text-lg font-semibold">{value}</dd>
-    </div>
   );
 }

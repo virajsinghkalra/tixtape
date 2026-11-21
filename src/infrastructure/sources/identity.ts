@@ -7,31 +7,11 @@ import { z } from "zod";
 import type { ArtistIdentityLookup } from "@/application/ingestion/ports";
 import type { HeadlinerIdentity } from "@/domain/events/extract/verify";
 import type { PoliteFetcher } from "./polite-fetch";
+import { WIKIDATA_API, WikidataClaimsSchema, WikidataSearchSchema } from "./wikidata";
 
-const WIKIDATA_API = "https://www.wikidata.org/w/api.php";
 const MUSICBRAINZ = "https://musicbrainz.org/ws/2";
 const TTL_MS = 30 * 86_400_000;
 
-const SearchSchema = z.object({
-  query: z.object({ search: z.array(z.object({ title: z.string().regex(/^Q\d+$/u) })) }),
-});
-const EntitySchema = z.object({
-  entities: z.record(
-    z.string(),
-    z.object({
-      claims: z
-        .record(
-          z.string(),
-          z.array(
-            z.object({
-              mainsnak: z.object({ datavalue: z.object({ value: z.unknown() }).optional() }),
-            }),
-          ),
-        )
-        .optional(),
-    }),
-  ),
-});
 const ReleaseGroupsSchema = z.object({
   "release-groups": z.array(z.object({ "first-release-date": z.string().optional() })),
 });
@@ -74,7 +54,7 @@ export class WikidataMusicBrainzIdentity implements ArtistIdentityLookup {
       srsearch: `haswbstatement:P1902=${spotifyId}`,
       format: "json",
     }).toString();
-    const found = SearchSchema.safeParse(await this.json(search));
+    const found = WikidataSearchSchema.safeParse(await this.json(search));
     const qid = found.success ? found.data.query.search[0]?.title : undefined;
     if (!qid) return null;
     const entity = new URL(WIKIDATA_API);
@@ -84,7 +64,7 @@ export class WikidataMusicBrainzIdentity implements ArtistIdentityLookup {
       props: "claims",
       format: "json",
     }).toString();
-    const parsed = EntitySchema.safeParse(await this.json(entity));
+    const parsed = WikidataClaimsSchema.safeParse(await this.json(entity));
     const mbidValue = parsed.success
       ? parsed.data.entities[qid]?.claims?.P434?.[0]?.mainsnak.datavalue?.value
       : undefined;

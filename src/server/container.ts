@@ -281,6 +281,7 @@ function buildContainer(): Container {
       users: c.engineSpotify.users,
       tokens: c.engineSpotify.tokens,
       lastfmApiKey: env().LASTFM_API_KEY,
+      setlistfmApiKey: env().SETLISTFM_API_KEY,
       limiter: new PgStartLimiter(
         pgLimiter(c, "playlist:start", STARTS_PER_HOUR, 60 * 60_000),
         c.clock,

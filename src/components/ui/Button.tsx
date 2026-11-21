@@ -6,7 +6,9 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "night";
 export type ButtonSize = "md" | "lg";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-lime text-on-block shadow-[0_6px_0_0_var(--color-night)] hover:-translate-y-0.5",
+  // UX #9 "sticker press-in": the hard shadow shrinks as the button sinks.
+  primary:
+    "bg-lime text-on-block shadow-[0_6px_0_0_var(--color-night)] hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_0_var(--color-night)]",
   secondary: "border-2 border-ink bg-surface text-ink hover:-translate-y-0.5",
   ghost: "text-ink hover:bg-surface-2",
   night: "bg-night text-white hover:-translate-y-0.5",
@@ -25,8 +27,9 @@ export function buttonClass(
 ): string {
   return cx(
     "inline-flex select-none items-center justify-center gap-2 rounded-chip font-semibold",
-    "transition-[transform,background-color,box-shadow] duration-(--duration-base) ease-spring",
-    "active:translate-y-0 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60",
+    "transition-[transform,background-color,box-shadow] duration-(--duration-base) ease-spring active:duration-100",
+    "active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100",
+    "disabled:cursor-not-allowed disabled:opacity-60",
     "aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
     VARIANT[variant],
     SIZE[size],

@@ -432,7 +432,13 @@ describe("reverifyAutoPublished", () => {
       audit: {
         append: async (e: AuditEntry) => void audit.push(e),
         dueForReverification: async () => [
-          { eventId, nightKey: "2026-12-05|mumbai|bhuwin", sources, lastCheckedAt: now },
+          {
+            eventId,
+            nightKey: "2026-12-05|mumbai|bhuwin",
+            sources,
+            lastCheckedAt: new Date(now.getTime() - 4 * 86_400_000),
+            path: null,
+          },
         ],
       },
       reader: reader({ [TOUR]: page }),

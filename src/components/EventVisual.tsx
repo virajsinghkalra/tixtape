@@ -1,17 +1,18 @@
-import type { CSSProperties } from "react";
-import { visualFor } from "./event-visual";
+import type { VisualArtist } from "@/domain/visuals/visuals";
+import { eventVisual } from "@/domain/visuals/visuals";
+import { ArtistAvatar, TONE_VAR } from "./ArtistAvatar";
 import { cx } from "./ui/cx";
 
 type Props = {
   poster?: string | null;
-  /** Headliner photos in billing order (null where missing). */
-  faces?: readonly (string | null | undefined)[];
+  /** The lineup (any order, any size): the domain picks and orders the collage. */
+  artists?: readonly VisualArtist[];
   /** The sticker on the fallback: a headliner or the title. */
   label: string;
   className?: string;
 };
 
-/** Grid areas for 1–4 photos: one fills, two split, three lead big, four tile. */
+/** Grid areas for 1–4 tiles: one fills, two split, three lead big, four tile. */
 const LAYOUT: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
@@ -20,12 +21,12 @@ const LAYOUT: Record<number, string> = {
 };
 
 /**
- * D-082: an event's picture, filling its (positioned) parent: the official poster, else a bold
- * collage of the headliners' Spotify photos, else a branded gradient with a sticker.
- * Plain lazy <img>/backgrounds: remote images are hotlinked, not optimised.
+ * D-082/D-083: an event's picture, filling its (positioned) parent, as `eventVisual` decides:
+ * the official poster, else a collage (photos first, designed fallbacks fill), else a branded
+ * gradient with a sticker. Never an empty block.
  */
-export function EventVisual({ poster, faces = [], label, className }: Props) {
-  const plan = visualFor(poster, faces, label);
+export function EventVisual({ poster, artists = [], label, className }: Props) {
+  const plan = eventVisual({ posterUrl: poster, artists, label });
   const box = cx("absolute inset-0 overflow-hidden", className);
   if (plan.kind === "poster") {
     return (
@@ -42,15 +43,13 @@ export function EventVisual({ poster, faces = [], label, className }: Props) {
       </div>
     );
   }
-  if (plan.kind === "faces") {
+  if (plan.kind === "collage") {
     return (
-      <div aria-hidden className={cx(box, "grid gap-0.5 bg-night", LAYOUT[plan.urls.length])}>
-        {plan.urls.map((url) => (
-          <div
-            key={url}
-            className="bg-cover bg-[center_10%]"
-            style={{ backgroundImage: `url("${url}")` } as CSSProperties}
-          />
+      <div aria-hidden className={cx(box, "grid gap-0.5 bg-night", LAYOUT[plan.artists.length])}>
+        {plan.artists.map((a) => (
+          <div key={a.name} className="relative">
+            <ArtistAvatar artist={a} size="fill" shape="square" />
+          </div>
         ))}
       </div>
     );
@@ -58,10 +57,10 @@ export function EventVisual({ poster, faces = [], label, className }: Props) {
   return (
     <div
       aria-hidden
-      className={cx(
-        box,
-        "grid place-items-center bg-[linear-gradient(135deg,var(--color-violet),var(--color-pink)_55%,var(--color-orange))] p-4",
-      )}
+      className={cx(box, "grid place-items-center p-4")}
+      style={{
+        background: `linear-gradient(135deg, ${TONE_VAR[plan.from]}, ${TONE_VAR[plan.to]})`,
+      }}
     >
       <span className="max-w-full -rotate-6 rounded-chip border-2 border-night bg-lime px-4 py-2 text-center font-display text-2xl font-extrabold text-on-block uppercase shadow-[4px_5px_0_0_var(--color-night)] [overflow-wrap:anywhere]">
         {plan.label}

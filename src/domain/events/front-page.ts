@@ -149,11 +149,22 @@ export function score(e: FeedEvent, visitorCity: string | null, now: Date): numb
 
 // ── Tours ────────────────────────────────────────────────────────────────
 
+/** Same stem + headliners where the title names a stop ("… – Bengaluru"): one tour up to a year. */
+const TOUR_SPAN_DAYS = 365;
+/** Fallback when titles share no stop-specific stem (the whole title is the stem). */
 const TOUR_WINDOW_DAYS = 90;
 
-/** "Martin Garrix India Tour 2027 – Mumbai" → "Martin Garrix India Tour 2027". */
+/** True when the title has a trailing "– {City}" part, so its stem names a tour. */
+const hasStopSuffix = (title: string) => titleStem(title) !== title.trim();
+
+/**
+ * The title minus its trailing stop: "Martin Garrix India Tour 2027 – Mumbai" → "Martin Garrix
+ * India Tour 2027"; "Shreya Ghoshal – The Unstoppable India Tour – Bengaluru" → "Shreya Ghoshal –
+ * The Unstoppable India Tour".
+ */
 export function titleStem(title: string): string {
-  return title.split(/\s[–—-]\s/)[0]!.trim();
+  const parts = title.split(/\s[–—-]\s/);
+  return (parts.length > 1 ? parts.slice(0, -1).join(" – ") : title).trim();
 }
 
 export type Tour<T extends FeedEvent> = {
@@ -190,7 +201,8 @@ export function featuredDate<T extends FeedEvent>(
 }
 
 /**
- * Same headliners and title stem within ~90 days → one tour card. A lone event stays an event.
+ * Same headliners and title stem → one tour card: within a year when titles name their stop
+ * ("Tour – Bengaluru"), else within ~90 days. A lone event stays an event.
  * Scores are this visitor's: a tour scores as its best member.
  */
 export function groupTours<T extends FeedEvent>(
@@ -207,7 +219,8 @@ export function groupTours<T extends FeedEvent>(
     const groups = [...byKey.keys()].filter((k) => k.startsWith(`${key}#`));
     const open = groups.find((k) => {
       const first = byKey.get(k)![0]!.e;
-      return (x.e.startsAt.getTime() - first.startsAt.getTime()) / DAY_MS <= TOUR_WINDOW_DAYS;
+      const window = hasStopSuffix(x.e.title) ? TOUR_SPAN_DAYS : TOUR_WINDOW_DAYS;
+      return (x.e.startsAt.getTime() - first.startsAt.getTime()) / DAY_MS <= window;
     });
     if (open) byKey.get(open)!.push(x);
     else byKey.set(`${key}#${groups.length}`, [x]);

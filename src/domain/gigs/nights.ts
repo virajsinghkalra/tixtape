@@ -86,5 +86,9 @@ export function toGateSource(c: ValidatedGig): GateSource {
     artists: c.artists,
     quotes: p?.quotes ?? {},
     cancelled: c.cancelled === true,
+    // D-089: the artist's own site (P856) or an organiser's own allow-listed site.
+    firstParty: p?.officialKind === "artist" || p?.officialKind === "organiser",
+    venue: c.venueName,
+    ...(p?.press ? { press: p.press } : {}),
   };
 }

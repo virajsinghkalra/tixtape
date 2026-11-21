@@ -1,10 +1,11 @@
 import type { EventDetail } from "@/application/ports/events";
 import { countdownBadge, formatDateRange, istDayCount } from "./event-format";
-import { introLine, STORY_CTA, STORY_HEADER } from "./lineup-copy";
+import { introLine, STORY_HEADER } from "./lineup-copy";
+import { orderForVisuals } from "@/domain/visuals/visuals";
+import { ArtistChip, AvatarStack } from "./ArtistAvatar";
 import { isMatched } from "./lineup-view";
 import { planStory } from "./story-plan";
 import { renderStory } from "./StorySlides";
-import { ButtonLink } from "./ui/Button";
 import { StoryViewer } from "./ui/StoryViewer";
 
 type Props = {
@@ -28,18 +29,14 @@ export function EventStory({ event, now }: Props) {
     dateLine: formatDateRange(event.startsAt, event.endsAt),
     city: event.venue?.city ?? null,
     badge: countdownBadge(event.startsAt, event.endsAt, now),
-    artists: lineup.map((a) => ({
-      name: a.name,
-      imageUrl: a.imageUrl,
-      tier: a.tier,
-      billingRank: a.billingRank,
-    })),
+    artists: lineup,
     poster: event.posterUrl,
     playlistHref: "#playlist",
     eventHref: null,
     matched: lineup.filter((a) => isMatched(a.matchStatus)).length,
   });
-  const wall = lineup.slice(0, WALL);
+  const visual = orderForVisuals(lineup);
+  const wall = visual.slice(0, WALL);
   return (
     <section aria-labelledby="rundown-title">
       <h2 id="rundown-title" className="mb-4 font-display text-big font-extrabold">
@@ -62,36 +59,22 @@ export function EventStory({ event, now }: Props) {
           {lineup.length > 1 && (
             <ul aria-label="Who's playing" className="flex flex-wrap gap-3">
               {wall.map((a, i) => (
-                <li
-                  key={a.artistId}
-                  className="flex items-center gap-2 rounded-chip border-2 border-night bg-surface py-1 pr-4 pl-1 font-semibold shadow-[2px_3px_0_0_var(--color-night)] dark:border-line"
-                  style={{ rotate: `${((i % 3) - 1) * 2}deg` }}
-                >
-                  <span
-                    aria-hidden
-                    className="grid size-9 shrink-0 place-items-center rounded-full bg-violet bg-cover bg-[center_10%] font-display font-extrabold text-white"
-                    style={a.imageUrl ? { backgroundImage: `url("${a.imageUrl}")` } : undefined}
-                  >
-                    {a.imageUrl ? "" : a.name.charAt(0)}
-                  </span>
-                  {a.name}
+                <li key={a.artistId} style={{ rotate: `${((i % 3) - 1) * 2}deg` }}>
+                  <ArtistChip artist={a} size="sm" index={i} className="dark:border-line" />
                 </li>
               ))}
               {lineup.length > WALL && (
-                <li className="flex items-center px-2 font-bold">+ {lineup.length - WALL} more</li>
+                <li>
+                  <a href="#lineup" aria-label={`${lineup.length - WALL} more on the lineup`}>
+                    <AvatarStack
+                      artists={visual.slice(WALL, WALL + 3)}
+                      more={lineup.length - WALL}
+                    />
+                  </a>
+                </li>
               )}
             </ul>
           )}
-          <div className="flex flex-wrap gap-3">
-            <ButtonLink href="#playlist" size="lg">
-              <span aria-hidden>🎧</span> {STORY_CTA.playlist}
-            </ButtonLink>
-            {lineup.length > 1 && (
-              <ButtonLink href="#lineup" variant="secondary" size="lg">
-                Full lineup <span aria-hidden>↓</span>
-              </ButtonLink>
-            )}
-          </div>
         </div>
       </div>
     </section>

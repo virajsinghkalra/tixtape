@@ -124,10 +124,10 @@ test.describe("P3.2 event page", () => {
 
   test("Make playlist does not pretend to have made a playlist", async ({ page }, info) => {
     const LOLLA = await eventId(page.request, LOLLA_TITLE);
-    // 422: no lineup artist is matched on Spotify in the E2E DB. That's the only allowed error.
+    // Lollapalooza is matched (qa-global-setup) but no publisher exists: 503 is the only allowed error.
     const w = watch(page, {
-      allowStatus: (u, s) => /\/playlist$/.test(u) && s === 422,
-      allowConsole: /status of 422/,
+      allowStatus: (u, s) => /\/playlist$/.test(u) && (s === 422 || s === 503),
+      allowConsole: /status of (422|503)/,
     });
     await page.goto(`/events/${LOLLA}`);
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
@@ -143,8 +143,10 @@ test.describe("P3.2 event page", () => {
     );
     await expect(page.getByRole("link", { name: /open in spotify/i })).toHaveCount(0);
     expect(text).not.toMatch(/\{"error"|"code":/);
-    // the 422 is explained in plain words
-    await expect(page.locator("main")).toContainText(/aren.t on Spotify yet|nothing to add/i);
+    // the failure is explained in plain words
+    await expect(page.locator("#playlist")).toContainText(
+      /unavailable|opens soon|try again later/i,
+    );
     w.assertClean();
   });
 

@@ -65,10 +65,14 @@ const localDay = (d: Date, offset: number) => Math.floor(localMinutes(d, offset)
 const timeOfDay = (d: Date, offset: number) =>
   ((localMinutes(d, offset) % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
 
+/**
+ * A one-artist show is a single set whatever the event type: "Johnnie & Co. Music Festival"
+ * with only Charlie Puth billed gets 2 h 30 m, not a festival day (D-085).
+ */
 function defaultPerDay(input: ShowLengthInput): number {
-  if (input.type === "festival") return DEFAULT_SHOW_MINUTES.festivalDay;
-  return input.isSingleArtist
-    ? DEFAULT_SHOW_MINUTES.singleArtistConcert
+  if (input.isSingleArtist) return DEFAULT_SHOW_MINUTES.singleArtistConcert;
+  return input.type === "festival"
+    ? DEFAULT_SHOW_MINUTES.festivalDay
     : DEFAULT_SHOW_MINUTES.multiArtistConcert;
 }
 

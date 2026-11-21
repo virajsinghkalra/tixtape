@@ -2,6 +2,8 @@
 
 import { Button, type ButtonSize, type ButtonVariant } from "./ui/Button";
 import { useToast } from "./ui/Toast";
+import { copyText } from "./ui/copy-text";
+import { haptic } from "./ui/feedback";
 
 type Props = {
   title: string;
@@ -29,10 +31,14 @@ export function ShareButton({
     try {
       if (navigator.share) {
         await navigator.share({ title, text, url });
+        haptic("success");
         return;
       }
-      await navigator.clipboard.writeText(url);
+      // Optimistic (D-084): confirm at once; the copy almost never fails, and if it does the
+      // error toast follows.
+      haptic("success");
       toast.show("Link copied 🔗");
+      if (!(await copyText(url))) toast.show("Couldn't copy. Use the URL.", "error");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return; // user closed the sheet
       toast.show("Couldn't share. Copy the URL.", "error");

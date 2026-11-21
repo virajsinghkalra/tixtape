@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { previewPending, type PlaylistPreview } from "./playlist-preview";
 import {
   activeJob,
@@ -16,15 +16,16 @@ import {
   type PlaylistView,
 } from "./playlist-state";
 import { PLAYLIST_SOON } from "./lineup-copy";
-import { ShareButton } from "./ShareButton";
-import { Button, ButtonLink } from "./ui/Button";
+import { SpotifyOpenLink } from "./SpotifyOpenLink";
+import { Button } from "./ui/Button";
 import { Confetti } from "./ui/Confetti";
 import { EASE_OUT_EXPO } from "./ui/motion";
-import { useToast } from "./ui/Toast";
+import { haptic } from "./ui/feedback";
 
 type Props = {
   eventId: string;
-  eventTitle: string;
+  /** UX #5: secondary actions under the primary button (other teams can add one-line inserts). */
+  actions?: ReactNode;
   /** Status rendered on the server (GET /api/events/:id/playlist shape); null = unknown. */
   initialStatus?: unknown;
   /** The engine's plan (D-065): only used to tell "nothing to make yet" (no counts shown). */
@@ -38,14 +39,7 @@ type Props = {
  * copy: a title, the button, and the state in a few words. States: ready, none → live staged progress → confetti, building (join), stale
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
-export function PlaylistPanel({
-  eventId,
-  eventTitle,
-  preview,
-  matched,
-  total,
-  initialStatus,
-}: Props) {
+export function PlaylistPanel({ eventId, actions, preview, matched, total, initialStatus }: Props) {
   // Nothing matched yet (or a 0-song estimate): never "0 songs · 0 min", no "Make playlist".
   const pending = previewPending(preview, matched, total);
   const [view, setView] = useState<PlaylistView>(() =>
@@ -98,6 +92,12 @@ export function PlaylistPanel({
       });
   }, [eventId, apply]);
 
+  // UX #9: a success tick the moment a first build lands (with the confetti).
+  const justMade = view.kind === "ready" && view.justMade;
+  useEffect(() => {
+    if (justMade) haptic("success");
+  }, [justMade]);
+
   // Lineup changed since the last build: refresh into the same playlist, once.
   const refreshPending = view.kind === "ready" && view.refresh === "pending";
   useEffect(() => {
@@ -135,56 +135,36 @@ export function PlaylistPanel({
       {pending && <p className="mt-2 text-lg font-semibold">{PLAYLIST_SOON}</p>}
 
       <div className="relative mt-6">
-        <Actions view={view} eventTitle={eventTitle} onStart={start} pending={pending} />
+        <Actions view={view} onStart={start} pending={pending} />
         {view.kind === "ready" && view.justMade && <Confetti key={view.url} />}
       </div>
 
       <div role="status" aria-live="polite">
         <Note view={view} />
       </div>
+
+      {/* UX #5: the secondary row (Share · Remind me · Tickets/Info), passed in by the page. */}
+      {actions && <div className="mt-5 flex flex-wrap items-center gap-3">{actions}</div>}
     </section>
   );
 }
 
 function Actions({
   view,
-  eventTitle,
   onStart,
   pending,
 }: {
   view: PlaylistView;
-  eventTitle: string;
   onStart: () => void;
   /** Nothing to make yet: no "Make playlist" or "Try again". */
   pending: boolean;
 }) {
-  const toast = useToast();
   switch (view.kind) {
     case "ready":
       return (
-        <div className="flex flex-col gap-3">
-          <ButtonLink href={view.url} external size="lg" className="w-full">
-            <span aria-hidden>▶</span> Open in Spotify
-          </ButtonLink>
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(view.url)
-                  .then(() => toast.show("Playlist link copied 🔗"))
-                  .catch(() => toast.show("Couldn't copy the link.", "error"))
-              }
-            >
-              Copy link
-            </Button>
-            <ShareButton
-              title={`${eventTitle} playlist`}
-              text={`The ${eventTitle} playlist on Spotify`}
-              url={view.url}
-            />
-          </div>
-        </div>
+        <SpotifyOpenLink href={view.url}>
+          <span aria-hidden>▶</span> Open in Spotify
+        </SpotifyOpenLink>
       );
     case "unavailable":
       return null;

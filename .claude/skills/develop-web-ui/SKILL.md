@@ -19,6 +19,29 @@ description: Conventions for the Next.js web UI of concert-playlist-app: pages, 
 - Spotify attribution and links wherever tracks or artists show (Policy II.4). The app name must not start with "Spot".
 - Show times in IST (`Asia/Kolkata`). Store UTC.
 
+## Visuals (D-082, D-083)
+
+Any artist or event, now or in the future, is pictured through one system. Never pick an image in a component.
+
+- **Resolvers** (pure, tested) live in `src/domain/visuals/visuals.ts`:
+  - `artistVisual(artist)`: Spotify `imageUrl`, then `altImageUrl` with its `altImageCredit`, then a designed fallback.
+  - `eventVisual(event)`: `posterUrl`, then a collage of the top tier (photos first, fallbacks fill, at most 4), then a branded gradient with a sticker.
+- **The fallback** is generic and seeded by a name hash, so it is stable for any name: long names, "&"/"x"/"ft." collabs, Devanagari or Gurmukhi script, emoji, numbers.
+  - `initialsOf` gives "YD", "S&S", "KING", "श्रेघो" or "♪".
+  - Colours are two block tones.
+- **Ordering:** `orderForVisuals` sorts by billing tier, then has-photo, then billing rank. Use it wherever artists are shown as pictures.
+- **Sizing:** `lineupLayout(total)` sets sizes and per-slide caps for 0, 1, 2, 3, 4–8, 9–40 and 41+ artists. A tier over the cap gets one "+N" `AvatarStack` chip linking to `#lineup`, and never "+1".
+- **Components** (`src/components/ArtistAvatar.tsx`, `EventVisual.tsx`):
+  - `ArtistAvatar` takes size `xs`–`xl` or `fill`, shape `circle` / `rounded` / `square`, and `tilt`.
+  - `ArtistChip` is avatar + name; `AvatarStack` is the "+N" chip; `EventVisual` fills its positioned parent.
+  - New surfaces reuse these through props. Don't copy markup.
+- **Photos** are lazy `<img>`, hotlinked with `referrerPolicy="no-referrer"` and anchored with `object-[50%_10%]`, so faces are never cropped. Posters stay centred.
+- **Credits come from data:** an alt photo shows its credit as a tooltip, and the lineup poster lists the credits ("📷 …"). Never hardcode credits per artist.
+- **Data:**
+  - Feed and detail queries return `artists.alt_image_url` / `alt_image_credit` (migration 0014).
+  - The home feed's `headlinerArtists` carries the full `VisualArtist`.
+- **Copy (D-082):** 2–4 words, with no song or minute counts and no Spotify-match commentary.
+
 ## Quality bar
 
 - Works at 360px wide, keyboard accessible, visible focus, `prefers-reduced-motion` respected, dark mode.

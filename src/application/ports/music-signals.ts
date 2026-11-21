@@ -39,3 +39,17 @@ export interface ArtistPopularitySource {
     opts?: { mbid?: string; cachedOnly?: boolean },
   ): Promise<number | null>;
 }
+
+/**
+ * D-085: a pluggable per-song popularity source (setlist.fm today). Scores are 0–1 per title
+ * as the provider spells it. `known: false` means the provider has nothing for this artist
+ * (common for Indian indie acts), so the blend ignores it instead of scoring every song 0.
+ * Failures throw `UpstreamError`; the engine treats them as `known: false`.
+ */
+export interface SongScoreProvider {
+  /** Stable id stored with cached scores, e.g. "setlistfm". */
+  readonly id: "setlistfm";
+  scores(
+    artistName: string,
+  ): Promise<{ known: boolean; songs: { title: string; score: number }[] }>;
+}

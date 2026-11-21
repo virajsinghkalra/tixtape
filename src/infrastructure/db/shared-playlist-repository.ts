@@ -1,8 +1,8 @@
 /** One public playlist per concert (D-036). The event id is the natural key. */
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { SharedPlaylist, SharedPlaylistRepository } from "@/application/ports/playlists";
 import type { Database } from "@/db/client";
-import { sharedPlaylists } from "@/db/schema";
+import { events, sharedPlaylists } from "@/db/schema";
 import {
   asEventId,
   asSpotifyPlaylistId,
@@ -19,6 +19,7 @@ const toShared = (row: Row): SharedPlaylist => ({
   trackIds: row.trackIds,
   snapshotId: row.snapshotId,
   lineupHashAtBuild: row.lineupHashAtBuild,
+  optionsVersion: row.optionsVersion,
   builtAt: row.builtAt,
 });
 
@@ -49,7 +50,13 @@ export class PgSharedPlaylistRepository implements SharedPlaylistRepository {
 
   async markBuilt(
     eventId: EventId,
-    build: { trackIds: string[]; snapshotId: string | null; lineupHash: string | null; at: Date },
+    build: {
+      trackIds: string[];
+      snapshotId: string | null;
+      lineupHash: string | null;
+      at: Date;
+      optionsVersion?: number;
+    },
   ): Promise<void> {
     await this.db
       .update(sharedPlaylists)
@@ -57,9 +64,38 @@ export class PgSharedPlaylistRepository implements SharedPlaylistRepository {
         trackIds: build.trackIds,
         snapshotId: build.snapshotId,
         lineupHashAtBuild: build.lineupHash,
+        optionsVersion: build.optionsVersion ?? 1,
         builtAt: build.at,
         updatedAt: sql`now()`,
       })
       .where(eq(sharedPlaylists.eventId, eventId));
   }
+}
+
+/**
+ * D-085: events whose shared playlist is stale (built by an older selection algorithm, or for
+ * an older lineup), soonest first, for the sweep to refresh in place. Upcoming events only;
+ * the sweep's build start still checks visibility (unpublished events 404).
+ */
+export async function listStaleSharedPlaylists(
+  db: Database,
+  opts: { currentVersion: number; now: Date; limit: number },
+): Promise<EventId[]> {
+  const rows = await db
+    .select({ eventId: sharedPlaylists.eventId })
+    .from(sharedPlaylists)
+    .innerJoin(events, eq(events.id, sharedPlaylists.eventId))
+    .where(
+      and(
+        isNotNull(sharedPlaylists.lineupHashAtBuild),
+        sql`coalesce(${events.endsAt}, ${events.startsAt}) >= ${opts.now.toISOString()}::timestamptz`,
+        or(
+          lt(sharedPlaylists.optionsVersion, opts.currentVersion),
+          sql`${events.lineupHash} is distinct from ${sharedPlaylists.lineupHashAtBuild}`,
+        ),
+      ),
+    )
+    .orderBy(asc(events.startsAt))
+    .limit(opts.limit);
+  return rows.map((r) => asEventId(r.eventId));
 }

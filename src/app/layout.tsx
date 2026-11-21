@@ -3,14 +3,28 @@ import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
+import { NavShell } from "@/components/nav/NavShell";
+import { InstallNudge } from "@/components/pwa/InstallNudge";
+import { NetworkBanner } from "@/components/pwa/NetworkBanner";
+import { ServiceWorker } from "@/components/pwa/ServiceWorker";
+import { WebVitals } from "@/components/pwa/WebVitals";
+import { ImageGuard } from "@/components/ui/ImageGuard";
+import { MotionProvider } from "@/components/ui/MotionProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { SITE_URL } from "@/lib/site";
+import { withTimeout } from "@/lib/timeout";
 import { SESSION_COOKIE } from "@/server/auth/cookies";
 import { authService } from "@/server/auth/spotify-auth";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
+// Only the desktop "/" hint and admin screens use mono: don't spend phone bandwidth preloading it.
+const jetbrains = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  preload: false,
+});
 
 export const metadata: Metadata = {
   title: {
@@ -18,6 +32,12 @@ export const metadata: Metadata = {
     template: "%s · Tixtape",
   },
   description: "Every lineup. One playlist. Concerts and festivals across India.",
+  metadataBase: new URL(SITE_URL),
+  applicationName: "Tixtape",
+  openGraph: { siteName: "Tixtape", type: "website", locale: "en_IN" },
+  twitter: { card: "summary_large_image" },
+  appleWebApp: { capable: true, title: "Tixtape", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
@@ -27,17 +47,21 @@ export const viewport: Viewport = {
   ],
 };
 
+/** A slow session read must not hold every page (D-084): after this, render logged out. */
+const SESSION_READ_TIMEOUT_MS = 1500;
+
 /** The signed-in user for the header, or null. Login is optional, so any failure means "logged out". */
 async function headerUser(): Promise<HeaderUser | null> {
   const sessionId = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!sessionId) return null;
-  try {
-    const user = await authService().getSessionUser(sessionId);
-    return user ? { name: user.displayName?.trim() || "Spotify listener" } : null;
-  } catch (err) {
-    console.error("Could not read the session for the header", err);
-    return null;
-  }
+  const read = authService()
+    .getSessionUser(sessionId)
+    .catch((err: unknown) => {
+      console.error("Could not read the session for the header", err);
+      return null;
+    });
+  const user = await withTimeout(read, SESSION_READ_TIMEOUT_MS, null);
+  return user ? { name: user.displayName?.trim() || "Spotify listener" } : null;
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -45,20 +69,28 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en-IN" className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable}`}>
       <body className="flex min-h-dvh flex-col antialiased">
-        <ToastProvider>
-          {/* Off-screen until focused, but full-size so it's a real tap target. */}
-          <a
-            href="#main"
-            className="fixed top-3 left-3 z-[80] inline-flex min-h-11 -translate-y-[200%] items-center rounded-chip bg-lime px-5 font-semibold text-on-block focus:translate-y-0"
-          >
-            Skip to content
-          </a>
-          <SiteHeader user={user} />
-          <main id="main" tabIndex={-1} className="flex-1 outline-none">
-            {children}
-          </main>
-          <SiteFooter />
-        </ToastProvider>
+        <MotionProvider>
+          <ToastProvider>
+            {/* Off-screen until focused, but full-size so it's a real tap target. */}
+            <a
+              href="#main"
+              className="fixed top-3 left-3 z-[80] inline-flex min-h-11 -translate-y-[200%] items-center rounded-chip bg-lime px-5 font-semibold text-on-block focus:translate-y-0"
+            >
+              Skip to content
+            </a>
+            <SiteHeader user={user} />
+            <main id="main" tabIndex={-1} className="flex-1 outline-none">
+              {children}
+            </main>
+            <SiteFooter />
+            <NavShell />
+            <NetworkBanner />
+            <InstallNudge />
+            <ServiceWorker />
+            <ImageGuard />
+            <WebVitals />
+          </ToastProvider>
+        </MotionProvider>
       </body>
     </html>
   );

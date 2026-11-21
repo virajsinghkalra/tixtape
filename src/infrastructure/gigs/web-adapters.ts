@@ -6,6 +6,7 @@
  *   (P1902). CC0, MediaWiki API etiquette, cached for 30 days in the collector state.
  * - `LastfmTrendingArtists`: Last.fm `geo.getTopArtists` for India.
  */
+import { articleMeta } from "./article-meta";
 import { z } from "zod";
 import type {
   OfficialSites,
@@ -21,6 +22,7 @@ import { onDomain } from "@/domain/gigs/registrable-domain";
 import { UpstreamError } from "@/lib/errors";
 import type { LastfmClient } from "../music-signals/lastfm";
 import type { PoliteFetcher } from "../sources/polite-fetch";
+import { WIKIDATA_API, WikidataClaimsSchema, WikidataSearchSchema } from "../sources/wikidata";
 
 const TOUR_LINK = /\b(tour|tours|live|shows?|events?|concerts?|gigs?|dates)\b/iu;
 const MAX_TOUR_LINKS = 5;
@@ -53,6 +55,7 @@ export class PolitePageReader implements PageReader {
       jsonLd: jsonLdBlocks(html),
       tourLinks: tourLinks(html, url),
       image: ogImage(html, url),
+      ...articleMeta(html),
     };
   }
 }
@@ -104,28 +107,7 @@ export function tourLinks(html: string, base: string): string[] {
   return out;
 }
 
-const WIKIDATA_API = "https://www.wikidata.org/w/api.php";
 const TTL_MS = 30 * 86_400_000;
-const SearchSchema = z.object({
-  query: z.object({ search: z.array(z.object({ title: z.string().regex(/^Q\d+$/u) })) }),
-});
-const ClaimsSchema = z.object({
-  entities: z.record(
-    z.string(),
-    z.object({
-      claims: z
-        .record(
-          z.string(),
-          z.array(
-            z.object({
-              mainsnak: z.object({ datavalue: z.object({ value: z.unknown() }).optional() }),
-            }),
-          ),
-        )
-        .optional(),
-    }),
-  ),
-});
 
 export interface OfficialSiteCache {
   getOfficialSites(spotifyId: string): Promise<{ value: string[]; checkedAt: Date } | undefined>;
@@ -162,7 +144,7 @@ export class WikidataOfficialSites implements OfficialSites {
   }
 
   private async lookup(spotifyId: string): Promise<string[]> {
-    const found = SearchSchema.safeParse(
+    const found = WikidataSearchSchema.safeParse(
       await this.json({
         action: "query",
         list: "search",
@@ -171,7 +153,7 @@ export class WikidataOfficialSites implements OfficialSites {
     );
     const qid = found.success ? found.data.query.search[0]?.title : undefined;
     if (!qid) return [];
-    const parsed = ClaimsSchema.safeParse(
+    const parsed = WikidataClaimsSchema.safeParse(
       await this.json({ action: "wbgetentities", ids: qid, props: "claims" }),
     );
     const claims = parsed.success ? (parsed.data.entities[qid]?.claims?.P856 ?? []) : [];

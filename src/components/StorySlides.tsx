@@ -1,4 +1,11 @@
-import type { CSSProperties } from "react";
+import Link from "next/link";
+import {
+  artistVisual,
+  hasPhoto,
+  type AvatarSize,
+  type VisualArtist,
+} from "@/domain/visuals/visuals";
+import { ArtistAvatar, ArtistChip, AvatarStack, TONE_VAR } from "./ArtistAvatar";
 import { toneSequence } from "./event-color";
 import type { TitleSize } from "./lineup-copy";
 import type { SlidePlan, StoryArtist, StoryPlan } from "./story-plan";
@@ -14,16 +21,13 @@ const TITLE: Record<TitleSize, string> = {
   md: "text-3xl",
 };
 
-const NAME: Record<"huge" | "big" | "small", string> = {
-  huge: "text-4xl",
-  big: "text-2xl",
-  small: "text-xl",
-};
-
-const FACE: Record<"huge" | "big" | "small", string> = {
-  huge: "size-20",
-  big: "size-11",
-  small: "size-9",
+/** Name size follows the avatar size: headliners big, lower tiers smaller (D-083). */
+const NAME: Record<AvatarSize, string> = {
+  xl: "text-2xl font-display font-extrabold uppercase",
+  lg: "text-xl font-display font-extrabold uppercase",
+  md: "text-lg font-display font-bold",
+  sm: "text-base",
+  xs: "text-sm",
 };
 
 /** Turns a planned story into slides for `StoryViewer`. Works on the server and the client. */
@@ -33,7 +37,7 @@ export function renderStory(eventId: string, plan: StoryPlan): Story[] {
     id: slide.id,
     label: slide.label,
     tone: tones[i]!,
-    dark: slide.kind === "solo" && Boolean(slide.artist.imageUrl),
+    dark: slide.kind === "solo" && hasPhoto(slide.artist),
     content: <SlideContent slide={slide} />,
   }));
 }
@@ -47,7 +51,7 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
           <div
             className={cx(
               "relative z-10 flex flex-1 flex-col justify-between gap-8",
-              slide.artist.imageUrl && "text-white",
+              hasPhoto(slide.artist) && "text-white",
             )}
           >
             <Sticker tone="night" size="md" emoji={slide.badge.emoji} className="self-start">
@@ -102,22 +106,31 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
           <Sticker tone="night" size="md" className="self-start">
             {slide.kicker}
           </Sticker>
-          <ul className="space-y-3">
-            {slide.artists.map((a) => (
-              <li key={a.name} className="flex items-center gap-3">
-                {slide.faces && <Face artist={a} size={FACE[slide.size]} />}
-                <span
-                  className={cx(
-                    "font-display leading-none font-extrabold uppercase [overflow-wrap:anywhere]",
-                    NAME[slide.size],
-                  )}
-                >
-                  {a.name}
-                </span>
+          <ul
+            className={cx("flex flex-wrap gap-2.5", slide.size === "xl" && "flex-col items-start")}
+          >
+            {slide.artists.map((a, i) => (
+              <li key={a.name} className="max-w-full">
+                <ArtistChip
+                  artist={a}
+                  size={slide.size}
+                  index={i}
+                  nameClassName={NAME[slide.size]}
+                />
               </li>
             ))}
+            {slide.more && (
+              <li>
+                <Link
+                  href={slide.more.href}
+                  aria-label={`${slide.more.count} more on the lineup`}
+                  className="relative z-10 inline-block rounded-chip"
+                >
+                  <AvatarStack artists={slide.more.artists} more={slide.more.count} />
+                </Link>
+              </li>
+            )}
           </ul>
-          {slide.more && <p className="text-base font-bold">{slide.more}</p>}
         </div>
       );
     case "playlist":
@@ -144,16 +157,25 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
 }
 
 /**
- * Full-bleed artist photo under a dark fade, so the slide is never an empty block. Without a
- * photo, the name itself fills the space as giant type.
+ * Full-bleed artist picture (D-083 `artistVisual`): the photo under a dark fade, or the artist's
+ * designed gradient with their name as giant type. Never an empty block.
  */
-export function ArtistBackdrop({ artist }: { artist: Pick<StoryArtist, "name" | "imageUrl"> }) {
-  if (artist.imageUrl) {
+export function ArtistBackdrop({ artist }: { artist: VisualArtist }) {
+  const v = artistVisual(artist);
+  if (v.kind === "photo") {
     return (
-      <div aria-hidden className="absolute inset-0 z-0">
-        <div
-          className="absolute inset-0 bg-cover bg-[center_10%]"
-          style={{ backgroundImage: `url("${artist.imageUrl}")` } as CSSProperties}
+      <div
+        aria-hidden
+        title={v.credit ? `📷 ${v.credit}` : undefined}
+        className="absolute inset-0 z-0"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked artist photo (D-083) */}
+        <img
+          src={v.url}
+          alt=""
+          decoding="async"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 size-full object-cover object-[50%_10%]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92)_0%,rgb(11_11_15/0.55)_45%,rgb(11_11_15/0.15)_100%)]" />
       </div>
@@ -162,16 +184,21 @@ export function ArtistBackdrop({ artist }: { artist: Pick<StoryArtist, "name" | 
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 z-0 flex -rotate-6 flex-col justify-center overflow-hidden opacity-15"
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      style={{
+        background: `linear-gradient(${v.angle}deg, ${TONE_VAR[v.from]}, ${TONE_VAR[v.to]})`,
+      }}
     >
-      {[0, 1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className="font-display text-[clamp(4rem,18vw,9rem)] leading-[0.85] font-extrabold whitespace-nowrap uppercase"
-        >
-          {artist.name} {artist.name}
-        </span>
-      ))}
+      <div className="flex h-full -rotate-6 flex-col justify-center opacity-20">
+        {[0, 1, 2, 3].map((i) => (
+          <span
+            key={i}
+            className="font-display text-[clamp(4rem,18vw,9rem)] leading-[0.85] font-extrabold whitespace-nowrap uppercase"
+          >
+            {artist.name} {artist.name}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -179,39 +206,11 @@ export function ArtistBackdrop({ artist }: { artist: Pick<StoryArtist, "name" | 
 /** The solo artist, big and round, tilted like a sticker. */
 function BigFace({ artist }: { artist: StoryArtist }) {
   return (
-    <span
-      aria-hidden
-      className="grid size-40 -rotate-3 place-items-center self-start rounded-full border-4 border-night bg-night bg-cover bg-[center_10%] shadow-[5px_6px_0_0_var(--color-night)] sm:size-48"
-      style={artist.imageUrl ? { backgroundImage: `url("${artist.imageUrl}")` } : undefined}
-    >
-      {!artist.imageUrl && (
-        <span className="font-display text-7xl font-extrabold text-lime">
-          {artist.name.charAt(0)}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function Face({ artist, size = "size-14" }: { artist: StoryArtist; size?: string }) {
-  if (!artist.imageUrl) {
-    return (
-      <span
-        aria-hidden
-        className={cx(
-          "grid shrink-0 place-items-center rounded-full border-2 border-night bg-surface font-display text-lg font-extrabold text-ink",
-          size,
-        )}
-      >
-        {artist.name.charAt(0)}
-      </span>
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className={cx("shrink-0 rounded-full border-2 border-night bg-cover bg-[center_10%]", size)}
-      style={{ backgroundImage: `url("${artist.imageUrl}")` }}
+    <ArtistAvatar
+      artist={artist}
+      size="xl"
+      tilt={-3}
+      className="size-40 self-start border-4 shadow-[5px_6px_0_0_var(--color-night)] sm:size-48"
     />
   );
 }
@@ -236,19 +235,18 @@ function Poster({ url }: { url: string }) {
   );
 }
 
-/** Headliner photos stacked like stickers on a laptop lid. */
+/** The lineup stacked like stickers on a laptop lid: photos first, designed fallbacks fill. */
 function FaceStack({ artists }: { artists: StoryArtist[] }) {
   return (
     <div aria-hidden className="flex pt-2 pl-3">
       {artists.map((a, i) => (
-        <span
+        <ArtistAvatar
           key={a.name}
-          className="-ml-4 size-24 rounded-full border-[3px] border-night bg-night bg-cover bg-[center_10%] shadow-[3px_4px_0_0_var(--color-night)] first:ml-0 sm:size-28"
-          style={{
-            backgroundImage: `url("${a.imageUrl}")`,
-            rotate: `${(i % 2 === 0 ? -1 : 1) * (4 + i)}deg`,
-            zIndex: artists.length - i,
-          }}
+          artist={a}
+          size="xl"
+          tilt={(i % 2 === 0 ? -1 : 1) * (4 + i)}
+          className="-ml-4 shadow-[3px_4px_0_0_var(--color-night)] first:ml-0"
+          style={{ zIndex: artists.length - i }}
         />
       ))}
     </div>

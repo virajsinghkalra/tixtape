@@ -36,7 +36,18 @@ export const GigProvenanceSchema = z.strictObject({
   /** Exact text spans from the page text we fetched, per field. */
   quotes: z.partialRecord(z.enum(GROUNDED_FIELDS), quote),
   /** How the page was found. */
-  via: z.enum(["listing", "artist_site", "search"]),
+  via: z.enum(["listing", "artist_site", "search", "press"]),
+  /** D-089: a news article on a D-087 outlet: who published it, when, and from which wire. */
+  press: z
+    .strictObject({
+      publisher: z.string().min(1).max(200),
+      /** The article's own publication time (JSON-LD or meta), or null when it doesn't say. */
+      publishedAt: z.iso.datetime({ offset: true }).nullable(),
+      wire: z.string().max(20).nullable(),
+      /** Opening-text fingerprint (syndicated copies share it). */
+      fingerprint: z.string().min(1).max(100),
+    })
+    .optional(),
 });
 export type GigProvenance = z.infer<typeof GigProvenanceSchema>;
 

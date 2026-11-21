@@ -26,7 +26,13 @@ export class TavilySearch implements WebSearch {
 
   async search(
     query: string,
-    opts: { maxResults: number; excludeDomains: readonly string[] },
+    opts: {
+      maxResults: number;
+      excludeDomains: readonly string[];
+      topic?: "news";
+      includeDomains?: readonly string[];
+      days?: number;
+    },
   ): Promise<WebPage[]> {
     let res: Response;
     try {
@@ -42,6 +48,9 @@ export class TavilySearch implements WebSearch {
           search_depth: "advanced",
           include_raw_content: true,
           exclude_domains: opts.excludeDomains,
+          ...(opts.topic ? { topic: opts.topic } : {}),
+          ...(opts.includeDomains ? { include_domains: opts.includeDomains } : {}),
+          ...(opts.days ? { days: opts.days } : {}),
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });

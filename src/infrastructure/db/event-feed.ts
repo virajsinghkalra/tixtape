@@ -30,11 +30,21 @@ const row = z.object({
   venue_country: z.string().nullable(),
   artist_count: z.coerce.number(),
   headliners: z.array(z.string()).nullable(),
-  headliner_images: z.array(z.string().nullable()).nullable(),
+  headliner_artists: z
+    .array(
+      z.object({
+        name: z.string(),
+        imageUrl: z.string().nullable(),
+        altImageUrl: z.string().nullable(),
+        altImageCredit: z.string().nullable(),
+      }),
+    )
+    .nullable(),
   headliner_listeners: z.coerce.number().nullable(),
   first_image: z.string().nullable(),
   source_count: z.coerce.number(),
   ticket_url: z.string().nullable(),
+  playlist_status: z.enum(["ready", "building"]).nullable(),
   views: z.coerce.number(),
   playlist_opens: z.coerce.number(),
 });
@@ -53,13 +63,19 @@ export class PgEventFeed implements EventFeedReader {
         v.id as venue_id, v.name as venue_name, v.city as venue_city, v.country as venue_country,
         (select count(*) from event_artists ea where ea.event_id = e.id) as artist_count,
         top.names as headliners,
-        top.images as headliner_images,
+        top.artists as headliner_artists,
         top.listeners as headliner_listeners,
         (select a.image_url from event_artists ea join artists a on a.id = ea.artist_id
           where ea.event_id = e.id order by ea.billing_rank limit 1) as first_image,
         (select count(*) from event_sources s where s.event_id = e.id) as source_count,
         (select s.url from event_sources s where s.event_id = e.id and s.url is not null
           order by s.last_seen_at desc limit 1) as ticket_url,
+        -- UX #6: is the shared playlist live (or being made)? Read only.
+        case
+          when exists (select 1 from shared_playlists sp where sp.event_id = e.id) then 'ready'
+          when exists (select 1 from playlist_jobs j where j.event_id = e.id
+            and j.status in ('queued', 'running', 'paused')) then 'building'
+        end as playlist_status,
         coalesce(st.views, 0) as views,
         coalesce(st.playlist_opens, 0) as playlist_opens
       from events e
@@ -68,7 +84,11 @@ export class PgEventFeed implements EventFeedReader {
       left join lateral (
         -- The top-billed tier (usually headliners), in billing order.
         select array_agg(a.name order by ea.billing_rank) as names,
-          array_agg(a.image_url order by ea.billing_rank) as images,
+          -- D-083: photos for the visuals system (Spotify, then the alt photo and its credit).
+          json_agg(json_build_object(
+            'name', a.name, 'imageUrl', a.image_url,
+            'altImageUrl', a.alt_image_url, 'altImageCredit', a.alt_image_credit
+          ) order by ea.billing_rank) as artists,
           max(a.lastfm_listeners) as listeners
         from event_artists ea join artists a on a.id = ea.artist_id
         where ea.event_id = e.id and ea.tier = (
@@ -108,7 +128,11 @@ function toFeedRow(r: z.infer<typeof row>): FeedRow {
     artistCount: r.artist_count,
     city: venue?.city ?? null,
     headliners: r.headliners ?? [],
-    headlinerImages: r.headliner_images ?? [],
+    headlinerArtists: (r.headliner_artists ?? []).map((a, i) => ({
+      ...a,
+      tier: "headliner" as const,
+      billingRank: i + 1,
+    })),
     headlinerListeners: r.headliner_listeners,
     sourceCount: r.source_count,
     views: r.views,
@@ -116,6 +140,7 @@ function toFeedRow(r: z.infer<typeof row>): FeedRow {
     createdAt: r.created_at,
     soloImage: r.artist_count === 1 ? r.first_image : null,
     ticketUrl: r.ticket_url,
+    playlistStatus: r.playlist_status,
   };
 }
 

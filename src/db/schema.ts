@@ -111,6 +111,10 @@ export const events = pgTable(
     imageUrl: text("image_url"),
     /** D-082: the official page's og:image, hotlinked (never re-hosted); filled by a script. */
     posterUrl: text("poster_url"),
+    /** D-083: who the poster is credited to, which provider found it, and when it was checked. */
+    posterCredit: text("poster_credit"),
+    posterSource: text("poster_source"),
+    posterCheckedAt: timestamp("poster_checked_at", { withTimezone: true }),
     lineupHash: text("lineup_hash"),
     dedupeKey: text("dedupe_key").notNull(),
     createdAt: createdAt(),
@@ -135,7 +139,11 @@ export const eventSources = pgTable(
     raw: jsonb("raw"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.source, t.externalId] })],
+  (t) => [
+    primaryKey({ columns: [t.source, t.externalId] }),
+    // D-086: the home feed and event detail read sources per event.
+    index("event_sources_event_idx").on(t.eventId),
+  ],
 );
 
 // ── Artists & lineups ─────────────────────────────────────────────────────
@@ -155,6 +163,15 @@ export const artists = pgTable(
     /** Last.fm listeners, cached for ranking the home page (D-079). Null = unknown (neutral). */
     lastfmListeners: integer("lastfm_listeners"),
     lastfmListenersAt: timestamp("lastfm_listeners_at", { withTimezone: true }),
+    /**
+     * D-083: a free-licensed photo for artists without a Spotify image (`image_url`), with its
+     * credit line and provider (`wikimedia` | `official`). Checked again after 30 days, or sooner
+     * when the link breaks. `image_url` stays Spotify's.
+     */
+    altImageUrl: text("alt_image_url"),
+    altImageCredit: text("alt_image_credit"),
+    altImageSource: text("alt_image_source"),
+    altImageCheckedAt: timestamp("alt_image_checked_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -187,6 +204,8 @@ export const eventArtists = pgTable(
   (t) => [
     primaryKey({ columns: [t.eventId, t.artistId] }),
     check("event_artists_rank_positive", sql`${t.billingRank} > 0`),
+    // D-086: artist → events (search, merges, the FK check when an artist row goes).
+    index("event_artists_artist_idx").on(t.artistId),
   ],
 );
 
@@ -525,6 +544,8 @@ export const gateDecisions = pgTable(
     /** [{ source, url, domain, official }] */
     sources: jsonb("sources").notNull(),
     confidence: real("confidence").notNull(),
+    /** D-089: the path that published ("standard", "first_party", "press"), else null. */
+    path: text("path"),
     eventId: uuid("event_id").references(() => events.id, { onDelete: "set null" }),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
@@ -549,6 +570,8 @@ export const publishAudit = pgTable(
     sources: jsonb("sources").notNull(),
     /** For `updated` / `held` after re-verification: { field: { from, to } }. */
     changes: jsonb("changes"),
+    /** D-089: "standard", "first_party" or "press"; null for rows written before D-089. */
+    path: text("path"),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -600,4 +623,21 @@ export const cityDemand = pgTable(
     count: integer("count").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.day, t.city, t.kind] }), index("city_demand_day_idx").on(t.day)],
+);
+
+// ── UX counters (D-084, OD-4) ──────────────────────────────────────────────
+
+/**
+ * Aggregate UX measurement (D-084, UX plan OD-4): one bare count per (IST day, metric). Never an
+ * IP, a user, a session, an event or a query. Metrics are an allow-list (`src/domain/ux`).
+ */
+export const uxCounters = pgTable(
+  "ux_counters",
+  {
+    /** IST calendar date, "YYYY-MM-DD". */
+    day: text("day").notNull(),
+    metric: text("metric").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.metric] })],
 );

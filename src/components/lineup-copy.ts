@@ -102,11 +102,6 @@ export const STORY_KICKERS = {
   playlist: "🎧 The playlist",
 } as const;
 
-/** "+ 20 more", or null when everyone fits. */
-export function moreLine(hidden: number): string | null {
-  return hidden > 0 ? `+ ${hidden} more` : null;
-}
-
 /** Nothing matched on Spotify yet: never "0 songs · 0 min". */
 export const PLAYLIST_SOON = "Playlist soon ⏳";
 

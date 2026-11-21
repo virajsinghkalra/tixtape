@@ -123,6 +123,11 @@ export type SharedPlaylist = {
   snapshotId: string | null;
   /** Null until the first build completes. */
   lineupHashAtBuild: string | null;
+  /**
+   * D-085: the selection algorithm version it was built with. The table column defaults to 1
+   * (built before D-065); a store that doesn't report it is taken as current.
+   */
+  optionsVersion?: number;
   builtAt: Date;
 };
 
@@ -138,7 +143,14 @@ export interface SharedPlaylistRepository {
   ): Promise<SharedPlaylist>;
   markBuilt(
     eventId: EventId,
-    build: { trackIds: string[]; snapshotId: string | null; lineupHash: string | null; at: Date },
+    build: {
+      trackIds: string[];
+      snapshotId: string | null;
+      lineupHash: string | null;
+      at: Date;
+      /** D-085: defaults to 1 for callers that don't pass it. */
+      optionsVersion?: number;
+    },
   ): Promise<void>;
 }
 
@@ -172,6 +184,8 @@ export type CachedSong = {
   searchRank: number;
   /** 1-based Last.fm top-track rank of this title, or null. */
   lastfmRank: number | null;
+  /** D-085: 0–1 scores from other providers (e.g. `setlistfm`), when they list this song. */
+  providerScores?: Partial<Record<"setlistfm", number>>;
 };
 
 export type ArtistSongs = {
@@ -180,6 +194,11 @@ export type ArtistSongs = {
   songs: CachedSong[];
   /** Last.fm listeners (D-065 popularity), null when unknown. */
   listeners: number | null;
+  /**
+   * D-085: providers consulted for this artist (`known` = they had data). An entry missing a
+   * provider is enriched in place, without Spotify calls.
+   */
+  providers?: Partial<Record<"setlistfm", { known: boolean }>>;
   /** Search pages fetched; more can be fetched for a bigger budget unless `exhausted`. */
   pages: number;
   /** Spotify had no more results for the artist. */

@@ -2,7 +2,7 @@
  * Ports for gig coverage (D-073 artist-first discovery, D-074 auto-publish gate).
  * Implemented in src/infrastructure/gigs/. Small on purpose: one reason to change each.
  */
-import type { GateCheck, GateSource, GateVerdict } from "@/domain/gigs/auto-publish";
+import type { GateCheck, GateSource, GateVerdict, PublishPath } from "@/domain/gigs/auto-publish";
 import type { DemandCount, DemandKind } from "@/domain/gigs/demand";
 import type { ValidatedGig } from "@/domain/gigs/nights";
 import type { EventId } from "@/domain/shared/ids";
@@ -40,6 +40,10 @@ export type ReadResult =
       tourLinks: string[];
       /** D-082: the page's og:image (absolute https URL), when it has one. */
       image?: string | null;
+      /** D-089: the article's publication time (JSON-LD `datePublished` or meta), raw. */
+      published?: string | null;
+      /** D-089: the byline (JSON-LD author or meta author), raw. */
+      byline?: string | null;
     }
   /** HTTP 404/410: the page is gone (re-verification holds the event). */
   | { status: "gone"; url: string };
@@ -93,6 +97,8 @@ export type GateRecord = {
   checks: GateCheck[];
   sources: GateSourceRef[];
   confidence: number;
+  /** D-089: the publishing path when the verdict is publish. */
+  path?: PublishPath | null;
   eventId: EventId | null;
   decidedAt: Date;
 };
@@ -114,6 +120,8 @@ export type AuditEntry = {
   /** The gate's view of each source at the time (official URL, night, time, city, acts). */
   sources: GateSource[];
   changes: Record<string, { from: unknown; to: unknown }> | null;
+  /** D-089: how the event was published ("standard", "first_party", "press"); null if unknown. */
+  path?: PublishPath | null;
   at: Date;
 };
 
@@ -123,6 +131,8 @@ export type AutoPublished = {
   sources: GateSource[];
   /** Last `published`, `updated` or `reverified` entry. */
   lastCheckedAt: Date;
+  /** D-089: how it was published (null for rows written before D-089: treated as standard). */
+  path: PublishPath | null;
 };
 
 /** `publish_audit`: append-only. */

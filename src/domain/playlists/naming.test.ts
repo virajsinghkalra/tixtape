@@ -21,7 +21,7 @@ describe("playlistName", () => {
 describe("playlistDescription", () => {
   it("follows D-040 with a UTC date", () => {
     expect(playlistDescription("NH7 Weekender", new Date("2026-12-05T23:30:00Z"))).toBe(
-      "Songs from the NH7 Weekender lineup. Updated 5 Dec. Popularity data: Last.fm. Made with Tixtape.",
+      "Songs from the NH7 Weekender lineup. Updated 5 Dec. Popularity data: Last.fm. Live setlists: setlist.fm. Made with Tixtape.",
     );
   });
 

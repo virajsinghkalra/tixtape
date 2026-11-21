@@ -70,7 +70,7 @@ describe("QA D-040 description", () => {
   it("matches the template", () => {
     expect(MAX_PLAYLIST_DESCRIPTION).toBe(300);
     expect(playlistDescription("Lollapalooza India", UPDATED)).toBe(
-      "Songs from the Lollapalooza India lineup. Updated 21 Nov. Popularity data: Last.fm. Made with Tixtape.",
+      "Songs from the Lollapalooza India lineup. Updated 21 Nov. Popularity data: Last.fm. Live setlists: setlist.fm. Made with Tixtape.",
     );
   });
 

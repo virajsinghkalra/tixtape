@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { parseEventId } from "@/application/events";
 import type { EventDetail } from "@/application/ports/events";
+import { EventActions } from "@/components/EventActions";
 import { EventHeader } from "@/components/EventHeader";
 import { EventStory } from "@/components/EventStory";
 import { EventVisit } from "@/components/EventVisit";
@@ -10,10 +11,10 @@ import { shareText } from "@/components/lineup-copy";
 import { groupByTier, isMatched } from "@/components/lineup-view";
 import { parsePreview } from "@/components/playlist-preview";
 import { LineupPoster } from "@/components/LineupPoster";
-import { ticketUrl } from "@/components/links";
+import { ticketLink } from "@/components/links";
 import { PlaylistPanel } from "@/components/PlaylistPanel";
 import { ShareButton } from "@/components/ShareButton";
-import { BottomBar } from "@/components/ui/BottomBar";
+import { EventBottomBar } from "@/components/EventBottomBar";
 import { ButtonLink } from "@/components/ui/Button";
 import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
@@ -75,50 +76,59 @@ export default async function EventPage({ params, searchParams }: Params) {
     .estimatePlaylist(event.id)
     .then((p) => parsePreview(JSON.parse(JSON.stringify(p)) as unknown))
     .catch(() => null);
-  const venueLine = event.venue ? `📍 ${event.venue.name}, ${event.venue.city}` : "📍 Venue TBA";
+
+  const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
+  const outbound = ticketLink(event.sources.map((s) => s.url));
+  // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
+  const actions = (
+    <>
+      <ShareButton title={event.title} text={shareText(event.title, names)} />
+      <EventActions event={event} />
+      {outbound && (
+        <ButtonLink href={outbound.url} external variant="secondary">
+          {outbound.label}
+        </ButtonLink>
+      )}
+    </>
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
       <EventVisit eventId={event.id} highlight={Boolean(artist)} />
-      <EventHeader event={event} ticketUrl={ticketUrl(event.sources)} now={now} />
-      {groups.length > 0 && (
-        <div className="mt-12">
-          <EventStory event={event} now={now} />
-        </div>
-      )}
-      <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
-        <LineupPoster
-          title={event.title}
-          venueLine={venueLine}
-          lineup={event.lineup}
-          highlight={artist}
-        />
-        {groups.length > 0 && (
-          <div className="lg:sticky lg:top-24">
+      <EventHeader event={event} now={now} />
+      {/* UX #5: the playlist card is the one primary action, right under the header on phones
+          and in the sticky side column on desktop. */}
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+        {groups.length > 0 ? (
+          <div className="lg:sticky lg:top-24 lg:order-2">
             <PlaylistPanel
               initialStatus={initialPlaylistStatus}
               eventId={event.id}
-              eventTitle={event.title}
+              actions={actions}
               preview={preview}
               matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}
               total={event.lineup.length}
             />
           </div>
+        ) : (
+          <div className="flex flex-wrap gap-3 lg:order-2">{actions}</div>
         )}
+        <div className="lg:order-1">
+          <LineupPoster lineup={event.lineup} highlight={artist} />
+        </div>
       </div>
-      <BottomBar label="Event actions">
+      {/* OD-6: the rundown carousel stays on the event page. */}
+      {groups.length > 0 && (
+        <div className="mt-12">
+          <EventStory event={event} now={now} />
+        </div>
+      )}
+      <EventBottomBar>
         <ButtonLink href="#playlist" size="lg" className="flex-1">
-          <span aria-hidden>🎧</span> Get the playlist
+          <span aria-hidden>🎧</span> Playlist
         </ButtonLink>
-        <ShareButton
-          title={event.title}
-          text={shareText(
-            event.title,
-            [...event.lineup].sort((a, b) => a.billingRank - b.billingRank).map((a) => a.name),
-          )}
-          size="lg"
-        />
-      </BottomBar>
+        <ShareButton title={event.title} text={shareText(event.title, names)} size="lg" />
+      </EventBottomBar>
     </div>
   );
 }

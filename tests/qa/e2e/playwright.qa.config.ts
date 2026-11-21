@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "@playwright/test";
 import base from "../../../playwright.config";
 
@@ -6,6 +7,11 @@ export default defineConfig({
   ...base,
   testDir: ".",
   testMatch: /.*\.spec\.ts/,
+  // shared E2E DB setup first, then the QA-only safety and fixture tweaks
+  globalSetup: [
+    path.resolve(__dirname, "../../e2e/global-setup.ts"),
+    path.resolve(__dirname, "qa-global-setup.ts"),
+  ],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   reporter: [["list"]],

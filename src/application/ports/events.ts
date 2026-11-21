@@ -80,6 +80,8 @@ export type EventSummary = {
   imageUrl: string | null;
   /** D-082: the official page's og:image (hotlinked), when we have one. */
   posterUrl?: string | null;
+  /** Attribution for the poster when its source needs one (migration 0014). */
+  posterCredit?: string | null;
   venue: VenueSummary | null;
   artistCount: number;
 };
@@ -94,6 +96,9 @@ export type LineupArtist = {
   matchStatus: MatchStatus;
   spotifyId: SpotifyArtistId | null;
   imageUrl: string | null;
+  /** D-083: an alternate (e.g. Wikimedia Commons) photo and its attribution. */
+  altImageUrl?: string | null;
+  altImageCredit?: string | null;
 };
 
 export type EventDetail = EventSummary & {

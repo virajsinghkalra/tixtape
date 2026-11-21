@@ -46,8 +46,13 @@ test("DB unavailable: pages and APIs fail with a friendly message, no stack trac
         info,
         `db-down${p === "/" ? "-home" : p.startsWith("/events") ? "-event" : "-search"}`,
       );
-      expect(res?.status(), p).toBeGreaterThanOrEqual(500);
-      expect(body, p).toMatch(/something went wrong|try again|can.t load|unavailable|trouble/i);
+      // home may still render from its 5-minute feed cache (D-079): fine, as long as it's whole
+      if (p === "/" && res?.status() === 200) {
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      } else {
+        expect(res?.status(), p).toBeGreaterThanOrEqual(500);
+        expect(body, p).toMatch(/something went wrong|try again|can.t load|unavailable|trouble/i);
+      }
       expect(body, p).not.toMatch(
         /ECONNREFUSED|postgres|stack|at .*\.ts:\d+|does not allow connections/i,
       );

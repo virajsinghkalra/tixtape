@@ -45,7 +45,8 @@ export type SourceEvidence = {
   official: boolean;
 };
 
-export type FieldStatus = "verified" | "official" | "single" | "conflict" | "missing";
+/** "press": set only by the D-089 press path when it publishes (never by `verifyEvent`). */
+export type FieldStatus = "verified" | "official" | "single" | "conflict" | "missing" | "press";
 
 export type FieldVerification = {
   value: string | null;
@@ -414,6 +415,7 @@ export function verifyEvent(
   const weight: Record<FieldStatus, number> = {
     verified: 1,
     official: 0.9,
+    press: 0.8,
     single: 0.4,
     missing: 0.15,
     conflict: 0,

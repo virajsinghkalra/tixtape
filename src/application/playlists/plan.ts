@@ -60,7 +60,8 @@ export function planBuild(event: EventDetail & { verification?: unknown }): Buil
       unmatched.push(a.name);
     }
   }
-  const isSingleArtist = event.type === "concert" && event.lineup.length === 1;
+  // D-085: one billed artist means one set, even on an event typed "festival".
+  const isSingleArtist = event.lineup.length === 1;
   const hours = VerifiedHours.safeParse(event.verification);
   return {
     title: event.title,

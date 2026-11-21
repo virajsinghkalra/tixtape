@@ -13,7 +13,9 @@ import type {
   ArtistPopularitySource,
   ChartEntry,
   MostListenedSource,
+  SongScoreProvider,
 } from "@/application/ports/music-signals";
+import { blendScore, lastfmScore, type SongProvider } from "@/domain/playlists/song-score";
 import type { ArtistSongs, CachedSong } from "@/application/ports/playlists";
 import type { SpotifyTrack, TrackCatalog } from "@/application/ports/spotify";
 import { fillToBudget } from "@/domain/playlists/budget";
@@ -45,8 +47,86 @@ export type ArtistSongsDeps = {
   tracks: TrackCatalog;
   mostListened: MostListenedSource;
   popularity: ArtistPopularitySource;
+  /** D-085: extra per-song signals (setlist.fm). Free sources: they cost no Spotify calls. */
+  songScores: readonly SongScoreProvider[];
   logger: Pick<Logger, "warn">;
 };
+
+type ProviderResult = { id: SongScoreProvider["id"]; known: boolean; scores: Map<string, number> };
+
+/** Every provider's scores by normalized title. A failing provider is skipped (retried later). */
+async function providerScores(
+  deps: ArtistSongsDeps,
+  artistName: string,
+  only?: ReadonlySet<string>,
+): Promise<ProviderResult[]> {
+  const out: ProviderResult[] = [];
+  for (const provider of deps.songScores) {
+    if (only && !only.has(provider.id)) continue;
+    try {
+      const r = await provider.scores(artistName);
+      const scores = new Map<string, number>();
+      for (const song of r.songs) {
+        const key = normalizeTrackTitle(song.title);
+        scores.set(key, Math.max(scores.get(key) ?? 0, song.score));
+      }
+      out.push({ id: provider.id, known: r.known, scores });
+    } catch (e) {
+      if (!(e instanceof UpstreamError)) throw e;
+      deps.logger.warn(
+        { err: e, provider: provider.id, artist: artistName },
+        "song signal unavailable",
+      );
+    }
+  }
+  return out;
+}
+
+/** Writes provider scores onto songs and records which providers were consulted. */
+function withProviders(entry: ArtistSongs, results: readonly ProviderResult[]): ArtistSongs {
+  const providers = { ...entry.providers };
+  for (const r of results) providers[r.id] = { known: r.known };
+  const songs = entry.songs.map((song) => {
+    const providerScoresOf = { ...song.providerScores };
+    for (const r of results) {
+      const score = r.scores.get(normalizeTrackTitle(song.name));
+      if (score !== undefined) providerScoresOf[r.id] = score;
+      else delete providerScoresOf[r.id];
+    }
+    return { ...song, providerScores: providerScoresOf };
+  });
+  return { ...entry, providers, songs };
+}
+
+/** Providers this entry hasn't consulted yet (it was cached before they existed). */
+export const missingProviders = (deps: Pick<ArtistSongsDeps, "songScores">, entry: ArtistSongs) =>
+  deps.songScores.filter((p) => !entry.providers?.[p.id]).map((p) => p.id);
+
+/** D-085: adds new providers' scores to a cached entry. No Spotify calls. */
+export async function enrichArtistSongs(
+  deps: ArtistSongsDeps,
+  entry: ArtistSongs,
+  artistName: string,
+): Promise<ArtistSongs> {
+  const results = await providerScores(deps, artistName, new Set(missingProviders(deps, entry)));
+  return withProviders(entry, results);
+}
+
+/** Last.fm and every known provider, blended (D-085). */
+function songScore(song: CachedSong, known: readonly SongProvider[]): number {
+  return blendScore(
+    { lastfm: lastfmScore(song.lastfmRank), setlistfm: song.providerScores?.setlistfm },
+    known,
+  );
+}
+
+/** Providers with data for this artist: Last.fm when it ranked any song, plus known providers. */
+function knownProviders(entry: Pick<ArtistSongs, "songs" | "providers">): SongProvider[] {
+  const known: SongProvider[] = [];
+  if (entry.songs.some((s) => s.lastfmRank !== null)) known.push("lastfm");
+  if (entry.providers?.setlistfm?.known) known.push("setlistfm");
+  return known;
+}
 
 export type ArtistToResolve = { name: string; spotifyId: SpotifyArtistId };
 
@@ -114,6 +194,7 @@ export async function resolveArtistSongs(
       const key = normalizeTrackTitle(t.title);
       if (!lastfmRank.has(key)) lastfmRank.set(key, i + 1);
     });
+  const providers = await providerScores(deps, artist.name);
 
   const found = new Map<string, SpotifyTrack>();
   const credited = (t: SpotifyTrack) => t.artistIds.includes(artist.spotifyId);
@@ -133,15 +214,35 @@ export async function resolveArtistSongs(
     }
   }
 
-  // Top Last.fm titles the pages missed, best first, while this artist's calls remain.
+  // The best-scored titles (Last.fm + live setlists, D-085) the pages missed, while this
+  // artist's calls remain.
   const haveTitles = new Set([...found.values()].map((t) => normalizeTrackTitle(t.name)));
-  const missing = [...lastfmRank.entries()]
-    .filter(([title]) => !haveTitles.has(title))
-    .sort((a, b) => a[1] - b[1])
+  const known: SongProvider[] = [
+    ...(lastfmRank.size > 0 ? (["lastfm"] as const) : []),
+    ...providers.filter((p) => p.known).map((p) => p.id),
+  ];
+  const candidates = new Set([
+    ...lastfmRank.keys(),
+    ...providers.flatMap((p) => [...p.scores.keys()]),
+  ]);
+  const missing = [...candidates]
+    .filter((title) => !haveTitles.has(title))
+    .map((title) => ({
+      title,
+      score: blendScore(
+        {
+          lastfm: lastfmScore(lastfmRank.get(title) ?? null),
+          setlistfm: providers.find((p) => p.id === "setlistfm")?.scores.get(title),
+        },
+        known,
+      ),
+    }))
+    .sort((a, b) => b.score - a.score)
     .slice(0, TARGETED_TITLES);
-  for (const [title] of missing) {
+  const spelled = new Map<string, string>(top.map((t) => [normalizeTrackTitle(t.title), t.title]));
+  for (const { title } of missing) {
     if (calls >= callsFor(input.targetSongs)) break;
-    const original = top.find((t) => normalizeTrackTitle(t.title) === title)?.title ?? title;
+    const original = spelled.get(title) ?? title;
     const hits = await deps.tracks.searchTracks(
       `track:"${quoted(original)}" artist:"${quoted(artist.name)}"`,
       market,
@@ -165,14 +266,10 @@ export async function resolveArtistSongs(
     searchRank: i,
     lastfmRank: lastfmRank.get(normalizeTrackTitle(t.name)) ?? null,
   }));
-  return {
-    spotifyArtistId: artist.spotifyId,
-    songs,
-    listeners,
-    pages,
-    exhausted,
-    fetchedAt: input.now,
-  };
+  return withProviders(
+    { spotifyArtistId: artist.spotifyId, songs, listeners, pages, exhausted, fetchedAt: input.now },
+    providers,
+  );
 }
 
 const byTitles = (songs: readonly CachedSong[], titles: readonly string[]) => {
@@ -188,15 +285,21 @@ const byTitles = (songs: readonly CachedSong[], titles: readonly string[]) => {
 export function pickFromSongs(input: {
   artist: { spotifyId: SpotifyArtistId; name: string; tier: BillingTier };
   songs: readonly CachedSong[];
+  /** D-085: which providers had data for this artist (from the cache entry). */
+  providers?: ArtistSongs["providers"];
   chart: readonly ChartEntry[];
   budgetMs: number;
   minSongs: number;
   alreadyPicked: readonly PickedTrack[];
 }): TrackCandidate[] {
   const { songs } = input;
-  const mostListened = songs
-    .filter((s) => s.lastfmRank !== null)
-    .sort((a, b) => a.lastfmRank! - b.lastfmRank!);
+  // D-085: "most listened" is now Last.fm blended with live setlists; ties keep search order.
+  const known = knownProviders({ songs: [...songs], providers: input.providers });
+  const scored = songs.map((song) => ({ song, score: songScore(song, known) }));
+  const mostListened = scored
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.song.searchRank - b.song.searchRank)
+    .map((x) => x.song);
   const trending = byTitles(songs, chartTitlesFor(input.artist.name, input.chart));
   const newest = [...songs]
     .filter((s) => s.releaseDate)

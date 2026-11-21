@@ -9,6 +9,7 @@ import type {
 } from "@/application/ports/playlists";
 import type { EventId, PlaylistJobId } from "@/domain/shared/ids";
 import { ConflictError, RateLimitedError } from "@/lib/errors";
+import { PLAYLIST_ALGORITHM_VERSION } from "./build-step";
 import { NoMatchedArtistsError, PlaylistUnavailableError } from "./errors";
 import { getPublisher, type PublisherDeps, type PublisherProblem } from "./publisher";
 import type { StartLimiter } from "./start-limiter";
@@ -33,8 +34,11 @@ export type SharedPlaylistStatus =
 const isBuilt = (row: SharedPlaylist | null): row is SharedPlaylist =>
   row !== null && row.lineupHashAtBuild !== null;
 
+/** D-085: built for this lineup by the current algorithm (an older version is stale). */
 const isCurrent = (row: SharedPlaylist | null, event: EventDetail): row is SharedPlaylist =>
-  isBuilt(row) && row.lineupHashAtBuild === event.lineupHash;
+  isBuilt(row) &&
+  row.lineupHashAtBuild === event.lineupHash &&
+  (row.optionsVersion ?? PLAYLIST_ALGORITHM_VERSION) >= PLAYLIST_ALGORITHM_VERSION;
 
 const building = (job: PlaylistJob): StartResult => ({ status: "building", jobId: job.id });
 
@@ -92,6 +96,6 @@ export async function getSharedStatus(
     status: "ready",
     url: row.url,
     builtAt: row.builtAt,
-    stale: row.lineupHashAtBuild !== event.lineupHash,
+    stale: !isCurrent(row, event),
   };
 }
