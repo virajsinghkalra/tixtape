@@ -15,6 +15,7 @@ import { ticketLink } from "@/components/links";
 import { PlaylistPanel } from "@/components/PlaylistPanel";
 import { ShareButton } from "@/components/ShareButton";
 import { EventBottomBar } from "@/components/EventBottomBar";
+import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { ButtonLink } from "@/components/ui/Button";
 import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
@@ -85,7 +86,12 @@ export default async function EventPage({ params, searchParams }: Params) {
       <ShareButton title={event.title} text={shareText(event.title, names)} />
       <EventActions event={event} />
       {outbound && (
-        <ButtonLink href={outbound.url} external variant="secondary">
+        <ButtonLink
+          href={outbound.url}
+          external
+          variant="secondary"
+          ticketFor={outbound.kind === "tickets" ? event.id : undefined}
+        >
           {outbound.label}
         </ButtonLink>
       )}
@@ -101,26 +107,32 @@ export default async function EventPage({ params, searchParams }: Params) {
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         {groups.length > 0 ? (
           <div className="lg:sticky lg:top-24 lg:order-2">
-            <PlaylistPanel
-              initialStatus={initialPlaylistStatus}
-              eventId={event.id}
-              actions={actions}
-              preview={preview}
-              matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}
-              total={event.lineup.length}
-            />
+            <SectionBoundary label="The playlist">
+              <PlaylistPanel
+                initialStatus={initialPlaylistStatus}
+                eventId={event.id}
+                actions={actions}
+                preview={preview}
+                matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}
+                total={event.lineup.length}
+              />
+            </SectionBoundary>
           </div>
         ) : (
           <div className="flex flex-wrap gap-3 lg:order-2">{actions}</div>
         )}
         <div className="lg:order-1">
-          <LineupPoster lineup={event.lineup} highlight={artist} />
+          <SectionBoundary label="The lineup">
+            <LineupPoster lineup={event.lineup} highlight={artist} />
+          </SectionBoundary>
         </div>
       </div>
       {/* OD-6: the rundown carousel stays on the event page. */}
       {groups.length > 0 && (
         <div className="mt-12">
-          <EventStory event={event} now={now} />
+          <SectionBoundary label="The rundown">
+            <EventStory event={event} now={now} />
+          </SectionBoundary>
         </div>
       )}
       <EventBottomBar>

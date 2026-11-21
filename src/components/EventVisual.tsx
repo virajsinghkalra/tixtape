@@ -1,7 +1,10 @@
+"use client";
+
 import type { VisualArtist } from "@/domain/visuals/visuals";
-import { eventVisual } from "@/domain/visuals/visuals";
+import { eventVisual, sizedImage } from "@/domain/visuals/visuals";
 import { ArtistAvatar, TONE_VAR } from "./ArtistAvatar";
 import { cx } from "./ui/cx";
+import { useImageFallback } from "./ui/use-image-fallback";
 
 type Props = {
   poster?: string | null;
@@ -10,6 +13,8 @@ type Props = {
   /** The sticker on the fallback: a headliner or the title. */
   label: string;
   className?: string;
+  /** The event hero (above the fold): eager, high fetch priority, hero-size images. */
+  priority?: boolean;
 };
 
 /** Grid areas for 1–4 tiles: one fills, two split, three lead big, four tile. */
@@ -25,8 +30,11 @@ const LAYOUT: Record<number, string> = {
  * the official poster, else a collage (photos first, designed fallbacks fill), else a branded
  * gradient with a sticker. Never an empty block.
  */
-export function EventVisual({ poster, artists = [], label, className }: Props) {
-  const plan = eventVisual({ posterUrl: poster, artists, label });
+export function EventVisual({ poster, artists = [], label, className, priority = false }: Props) {
+  const posterSrc = poster ? sizedImage(poster, priority ? "hero" : "card") : null;
+  // D-084: a poster that fails to load falls back to the collage (or the branded fallback).
+  const { failed, imgProps } = useImageFallback(posterSrc);
+  const plan = eventVisual({ posterUrl: failed ? null : posterSrc, artists, label });
   const box = cx("absolute inset-0 overflow-hidden", className);
   if (plan.kind === "poster") {
     return (
@@ -35,7 +43,9 @@ export function EventVisual({ poster, artists = [], label, className }: Props) {
         <img
           src={plan.url}
           alt=""
-          loading="lazy"
+          {...imgProps}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           decoding="async"
           referrerPolicy="no-referrer"
           className="size-full object-cover"
@@ -48,7 +58,7 @@ export function EventVisual({ poster, artists = [], label, className }: Props) {
       <div aria-hidden className={cx(box, "grid gap-0.5 bg-night", LAYOUT[plan.artists.length])}>
         {plan.artists.map((a) => (
           <div key={a.name} className="relative">
-            <ArtistAvatar artist={a} size="fill" shape="square" />
+            <ArtistAvatar artist={a} size="fill" shape="square" priority={priority} />
           </div>
         ))}
       </div>

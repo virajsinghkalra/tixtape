@@ -102,6 +102,13 @@ export const STORY_KICKERS = {
   playlist: "🎧 The playlist",
 } as const;
 
+/** UX #6: the playlist state on cards, rings and the hero (null: no badge). */
+export function playlistBadge(status: "ready" | "building" | null | undefined): string | null {
+  if (status === "ready") return "🎧 Live";
+  if (status === "building") return "⏳ Cooking";
+  return null;
+}
+
 /** Nothing matched on Spotify yet: never "0 songs · 0 min". */
 export const PLAYLIST_SOON = "Playlist soon ⏳";
 

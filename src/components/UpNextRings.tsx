@@ -15,6 +15,8 @@ export type RingEvent = {
   tone: BlockTone;
   /** A headliner photo (or the poster) behind the date, when there is one. */
   image?: string | null;
+  /** UX #6: the playlist is live. */
+  live?: boolean;
   /** Planned on the server (`planStory`): 2 slides for a solo show, more for a festival. */
   story: StoryPlan;
 };
@@ -36,8 +38,9 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
               subface={e.month}
               tone={e.tone}
               image={e.image}
+              badge={e.live ? "🎧" : null}
               seen={seen.has(e.id)}
-              aria-label={`Story: ${e.title}`}
+              aria-label={`${e.day} ${e.month} ${e.title}: story${e.live ? ", playlist live" : ""}`}
               onClick={() => {
                 setOpenId(e.id);
                 setSeen((s) => new Set(s).add(e.id));

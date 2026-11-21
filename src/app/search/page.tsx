@@ -79,9 +79,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
       <div className="relative z-20 max-w-2xl">
-        <EventSearch initialQuery={params.q ?? ""} />
+        <EventSearch initialQuery={params.q ?? ""} restoreResults={false} />
       </div>
-
       <h1 className="mt-10 font-display text-huge font-extrabold">{heading}</h1>
       {!lookedFor && (
         <p className="mt-2 text-muted">
@@ -197,7 +196,11 @@ function ResultGrid(props: {
 }) {
   return (
     <section aria-label={props.title ?? "Results"} className="mt-8">
-      {props.title && <h2 className="mb-4 font-display text-big font-extrabold">{props.title}</h2>}
+      {props.title ? (
+        <h2 className="mb-4 font-display text-big font-extrabold">{props.title}</h2>
+      ) : (
+        <h2 className="sr-only">Results</h2>
+      )}
       <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {props.rows.map((r, i) => {
           const d = props.details.get(r.id);

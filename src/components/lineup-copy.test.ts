@@ -3,6 +3,7 @@ import {
   introLine,
   joinNames,
   PLAYLIST_SOON,
+  playlistBadge,
   STORY_CTA,
   STORY_HEADER,
   STORY_KICKERS,
@@ -113,5 +114,13 @@ describe("minimal copy (D-082)", () => {
       expect(line).not.toMatch(/\bsongs?\b|\bmin\b|login/i);
     }
     expect(PLAYLIST_SOON).toBe("Playlist soon ⏳");
+  });
+});
+
+describe("playlistBadge (UX #6)", () => {
+  it("is tiny, and absent when there's no playlist", () => {
+    expect(playlistBadge("ready")).toBe("🎧 Live");
+    expect(playlistBadge("building")).toBe("⏳ Cooking");
+    expect(playlistBadge(null)).toBeNull();
   });
 });

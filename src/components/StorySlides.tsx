@@ -6,6 +6,7 @@ import {
   type VisualArtist,
 } from "@/domain/visuals/visuals";
 import { ArtistAvatar, ArtistChip, AvatarStack, TONE_VAR } from "./ArtistAvatar";
+import { EventVisual } from "./EventVisual";
 import { toneSequence } from "./event-color";
 import type { TitleSize } from "./lineup-copy";
 import type { SlidePlan, StoryArtist, StoryPlan } from "./story-plan";
@@ -169,14 +170,7 @@ export function ArtistBackdrop({ artist }: { artist: VisualArtist }) {
         title={v.credit ? `📷 ${v.credit}` : undefined}
         className="absolute inset-0 z-0"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked artist photo (D-083) */}
-        <img
-          src={v.url}
-          alt=""
-          decoding="async"
-          referrerPolicy="no-referrer"
-          className="absolute inset-0 size-full object-cover object-[50%_10%]"
-        />
+        <ArtistAvatar artist={artist} size="fill" shape="square" />
         <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92)_0%,rgb(11_11_15/0.55)_45%,rgb(11_11_15/0.15)_100%)]" />
       </div>
     );
@@ -220,17 +214,9 @@ function Poster({ url }: { url: string }) {
   return (
     <span
       aria-hidden
-      className="block aspect-[4/3] w-full max-w-xs -rotate-2 self-start overflow-hidden rounded-card border-[3px] border-night bg-night shadow-[4px_5px_0_0_var(--color-night)]"
+      className="relative block aspect-[4/3] w-full max-w-xs -rotate-2 self-start overflow-hidden rounded-card border-[3px] border-night bg-night shadow-[4px_5px_0_0_var(--color-night)]"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked poster, D-082 */}
-      <img
-        src={url}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        className="size-full object-cover"
-      />
+      <EventVisual poster={url} label="" />
     </span>
   );
 }

@@ -54,13 +54,30 @@ type LinkProps = {
   className?: string;
   /** Opens in a new tab with a screen-reader note. Use for Spotify and ticket sellers. */
   external?: boolean;
+  /** D-090: an outbound ticket link, counted by the `Analytics` click listener. */
+  ticketFor?: string;
 };
 
-export function ButtonLink({ href, children, variant, size, className, external }: LinkProps) {
+export function ButtonLink({
+  href,
+  children,
+  variant,
+  size,
+  className,
+  external,
+  ticketFor,
+}: LinkProps) {
   const cls = buttonClass(variant, size, className);
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cls}
+        data-track={ticketFor ? "ticket_click" : undefined}
+        data-track-event={ticketFor}
+      >
         {children}
         <span className="sr-only"> (opens in a new tab)</span>
       </a>

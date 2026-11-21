@@ -4,6 +4,25 @@
 import { istDayNumber, istParts } from "./event-format";
 
 const MAX_TITLE = 32;
+
+/**
+ * UX #6: the hero's next shows. Among the soonest `window` upcoming shows, ready playlists come
+ * first, then ones being made, then the rest; soonest first within each. Stable.
+ */
+export function pickNextUp<T extends { playlistStatus: "ready" | "building" | null }>(
+  soonest: readonly T[],
+  n = 3,
+  window = 12,
+): T[] {
+  const rank = (t: T) =>
+    t.playlistStatus === "ready" ? 0 : t.playlistStatus === "building" ? 1 : 2;
+  return soonest
+    .slice(0, window)
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
+    .slice(0, n)
+    .map((x) => x.t);
+}
 const MIN = 60_000;
 
 /**

@@ -1,11 +1,15 @@
+"use client";
+
 import type { CSSProperties } from "react";
 import {
   artistVisual,
+  sizedImage,
   type AvatarSize,
   type VisualArtist,
   type VisualTone,
 } from "@/domain/visuals/visuals";
 import { cx } from "./ui/cx";
+import { useImageFallback } from "./ui/use-image-fallback";
 
 /** D-083: block tones as CSS colours (the domain only names them). */
 export const TONE_VAR: Record<VisualTone, string> = {
@@ -41,6 +45,18 @@ type Props = {
   tilt?: number;
   className?: string;
   style?: CSSProperties;
+  /** Above the fold (the event hero): load eagerly at high priority, at hero size. */
+  priority?: boolean;
+};
+
+/** D-084: the CDN size each avatar asks for. */
+const SLOT: Record<AvatarBox, "avatar" | "card"> = {
+  xs: "avatar",
+  sm: "avatar",
+  md: "avatar",
+  lg: "card",
+  xl: "card",
+  fill: "card",
 };
 
 /**
@@ -56,8 +72,13 @@ export function ArtistAvatar({
   tilt,
   className,
   style,
+  priority = false,
 }: Props) {
-  const v = artistVisual(artist);
+  const first = artistVisual(artist);
+  const src = first.kind === "photo" ? sizedImage(first.url, priority ? "hero" : SLOT[size]) : null;
+  // D-084: a photo that fails to load falls back to the designed avatar, never a broken image.
+  const { failed, imgProps } = useImageFallback(src);
+  const v = failed ? artistVisual({ name: artist.name, imageUrl: null }) : first;
   const box = cx(
     "relative isolate shrink-0 overflow-hidden",
     size !== "fill" && "border-night",
@@ -76,9 +97,11 @@ export function ArtistAvatar({
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked artist photo (D-083) */}
         <img
-          src={v.url}
+          src={src ?? v.url}
           alt=""
-          loading="lazy"
+          {...imgProps}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           decoding="async"
           referrerPolicy="no-referrer"
           className="size-full object-cover object-[50%_10%]"

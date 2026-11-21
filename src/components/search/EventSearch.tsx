@@ -50,6 +50,11 @@ type Props = {
   sections?: RecommendationSection[];
   /** The visitor's city (D-050): "Near you" recommendations follow it. */
   city?: string | null;
+  /**
+   * Re-open the dropdown with `?q=`'s results on load. Off on /search, where the page already
+   * lists them (re-opening there pushed the grid down: CLS 0.6).
+   */
+  restoreResults?: boolean;
 };
 
 /**
@@ -61,6 +66,7 @@ export function EventSearch({
   initialQuery: fromServer = "",
   sections: initialSections = [],
   city = null,
+  restoreResults = true,
 }: Props) {
   const router = useRouter();
   // Back restores the page from the router cache, so read `?q=` from the live URL too.
@@ -77,7 +83,9 @@ export function EventSearch({
   const [value, setValue] = useState(initialQuery);
   const [focused, setFocused] = useState(false);
   const [within, setWithin] = useState(false);
-  const [restored, setRestored] = useState(initialQuery.trim().length >= MIN_CHARS);
+  const [restored, setRestored] = useState(
+    restoreResults && initialQuery.trim().length >= MIN_CHARS,
+  );
   const [sheet, setSheet] = useState(false);
   // The highlight follows an option's key, so it survives local → server results.
   const [activeKey, setActiveKey] = useState<string | null>(null);

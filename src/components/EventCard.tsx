@@ -5,7 +5,7 @@ import { eventTone } from "./event-color";
 import { ticketLink } from "./links";
 import { hasPhoto, type VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
-import { lineupTeaser } from "./lineup-copy";
+import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts } from "./event-format";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
@@ -28,6 +28,8 @@ type Props = {
   poster?: string | null;
   /** D-083: the top-billed artists; a collage (photos first) when there's no poster. */
   artists?: readonly VisualArtist[];
+  /** UX #6: the shared playlist's state, shown as a "🎧 Live" / "⏳ Cooking" sticker. */
+  playlistStatus?: "ready" | "building" | null;
   /** A tour shown as one card (D-079): the featured date is `event`; the rest are listed. */
   tour?: TourInfo;
 };
@@ -52,7 +54,9 @@ export function EventCard({
   poster,
   artists = [],
   tour,
+  playlistStatus = null,
 }: Props) {
+  const badge = playlistBadge(playlistStatus);
   const photo = Boolean(poster ?? event.posterUrl) || artists.some(hasPhoto);
   const { day, month, weekday } = istParts(event.startsAt);
   // OD-5: a news page is "Info ↗", never "Buy tickets".
@@ -72,7 +76,11 @@ export function EventCard({
         "has-[a:focus-visible]:outline-[3px] has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-focus",
       )}
     >
-      <Link href={`/events/${event.id}`} className="flex flex-1 flex-col outline-none">
+      <Link
+        href={`/events/${event.id}`}
+        aria-label={badge === "🎧 Live" ? `${event.title}, playlist live` : undefined}
+        className="flex flex-1 flex-col outline-none"
+      >
         <div
           className={cx(
             "relative isolate flex flex-col justify-between gap-6 p-4",
@@ -97,6 +105,15 @@ export function EventCard({
               endsAt={event.endsAt?.toISOString() ?? null}
               now={now.toISOString()}
             />
+            {badge && (
+              <Sticker
+                tone={playlistStatus === "ready" ? "lime" : "surface"}
+                tilt={4}
+                className="pop-in ml-auto"
+              >
+                {badge}
+              </Sticker>
+            )}
             {tour ? (
               <Sticker tone="night" tilt={3} emoji="🗺️">
                 Tour · {tour.count}
@@ -170,7 +187,13 @@ export function EventCard({
       )}
       {outbound && !tour && (
         <div className="px-4 pb-4">
-          <ButtonLink href={outbound.url} external variant="secondary" className="w-full">
+          <ButtonLink
+            href={outbound.url}
+            external
+            variant="secondary"
+            className="w-full"
+            ticketFor={outbound.kind === "tickets" ? event.id : undefined}
+          >
             {outbound.label}
           </ButtonLink>
         </div>

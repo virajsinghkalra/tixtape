@@ -6,6 +6,7 @@ import { istParts } from "./event-format";
 import { plural } from "./lineup-copy";
 import { Section } from "./Section";
 import { cx } from "./ui/cx";
+import { SectionBoundary } from "./ui/SectionBoundary";
 
 type Props = {
   id: string;
@@ -49,34 +50,37 @@ export function FrontSection({
         </Link>
       }
     >
-      <ul
-        className={cx(
-          row
-            ? "no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pt-1 pb-3 [contain:paint] sm:-mx-6 sm:px-6"
-            : "grid gap-5 sm:grid-cols-2 lg:grid-cols-3",
-        )}
-      >
-        {items.map((item, i) => {
-          const lead = item.kind === "event" ? item.event : item.tour.featured;
-          return (
-            <li
-              key={item.kind === "event" ? item.event.id : item.tour.key}
-              className={row ? "w-[78%] shrink-0 snap-start sm:w-[20rem]" : undefined}
-            >
-              <EventCard
-                event={lead}
-                now={now}
-                index={i}
-                variant={row ? "compact" : "feed"}
-                headliners={lead.headliners}
-                artists={lead.headlinerArtists}
-                ticketUrl={lead.ticketUrl}
-                tour={item.kind === "tour" ? tourInfo(item.tour, city) : undefined}
-              />
-            </li>
-          );
-        })}
-      </ul>
+      <SectionBoundary label={title}>
+        <ul
+          className={cx(
+            row
+              ? "no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pt-1 pb-3 [contain:paint] sm:-mx-6 sm:px-6"
+              : "grid gap-5 sm:grid-cols-2 lg:grid-cols-3",
+          )}
+        >
+          {items.map((item, i) => {
+            const lead = item.kind === "event" ? item.event : item.tour.featured;
+            return (
+              <li
+                key={item.kind === "event" ? item.event.id : item.tour.key}
+                className={row ? "w-[78%] shrink-0 snap-start sm:w-[20rem]" : undefined}
+              >
+                <EventCard
+                  event={lead}
+                  now={now}
+                  index={i}
+                  variant={row ? "compact" : "feed"}
+                  headliners={lead.headliners}
+                  artists={lead.headlinerArtists}
+                  ticketUrl={lead.ticketUrl}
+                  playlistStatus={lead.playlistStatus}
+                  tour={item.kind === "tour" ? tourInfo(item.tour, city) : undefined}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </SectionBoundary>
     </Section>
   );
 }

@@ -6,6 +6,7 @@ import {
   lineupLayout,
   nameHash,
   orderForVisuals,
+  sizedImage,
   type VisualArtist,
 } from "./visuals";
 
@@ -140,5 +141,30 @@ describe("lineupLayout: every lineup size", () => {
     expect(lineupLayout(34).perSlide).toEqual({ headliner: 4, sub: 6, mid: 6, support: 6 });
     expect(lineupLayout(34).size.headliner).toBe("xl");
     expect(lineupLayout(120).size.support).toBe("xs");
+  });
+});
+
+describe("sizedImage (D-084 image weight)", () => {
+  const wiki =
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Shreya_%28cropped%29.jpg/500px-Shreya_%28cropped%29.jpg";
+  const spotify = "https://i.scdn.co/image/ab6761610000e5eb0123456789abcdef";
+  it("Wikimedia: 250px thumbs for avatars and cards, 500px for heroes", () => {
+    expect(sizedImage(wiki, "avatar")).toMatch(/\/250px-Shreya_%28cropped%29\.jpg$/);
+    expect(sizedImage(wiki, "card")).toMatch(/\/250px-/);
+    expect(sizedImage(wiki, "hero")).toMatch(/\/500px-/);
+  });
+  it("Spotify: 160 for avatars, 320 for cards, 640 for heroes", () => {
+    expect(sizedImage(spotify, "avatar")).toBe(
+      "https://i.scdn.co/image/ab6761610000f1780123456789abcdef",
+    );
+    expect(sizedImage(spotify, "card")).toBe(
+      "https://i.scdn.co/image/ab676161000051740123456789abcdef",
+    );
+    expect(sizedImage(spotify, "hero")).toBe(spotify);
+  });
+  it("leaves other hosts and non-thumb Wikimedia files alone", () => {
+    expect(sizedImage("https://sunburn.in/p.jpg", "avatar")).toBe("https://sunburn.in/p.jpg");
+    const orig = "https://upload.wikimedia.org/wikipedia/commons/a/a0/X.jpg";
+    expect(sizedImage(orig, "avatar")).toBe(orig);
   });
 });

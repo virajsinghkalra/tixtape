@@ -183,3 +183,30 @@ export function lineupLayout(total: number): LineupLayout {
           : { headliner: "xl", sub: "lg", mid: "md", support: "md" },
   };
 }
+
+/**
+ * D-084 image weight: ask the CDN for a size that fits the slot. Wikimedia thumbs are resized
+ * by the `/NNNpx-` path segment; Spotify artist images come in 640/320/160 under different
+ * prefixes. Unknown hosts are returned unchanged.
+ */
+export function sizedImage(url: string, slot: "avatar" | "card" | "hero"): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "upload.wikimedia.org" && /\/thumb\//.test(u.pathname)) {
+      const px = slot === "hero" ? 500 : 250;
+      return url.replace(/\/(\d+)px-([^/]+)$/, `/${px}px-$2`);
+    }
+    if (u.hostname === "i.scdn.co") {
+      const prefix =
+        slot === "hero"
+          ? "ab6761610000e5eb"
+          : slot === "card"
+            ? "ab67616100005174"
+            : "ab6761610000f178";
+      return url.replace(/\/image\/ab676161(0000e5eb|00005174|0000f178)/, `/image/${prefix}`);
+    }
+  } catch {
+    // not a URL: leave it
+  }
+  return url;
+}

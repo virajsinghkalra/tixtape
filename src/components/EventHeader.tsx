@@ -116,7 +116,7 @@ function HeroPicture({
   return (
     <figure className="relative order-first md:order-last">
       <div className="relative aspect-[4/5] max-h-[26rem] w-full rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] max-md:aspect-[4/3]">
-        <EventVisual poster={poster} artists={artists} label={label} />
+        <EventVisual poster={poster} artists={artists} label={label} priority />
       </div>
       {caption && (
         <figcaption className="absolute -bottom-3 left-3">

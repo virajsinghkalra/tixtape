@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownLabel, shortTitle } from "./hero-copy";
+import { countdownLabel, pickNextUp, shortTitle } from "./hero-copy";
 
 describe("shortTitle", () => {
   it.each([
@@ -45,5 +45,23 @@ describe("countdownLabel", () => {
     expect(
       countdownLabel(new Date("2026-11-22T04:00:00Z"), new Date("2026-11-22T08:00:00Z"), now),
     ).toBe("Live now 🔴");
+  });
+});
+
+describe("pickNextUp (UX #6)", () => {
+  const ev = (id: string, playlistStatus: "ready" | "building" | null) => ({ id, playlistStatus });
+  it("ready playlists first, then cooking, then soonest", () => {
+    const rows = [
+      ev("a", null),
+      ev("b", "building"),
+      ev("c", "ready"),
+      ev("d", null),
+      ev("e", "ready"),
+    ];
+    expect(pickNextUp(rows).map((r) => r.id)).toEqual(["c", "e", "b"]);
+  });
+  it("only looks at the soonest shows", () => {
+    const rows = [...Array.from({ length: 12 }, (_, i) => ev(`n${i}`, null)), ev("late", "ready")];
+    expect(pickNextUp(rows).map((r) => r.id)).toEqual(["n0", "n1", "n2"]);
   });
 });

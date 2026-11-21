@@ -9,7 +9,9 @@ import { countdownBadge, formatDateRange, istParts } from "@/components/event-fo
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
 import { HeroBoard } from "@/components/HeroBoard";
-import { shortTitle } from "@/components/hero-copy";
+import { pickNextUp, shortTitle } from "@/components/hero-copy";
+import { playlistBadge } from "@/components/lineup-copy";
+import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { HeroNextUp, type NextUpItem } from "@/components/HeroNextUp";
 import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
@@ -75,7 +77,13 @@ export default async function Home({ searchParams }: Props) {
   const empty = rows.length === 0;
   const next = rows[0];
   const cities = new Set(rows.flatMap((e) => (e.city ? [e.city] : [])));
-  const thisWeek = rows.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS);
+  // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
+  const hero = pickNextUp(rows);
+  const heroIds = new Set(hero.map((e) => e.id));
+  const thisWeek = rows.filter(
+    (e) => e.startsAt.getTime() - now.getTime() < WEEK_MS && !heroIds.has(e.id),
+  );
+  const nearYou = front.nearYou.filter((i) => i.kind !== "event" || !heroIds.has(i.event.id));
   const nearRows = front.nearYou.map((i) => (i.kind === "event" ? i.event : i.tour.featured));
   const nearIds = new Set(nearRows.map((e) => e.id));
   const popularSection: RecommendationSection = {
@@ -127,7 +135,6 @@ export default async function Home({ searchParams }: Props) {
             >
               Every lineup. One playlist.
             </h1>
-            <p className="mt-4 max-w-xl text-lg font-medium">Search. Tap. Play.</p>
             <div className="mt-7 max-w-2xl">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
             </div>
@@ -135,8 +142,13 @@ export default async function Home({ searchParams }: Props) {
 
           {next ? (
             <>
-              <HeroNextUp items={rows.slice(0, 3).map(nextUpItem)} now={now.toISOString()} />
-              <HeroBoard gigs={rows.length} cities={citiesByCount(rows)} />
+              <SectionBoundary label="Next up">
+                <HeroNextUp items={hero.map(nextUpItem)} now={now.toISOString()} />
+              </SectionBoundary>
+              {/* UX #6: the stats tile costs a screen of scroll on phones; desktop only. */}
+              <div className="hidden sm:contents">
+                <HeroBoard gigs={rows.length} cities={citiesByCount(rows)} />
+              </div>
             </>
           ) : (
             <div className="lg:row-span-2 lg:flex">
@@ -146,12 +158,17 @@ export default async function Home({ searchParams }: Props) {
         </div>
       </section>
 
-      <YourGigs />
+      <SectionBoundary label="Your gigs">
+        <YourGigs />
+      </SectionBoundary>
 
       {/* The story strip may repeat cards from the sections below. */}
+      {/* UX #6 / OD-7: no repeats: shows in the hero are left out of the rings and Near you. */}
       {thisWeek.length > 0 && (
         <Section id="rings" emoji="📍" title="Happening this week" blurb="Tap to peek">
-          <UpNextRings events={thisWeek.slice(0, 10).map((e) => ringEvent(e, now))} />
+          <SectionBoundary label="Happening this week">
+            <UpNextRings events={thisWeek.slice(0, 10).map((e) => ringEvent(e, now))} />
+          </SectionBoundary>
         </Section>
       )}
 
@@ -160,7 +177,7 @@ export default async function Home({ searchParams }: Props) {
           id="near-you"
           emoji="📍"
           title={`Near you · ${city}`}
-          items={front.nearYou}
+          items={nearYou}
           now={now}
           city={city}
           seeAll={`/search?city=${encodeURIComponent(city)}`}
@@ -172,9 +189,7 @@ export default async function Home({ searchParams }: Props) {
         emoji="🔥"
         title="The big ones"
         blurb={
-          city && front.nearYou.length === 0 && !empty
-            ? `Quiet in ${city} · All India`
-            : "All India"
+          city && nearYou.length === 0 && !empty ? `Quiet in ${city} · All India` : "All India"
         }
         items={front.bigOnes}
         now={now}
@@ -208,7 +223,11 @@ export default async function Home({ searchParams }: Props) {
         seeAll={`/search?from=${today}`}
       />
 
-      {front.tours.length > 0 && <ToursList tours={front.tours} />}
+      {front.tours.length > 0 && (
+        <SectionBoundary label="Tours">
+          <ToursList tours={front.tours} />
+        </SectionBoundary>
+      )}
 
       {rows.length <= SMALL_CATALOGUE && <HowItWorks />}
 
@@ -230,6 +249,7 @@ function nextUpItem(e: FeedRow): NextUpItem {
     startsAt: e.startsAt.toISOString(),
     endsAt: e.endsAt?.toISOString() ?? null,
     dateOnly: e.startsAtDateOnly ?? false,
+    badge: playlistBadge(e.playlistStatus),
   };
 }
 
@@ -257,6 +277,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
     month,
     tone: toneSequence(e.id, 1)[0]!,
     image: ringImage(e),
+    live: e.playlistStatus === "ready",
     story: planStory({
       id: e.id,
       title: e.title,

@@ -19,6 +19,8 @@ export type NextUpItem = {
   startsAt: string;
   endsAt: string | null;
   dateOnly: boolean;
+  /** UX #6: "🎧 Live" / "⏳ Cooking", or null. */
+  badge: string | null;
 };
 
 const ADVANCE_MS = 5000;
@@ -62,7 +64,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className="pop-in relative isolate flex min-h-64 overflow-hidden rounded-tile border-2 border-night bg-violet text-white shadow-[5px_6px_0_0_var(--color-night)] [--i:1] dark:border-line lg:min-h-0"
+        className="pop-in relative isolate flex min-h-64 flex-col overflow-hidden rounded-tile border-2 border-night bg-violet text-white shadow-[5px_6px_0_0_var(--color-night)] [--i:1] dark:border-line lg:min-h-0"
         onPointerEnter={() => setHeld(true)}
         onPointerLeave={() => setHeld(false)}
         onFocus={() => setHeld(true)}
@@ -97,7 +99,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
             if (swipe.current?.moved) e.preventDefault();
             swipe.current = null;
           }}
-          className="flex flex-1 flex-col justify-between gap-6 p-5 outline-offset-[-6px] focus-visible:outline-white sm:p-6"
+          className="flex flex-1 flex-col justify-between gap-6 p-5 pb-2 outline-offset-[-6px] focus-visible:outline-white sm:p-6 sm:pb-2"
         >
           <span className="flex flex-wrap items-center justify-between gap-2">
             <Sticker tone="night" tilt={-3} className="gap-2">
@@ -114,13 +116,20 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
               </Sticker>
             </motion.span>
           </span>
-          <span className="block font-display text-2xl leading-tight font-extrabold text-balance [overflow-wrap:anywhere] sm:text-3xl">
-            {item.title} <span aria-hidden>→</span>
+          <span className="flex flex-col items-start gap-2">
+            {item.badge && (
+              <Sticker tone={item.badge === "🎧 Live" ? "lime" : "surface"} tilt={4}>
+                {item.badge}
+              </Sticker>
+            )}
+            <span className="block font-display text-2xl leading-tight font-extrabold text-balance [overflow-wrap:anywhere] sm:text-3xl">
+              {item.title} <span aria-hidden>→</span>
+            </span>
           </span>
         </Link>
 
         {count > 1 && (
-          <div className="absolute right-4 bottom-4 flex gap-1.5" role="group" aria-label="Shows">
+          <div className="flex justify-end gap-1.5 px-4 pb-3" role="group" aria-label="Shows">
             {items.map((it, i) => (
               <button
                 key={it.id}
