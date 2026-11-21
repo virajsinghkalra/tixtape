@@ -69,7 +69,7 @@ export function EventStory({ event, now }: Props) {
                 >
                   <span
                     aria-hidden
-                    className="grid size-9 shrink-0 place-items-center rounded-full bg-violet bg-cover bg-center font-display font-extrabold text-white"
+                    className="grid size-9 shrink-0 place-items-center rounded-full bg-violet bg-cover bg-[center_10%] font-display font-extrabold text-white"
                     style={a.imageUrl ? { backgroundImage: `url("${a.imageUrl}")` } : undefined}
                   >
                     {a.imageUrl ? "" : a.name.charAt(0)}

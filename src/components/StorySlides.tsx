@@ -152,7 +152,7 @@ export function ArtistBackdrop({ artist }: { artist: Pick<StoryArtist, "name" | 
     return (
       <div aria-hidden className="absolute inset-0 z-0">
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-[center_10%]"
           style={{ backgroundImage: `url("${artist.imageUrl}")` } as CSSProperties}
         />
         <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92)_0%,rgb(11_11_15/0.55)_45%,rgb(11_11_15/0.15)_100%)]" />
@@ -181,7 +181,7 @@ function BigFace({ artist }: { artist: StoryArtist }) {
   return (
     <span
       aria-hidden
-      className="grid size-40 -rotate-3 place-items-center self-start rounded-full border-4 border-night bg-night bg-cover bg-center shadow-[5px_6px_0_0_var(--color-night)] sm:size-48"
+      className="grid size-40 -rotate-3 place-items-center self-start rounded-full border-4 border-night bg-night bg-cover bg-[center_10%] shadow-[5px_6px_0_0_var(--color-night)] sm:size-48"
       style={artist.imageUrl ? { backgroundImage: `url("${artist.imageUrl}")` } : undefined}
     >
       {!artist.imageUrl && (
@@ -210,7 +210,7 @@ function Face({ artist, size = "size-14" }: { artist: StoryArtist; size?: string
   return (
     <span
       aria-hidden
-      className={cx("shrink-0 rounded-full border-2 border-night bg-cover bg-center", size)}
+      className={cx("shrink-0 rounded-full border-2 border-night bg-cover bg-[center_10%]", size)}
       style={{ backgroundImage: `url("${artist.imageUrl}")` }}
     />
   );
@@ -243,7 +243,7 @@ function FaceStack({ artists }: { artists: StoryArtist[] }) {
       {artists.map((a, i) => (
         <span
           key={a.name}
-          className="-ml-4 size-24 rounded-full border-[3px] border-night bg-night bg-cover bg-center shadow-[3px_4px_0_0_var(--color-night)] first:ml-0 sm:size-28"
+          className="-ml-4 size-24 rounded-full border-[3px] border-night bg-night bg-cover bg-[center_10%] shadow-[3px_4px_0_0_var(--color-night)] first:ml-0 sm:size-28"
           style={{
             backgroundImage: `url("${a.imageUrl}")`,
             rotate: `${(i % 2 === 0 ? -1 : 1) * (4 + i)}deg`,

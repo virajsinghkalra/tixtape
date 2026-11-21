@@ -48,7 +48,7 @@ export function EventVisual({ poster, faces = [], label, className }: Props) {
         {plan.urls.map((url) => (
           <div
             key={url}
-            className="bg-cover bg-center"
+            className="bg-cover bg-[center_10%]"
             style={{ backgroundImage: `url("${url}")` } as CSSProperties}
           />
         ))}

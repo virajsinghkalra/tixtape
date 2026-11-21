@@ -93,7 +93,7 @@ function SoloPhoto({ name, imageUrl }: { name: string; imageUrl: string | null }
   return (
     <div
       aria-hidden
-      className="mx-auto mt-6 grid size-44 place-items-center overflow-hidden rounded-full border-4 border-lime bg-violet bg-cover bg-center shadow-[0_0_60px_-10px_var(--color-violet)] sm:size-56"
+      className="mx-auto mt-6 grid size-44 place-items-center overflow-hidden rounded-full border-4 border-lime bg-violet bg-cover bg-[center_10%] shadow-[0_0_60px_-10px_var(--color-violet)] sm:size-56"
       style={imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined}
     >
       {!imageUrl && (
