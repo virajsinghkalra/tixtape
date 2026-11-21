@@ -55,6 +55,7 @@ Some pointers need the user's accounts. Those show as **Waiting on you** in the 
 User-facing pointers (Phase 2 onward) need all four levels before they're ticked.
 
 ## Parallel teams: isolation rules (D-067)
+
 - **Integration tests:** each team uses its own database, `TEST_DB_NAME=concert_test_<team>` (e.g. `concert_test_admin`). The default `concert_test` is for the Lead only.
 - **Browser tests:** one Playwright suite at a time on this machine. QA owns `:3100`. Teams use `npx vitest` for their own work and ask the Lead before running Playwright.
 - **Files:** each team edits only its own folders. Shared files go through the Lead, or through the team that the decision log names as owner.

@@ -63,13 +63,17 @@ If an agent didn't finish, start a fresh one with the same brief. The `.claude/s
 - [ ] Later: Neon and Vercel sign-up for deploy
 
 ---
+
 ## Resume point #2 (saved 2026-11-21 ~21:20 IST, usage limit reached)
+
 All agents were stopped on purpose. Decisions now run up to **D-067**. Published events (real, Lead-verified):
+
 - Sunburn 2026 (Mumbai, 4 headliners)
 - HOME Festival 2026 (Goa, 33 artists, 21 matched)
 - Johnnie & Co. (Mumbai, Charlie Puth)
 
 **Restart these teams from their briefs**, using the team skills and `TEST_DB_NAME` per team (D-067):
+
 1. **Engine:** D-065 duration-based playlist (show length; weights by tier and Last.fm popularity; every artist). Also: refuse terminal jobs; steps were 8–14s, so enforce the budget. Last state: "writing the build plan with show length and budgets".
 2. **Matching:** D-066 multi-strategy resolver (name variants, context, Tavily web links, MusicBrainz band↔member). Run it on the 12 unmatched HOME artists. Last state: mid-implementation, fixing an edge case where a name with no letters produced a "DJ !!!" variant.
 3. **Ingestion:** D-064 free doubt resolver (Tavily + GitHub Models gpt-5.5, quote-verified) plus lineup coverage. Last state: running final checks on its paths.

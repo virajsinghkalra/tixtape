@@ -991,6 +991,7 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - A seeded 200-event scenario (a 10-city tour, a far-away mega festival, a tiny local gig, a past event) asserting what Mumbai, Kolkata and no-city visitors see.
 
 ### D-080 · Fast "Make playlist": cached songs, pre-warm, and one prioritised Spotify call budget
+
 - **Status:** Accepted · **Owner:** Engine (owner P0) · **Date:** 2026-11-22. Amends D-038/D-065 (how songs are fetched), D-006/D-020 (who may call Spotify, and how often).
 - **Context:** The real HOME build (24 artists) made about 14 Spotify calls per artist: a search for every Last.fm title, newest releases and album tracks. Only 4 artists finished in 90 s, then a 429 on `/search` returned `Retry-After: ~63,700 s`. The shared gate honoured it, so the whole app was paused for ~17.7 h. Matching re-runs and gig validation were calling Spotify at the same time.
 - **Spotify facts (developer docs, checked 2026-11-22):**

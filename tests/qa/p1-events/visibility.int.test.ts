@@ -104,20 +104,33 @@ const j = async (r: Response) => (await r.json()) as Json;
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 const u = (path: string) => `http://localhost${path}`;
 const send = (method: string, b?: unknown) =>
-  b === undefined ? { method } : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(b) };
+  b === undefined
+    ? { method }
+    : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(b) };
 
-const listEvents = (qs = "") => publicList.GET(new Request(u(`/api/events${qs}`)), undefined as never);
+const listEvents = (qs = "") =>
+  publicList.GET(new Request(u(`/api/events${qs}`)), undefined as never);
 const getEvent = (id: string) => publicDetail.GET(new Request(u(`/api/events/${id}`)), ctx(id));
-const suggest = (qs = "") => suggestRoute.GET(new Request(u(`/api/events/suggest${qs}`)), undefined as never);
-const search = (qs: string) => searchRoute.GET(new Request(u(`/api/search${qs}`)), undefined as never);
-const click = (b: unknown) => clickRoute.POST(new Request(u("/api/search/click"), send("POST", b)), undefined as never);
-const view = (id: string) => viewRoute.POST(new Request(u(`/api/events/${id}/view`), send("POST")), ctx(id));
-const playlistGet = (id: string) => playlistRoute.GET(new Request(u(`/api/events/${id}/playlist`)), ctx(id));
-const playlistPost = (id: string) => playlistRoute.POST(new Request(u(`/api/events/${id}/playlist`), send("POST")), ctx(id));
-const adminGet = (qs = "") => adminList.GET(new Request(u(`/api/admin/events${qs}`)), undefined as never);
-const adminGetOne = (id: string) => adminDetail.GET(new Request(u(`/api/admin/events/${id}`)), ctx(id));
-const adminPost = (b: unknown) => adminList.POST(new Request(u("/api/admin/events"), send("POST", b)), undefined as never);
-const patch = (id: string, b: unknown) => adminDetail.PATCH(new Request(u(`/api/admin/events/${id}`), send("PATCH", b)), ctx(id));
+const suggest = (qs = "") =>
+  suggestRoute.GET(new Request(u(`/api/events/suggest${qs}`)), undefined as never);
+const search = (qs: string) =>
+  searchRoute.GET(new Request(u(`/api/search${qs}`)), undefined as never);
+const click = (b: unknown) =>
+  clickRoute.POST(new Request(u("/api/search/click"), send("POST", b)), undefined as never);
+const view = (id: string) =>
+  viewRoute.POST(new Request(u(`/api/events/${id}/view`), send("POST")), ctx(id));
+const playlistGet = (id: string) =>
+  playlistRoute.GET(new Request(u(`/api/events/${id}/playlist`)), ctx(id));
+const playlistPost = (id: string) =>
+  playlistRoute.POST(new Request(u(`/api/events/${id}/playlist`), send("POST")), ctx(id));
+const adminGet = (qs = "") =>
+  adminList.GET(new Request(u(`/api/admin/events${qs}`)), undefined as never);
+const adminGetOne = (id: string) =>
+  adminDetail.GET(new Request(u(`/api/admin/events/${id}`)), ctx(id));
+const adminPost = (b: unknown) =>
+  adminList.POST(new Request(u("/api/admin/events"), send("POST", b)), undefined as never);
+const patch = (id: string, b: unknown) =>
+  adminDetail.PATCH(new Request(u(`/api/admin/events/${id}`), send("PATCH", b)), ctx(id));
 
 const input = (over: Json = {}): Json => ({
   title: "Published Gala",
@@ -237,7 +250,15 @@ describe("QA D-056 defaults", () => {
 describe("QA D-056 public list and detail", () => {
   it("list returns only published; filters can't reach hidden events", async () => {
     const { pub } = await world();
-    for (const qs of ["", "?city=Shillong", "?q=Zebracorn", "?q=Wombatique", "?city=Mumbai", "?pageSize=100", "?from=2027-03-01"]) {
+    for (const qs of [
+      "",
+      "?city=Shillong",
+      "?q=Zebracorn",
+      "?q=Wombatique",
+      "?city=Mumbai",
+      "?pageSize=100",
+      "?from=2027-03-01",
+    ]) {
       const b = await j(await listEvents(qs));
       const ids = (b.events as Json[]).map((e) => e.id);
       expect(ids.every((id) => id === pub)).toBe(true);
@@ -274,7 +295,9 @@ describe("QA D-056 public list and detail", () => {
 
   it("public list/detail don't expose admin verification fields", async () => {
     const id = await create({ visibility: "published" });
-    await db.execute(sql`UPDATE events SET confidence = 0.42, verification = ${JSON.stringify({ internal: "VERIF-MARKER" })}::jsonb WHERE id = ${id}`);
+    await db.execute(
+      sql`UPDATE events SET confidence = 0.42, verification = ${JSON.stringify({ internal: "VERIF-MARKER" })}::jsonb WHERE id = ${id}`,
+    );
     for (const text of [await (await listEvents()).text(), await (await getEvent(id)).text()]) {
       expect(text).not.toContain("VERIF-MARKER");
       expect(text).not.toMatch(/"confidence"|"visibility"/);
@@ -286,7 +309,16 @@ describe("QA D-056 suggest and search", () => {
   // BUG: typed suggest returns didYouMean "Quixotrel Heldonly", a name only on a held event
   it("typed suggest never returns hidden events, artists or cities", async () => {
     await world();
-    for (const q of ["Zebracorn", "Wombatique", "Quixotrel", "Vexillon", "Shillong", "Hidden Hall", "Night", "Secret"]) {
+    for (const q of [
+      "Zebracorn",
+      "Wombatique",
+      "Quixotrel",
+      "Vexillon",
+      "Shillong",
+      "Hidden Hall",
+      "Night",
+      "Secret",
+    ]) {
       const r = await suggest(`?q=${encodeURIComponent(q)}`);
       expect(r.status).toBe(200);
       expect(served(await j(r))).not.toMatch(HIDDEN_WORDS);
@@ -309,7 +341,9 @@ describe("QA D-056 suggest and search", () => {
       expect(text).not.toContain(held);
       expect(text).not.toContain(archived);
       expect(text).not.toMatch(HIDDEN_WORDS);
-      const items = ((b.sections as Json[]) ?? []).flatMap((s) => (s.items as Json[] | undefined) ?? []);
+      const items = ((b.sections as Json[]) ?? []).flatMap(
+        (s) => (s.items as Json[] | undefined) ?? [],
+      );
       for (const it of items) expect(it.id).toBe(pub);
     }
   });
@@ -329,7 +363,15 @@ describe("QA D-056 suggest and search", () => {
 
   it("/api/search returns only published, for text and explicit filters", async () => {
     const { pub } = await world();
-    for (const qs of ["?q=Zebracorn", "?q=Wombatique", "?city=Shillong", "?artist=Quixotrel%20Heldonly", "?artist=Shared%20Artist", "?q=Night", "?city=Mumbai"]) {
+    for (const qs of [
+      "?q=Zebracorn",
+      "?q=Wombatique",
+      "?city=Shillong",
+      "?artist=Quixotrel%20Heldonly",
+      "?artist=Shared%20Artist",
+      "?q=Night",
+      "?city=Mumbai",
+    ]) {
       const r = await search(qs);
       expect(r.status).toBe(200);
       const b = await j(r);
@@ -366,7 +408,9 @@ describe("QA D-056 views and clicks on hidden events count nothing", () => {
       const before = await statsRow(id);
       const status = (await click({ q: "zebracorn", eventId: id })).status;
       expect(await statsRow(id)).toEqual(before);
-      const logged = (await db.execute(sql`SELECT count(*)::int AS n FROM search_log WHERE clicked_event_id = ${id}`)) as unknown as Json[];
+      const logged = (await db.execute(
+        sql`SELECT count(*)::int AS n FROM search_log WHERE clicked_event_id = ${id}`,
+      )) as unknown as Json[];
       expect(Number(logged[0]!.n)).toBe(0);
       expect(status).toBe(404);
     }
@@ -390,7 +434,9 @@ describe("QA D-056 playlist status and start", () => {
     expect(ghost).toBe(404);
     for (const id of [held, archived]) {
       expect((await playlistPost(id)).status).toBe(404);
-      const jobs = (await db.execute(sql`SELECT count(*)::int AS n FROM playlist_jobs WHERE event_id = ${id}`)) as unknown as Json[];
+      const jobs = (await db.execute(
+        sql`SELECT count(*)::int AS n FROM playlist_jobs WHERE event_id = ${id}`,
+      )) as unknown as Json[];
       expect(Number(jobs[0]!.n)).toBe(0);
     }
   });
@@ -409,7 +455,6 @@ describe("QA D-056 playlist status and start", () => {
     expect(await after.text()).not.toContain("sp-held-1");
     expect((await playlistPost(id)).status).toBe(404);
   });
-
 });
 
 // ── PATCH visibility ────────────────────────────────────────────────────
@@ -468,11 +513,19 @@ describe("QA D-056 PATCH visibility", () => {
     await mod.ingest(feed([tmEvent("tm-1")]), { from: NOW });
     const id = ((await j(await adminGet())).events as Json[])[0]!.id as string;
     const snap = async () =>
-      ((await db.execute(sql`SELECT title, type, status, starts_at, ends_at, genre, image_url, venue_id, lineup_hash, dedupe_key FROM events WHERE id = ${id}`)) as unknown as Json[])[0];
+      (
+        (await db.execute(
+          sql`SELECT title, type, status, starts_at, ends_at, genre, image_url, venue_id, lineup_hash, dedupe_key FROM events WHERE id = ${id}`,
+        )) as unknown as Json[]
+      )[0];
     const sources = async () =>
-      (await db.execute(sql`SELECT source, external_id FROM event_sources WHERE event_id = ${id} ORDER BY source`)) as unknown as Json[];
+      (await db.execute(
+        sql`SELECT source, external_id FROM event_sources WHERE event_id = ${id} ORDER BY source`,
+      )) as unknown as Json[];
     const lineup = async () =>
-      (await db.execute(sql`SELECT artist_id, billing_rank, tier FROM event_artists WHERE event_id = ${id} ORDER BY billing_rank`)) as unknown as Json[];
+      (await db.execute(
+        sql`SELECT artist_id, billing_rank, tier FROM event_artists WHERE event_id = ${id} ORDER BY billing_rank`,
+      )) as unknown as Json[];
     const [b1, s1, l1] = [await snap(), await sources(), await lineup()];
     await setVisibility(id, "published");
     expect(await snap()).toEqual(b1);
@@ -500,7 +553,8 @@ describe("QA D-056 PATCH visibility", () => {
       expect(e).toHaveProperty("confidence");
       expect(e).toHaveProperty("lastVerifiedAt");
     }
-    const ids = async (v: string) => ((await j(await adminGet(`?visibility=${v}`))).events as Json[]).map((e) => e.id);
+    const ids = async (v: string) =>
+      ((await j(await adminGet(`?visibility=${v}`))).events as Json[]).map((e) => e.id);
     expect(await ids("held")).toEqual([held]);
     expect(await ids("archived")).toEqual([archived]);
     expect(await ids("published")).toEqual([pub]);
@@ -519,7 +573,9 @@ describe("QA D-056 published verification block", () => {
     const mod = state.module as EventsModule;
     await mod.ingest(feed([tmEvent("tm-1")]), { from: NOW });
     const id = ((await j(await adminGet())).events as Json[])[0]!.id as string;
-    await db.execute(sql`UPDATE events SET verification = ${JSON.stringify({ evidence: "VERIF-INTERNAL" })}::jsonb WHERE id = ${id}`);
+    await db.execute(
+      sql`UPDATE events SET verification = ${JSON.stringify({ evidence: "VERIF-INTERNAL" })}::jsonb WHERE id = ${id}`,
+    );
     await setVisibility(id, "published");
     const r = await getEvent(id);
     const text = await r.text();
