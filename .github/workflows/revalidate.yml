@@ -33,7 +33,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       - run: npx tsx src/scripts/revalidate.ts
 
   audit:
@@ -49,6 +49,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Read-only report (READ ONLY transaction). Never pass --fix in CI.
       - run: npx tsx src/scripts/audit-data.ts

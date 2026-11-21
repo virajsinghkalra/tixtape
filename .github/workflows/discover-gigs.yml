@@ -37,7 +37,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Same collector state as ingest.yml (crawl delays, robots.txt, Spotify verdicts, search
       # budget). Restore and save are split so the state is saved even when the run fails.
       - uses: actions/cache/restore@v4

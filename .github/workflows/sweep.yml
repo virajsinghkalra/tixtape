@@ -39,7 +39,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Remembers which alerts were sent, so a lasting condition alerts at most daily.
       - uses: actions/cache/restore@v4
         with:

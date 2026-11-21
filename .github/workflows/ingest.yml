@@ -31,7 +31,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Keeps robots.txt, crawl-delay timestamps and Spotify artist verdicts between runs.
       # Also keeps consecutive source failures for the D-060 alert. Restore and save are split
       # so the state is saved even when the run fails (a failing source exits 1).
