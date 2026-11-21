@@ -5,6 +5,7 @@ import { LastfmClient } from "../music-signals/lastfm";
 import { createMemoryHostLog, PoliteFetcher } from "../sources/polite-fetch";
 import {
   LastfmTrendingArtists,
+  ogImage,
   PolitePageReader,
   tourLinks,
   WikidataOfficialSites,
@@ -143,5 +144,27 @@ describe("LastfmTrendingArtists", () => {
     expect(await new LastfmTrendingArtists(client).topInIndia(10)).toEqual([
       { name: "Pritam", listeners: 6975 },
     ]);
+  });
+});
+
+describe("ogImage (D-082)", () => {
+  const base = "https://sunburn.in/festival";
+  it("reads og:image in either attribute order and resolves relative URLs", () => {
+    expect(ogImage(`<meta property="og:image" content="https://cdn.sunburn.in/p.jpg">`, base)).toBe(
+      "https://cdn.sunburn.in/p.jpg",
+    );
+    expect(ogImage(`<meta content="/img/poster.png" property="og:image" />`, base)).toBe(
+      "https://sunburn.in/img/poster.png",
+    );
+    expect(ogImage(`<meta name="twitter:image" content="https://x.example/a.jpg">`, base)).toBe(
+      "https://x.example/a.jpg",
+    );
+  });
+  it("ignores missing, non-https and junk values", () => {
+    expect(ogImage(`<meta property="og:title" content="Hi">`, base)).toBeNull();
+    expect(
+      ogImage(`<meta property="og:image" content="http://insecure.example/a.jpg">`, base),
+    ).toBeNull();
+    expect(ogImage(`<meta property="og:image" content="javascript:alert(1)">`, base)).toBeNull();
   });
 });

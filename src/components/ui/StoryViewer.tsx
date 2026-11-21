@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { cx } from "./cx";
@@ -158,6 +159,15 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
     e.preventDefault();
   }
 
+  function onTap(e: MouseEvent<HTMLOListElement>) {
+    if ((e.target as Element).closest("a, button, input, select, textarea")) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - box.left) / Math.max(box.width, 1);
+    if (x < 1 / 3) goTo(current - 1);
+    else if (x > 2 / 3 && current < last) goTo(current + 1);
+    else if (x > 2 / 3) onEnd?.();
+  }
+
   const slide = slides[current];
   const onDark = slide?.dark || slide?.tone === "violet" || slide?.tone === "night";
 
@@ -188,9 +198,13 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
         ))}
       </div>
 
+      {/* Tap zones (left third back, right third on) are handled here, not as overlay buttons,
+          so links and buttons inside a slide ("Open playlist", "See event") always get the tap.
+          Keyboard users have the arrow buttons and arrow keys. */}
       <ol
         ref={trackRef}
         onScroll={onScroll}
+        onClick={tapZones ? onTap : undefined}
         className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto"
       >
         {slides.map((s, i) => (
@@ -207,25 +221,6 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
           </li>
         ))}
       </ol>
-
-      {tapZones && (
-        <>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            onClick={() => goTo(current - 1)}
-            className="absolute inset-y-16 left-0 z-[5] w-1/3"
-          />
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            onClick={() => (current < last ? goTo(current + 1) : onEnd?.())}
-            className="absolute inset-y-16 right-0 z-[5] w-1/3"
-          />
-        </>
-      )}
 
       <div className="absolute right-4 bottom-4 z-10 flex gap-2">
         <ArrowButton

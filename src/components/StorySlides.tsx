@@ -61,9 +61,6 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
               <p className="font-display text-5xl leading-none font-extrabold uppercase [overflow-wrap:anywhere]">
                 {slide.artist.name}
               </p>
-              <p className={cx("font-display font-bold text-balance", "text-xl sm:text-2xl")}>
-                {slide.title}
-              </p>
             </div>
           </div>
         </>
@@ -71,11 +68,13 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
     case "intro":
       return (
         <div className="flex flex-1 flex-col justify-center gap-8">
-          {slide.faces.length > 0 ? (
+          {slide.poster ? (
+            <Poster url={slide.poster} />
+          ) : slide.faces.length > 0 ? (
             <FaceStack artists={slide.faces} />
           ) : (
-            <Sticker tone="night" size="md" tilt={-4} className="self-start text-2xl">
-              {slide.who.split(".")[0]}
+            <Sticker tone="night" size="md" tilt={-4} emoji="🎪" className="self-start text-2xl">
+              Lineup
             </Sticker>
           )}
           <div className="space-y-3">
@@ -94,7 +93,6 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
             >
               {slide.title}
             </p>
-            <p className="text-lg font-semibold">{slide.who}</p>
           </div>
         </div>
       );
@@ -129,13 +127,10 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
           <Sticker tone="night" size="md" emoji="🎧" className="self-start">
             The playlist
           </Sticker>
-          {slide.headline && (
-            <p className="font-display text-big leading-tight font-extrabold">{slide.headline}</p>
-          )}
-          <p className="text-lg font-semibold">{slide.detail}</p>
+          <p className="font-display text-big leading-tight font-extrabold">{slide.headline}</p>
           <div className="relative z-10 mt-2 flex flex-wrap gap-3">
             <ButtonLink href={slide.cta.href} variant="night" size="lg">
-              {slide.cta.text} <span aria-hidden>↓</span>
+              {slide.cta.text} <span aria-hidden>→</span>
             </ButtonLink>
             {slide.secondary && (
               <ButtonLink href={slide.secondary.href} variant="secondary" size="lg">
@@ -218,6 +213,26 @@ function Face({ artist, size = "size-14" }: { artist: StoryArtist; size?: string
       className={cx("shrink-0 rounded-full border-2 border-night bg-cover bg-center", size)}
       style={{ backgroundImage: `url("${artist.imageUrl}")` }}
     />
+  );
+}
+
+/** D-082: the official poster (og:image, hotlinked), tilted like a flyer. */
+function Poster({ url }: { url: string }) {
+  return (
+    <span
+      aria-hidden
+      className="block aspect-[4/3] w-full max-w-xs -rotate-2 self-start overflow-hidden rounded-card border-[3px] border-night bg-night shadow-[4px_5px_0_0_var(--color-night)]"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- hotlinked poster, D-082 */}
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerPolicy="no-referrer"
+        className="size-full object-cover"
+      />
+    </span>
   );
 }
 

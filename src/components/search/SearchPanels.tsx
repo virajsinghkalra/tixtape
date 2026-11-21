@@ -125,9 +125,7 @@ export function LookupBlock({
             🔎
           </span>
         )}
-        {lookup.artist
-          ? `Looking for ${lookup.artist.name}'s India dates…`
-          : `Looking for ‘${lookup.query}’…`}
+        {lookup.artist ? `Looking for ${lookup.artist.name}…` : `Looking for ‘${lookup.query}’…`}
       </p>
     );
   }
@@ -189,7 +187,7 @@ export function LookupBlock({
             className="size-14 shrink-0 rounded-full object-cover"
           />
         )}
-        <p className="font-semibold">{name}: no India dates yet. We&apos;ll keep checking.</p>
+        <p className="font-semibold">{name}: no India dates yet</p>
       </div>
     );
   }
@@ -255,7 +253,7 @@ export function ResultsPanel(p: ResultsProps) {
       {empty && p.lookup.kind === "idle" && (
         <div className="px-4 pt-4">
           <p className="font-display text-xl font-extrabold">No {state.query} shows yet</p>
-          <p className="mt-1 text-sm text-muted">Try an artist, a festival or a city.</p>
+          <p className="mt-1 text-sm text-muted">Try an artist or city</p>
           {state.response.fallback.length > 0 && (
             <div className="mt-3">
               <p className="mb-1 text-xs font-bold tracking-wider text-muted uppercase">
@@ -321,7 +319,7 @@ export function ResultsPanel(p: ResultsProps) {
 
 function PanelFooter({ state, onRetry }: { state: SearchState; onRetry: () => void }) {
   if (state.retrying) {
-    return <p className="px-4 pb-4 text-sm">😵 Search isn&apos;t responding, retrying…</p>;
+    return <p className="px-4 pb-4 text-sm">😵 Search down, retrying…</p>;
   }
   if (state.status === "error") {
     return (
@@ -329,7 +327,7 @@ function PanelFooter({ state, onRetry }: { state: SearchState; onRetry: () => vo
         <p>
           {state.error === "offline"
             ? "📡 You're offline. Reconnect and try again."
-            : "😵 Search isn't responding right now."}
+            : "😵 Search down"}
         </p>
         <ChipButton onMouseDown={keepFocus} onClick={onRetry}>
           Retry

@@ -57,7 +57,7 @@ const step = (over: Record<string, unknown>) => ({
 
 const panel = (page: Page) => page.locator("#playlist");
 
-test("ready: Open in Spotify, Copy link and Share, with who made it", async ({ page }) => {
+test("ready: Open in Spotify, Copy link and Share", async ({ page }) => {
   await stubPlaylist(page, {
     status: { status: "ready", url: URL_, builtAt: "2026-11-21T10:00:00Z", stale: false },
   });
@@ -67,7 +67,7 @@ test("ready: Open in Spotify, Copy link and Share, with who made it", async ({ p
     URL_,
   );
   await expect(panel(page).getByRole("button", { name: "Copy link" })).toBeVisible();
-  await expect(panel(page)).toContainText(/updated 21 Nov · by Tixtape/);
+  await expect(panel(page)).toContainText(/live on spotify/i);
 });
 
 test("none → Make playlist → named stages → confetti and Open in Spotify", async ({ page }) => {
@@ -85,12 +85,12 @@ test("none → Make playlist → named stages → confetti and Open in Spotify",
   await panel(page)
     .getByRole("button", { name: /make playlist/i })
     .click();
-  await expect(panel(page)).toContainText("Picking songs · 3/8 artists");
-  await expect(panel(page)).toContainText("Creating the playlist…", { timeout: 6000 });
+  await expect(panel(page)).toContainText("Picking songs…");
+  await expect(panel(page)).toContainText("Creating…", { timeout: 6000 });
   await expect(panel(page).getByRole("link", { name: /open in spotify/i })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(panel(page)).toContainText(/it's live on spotify/i);
+  await expect(panel(page)).toContainText(/live on spotify/i);
 });
 
 test("building (started by someone else): joins the same progress", async ({ page }) => {
@@ -99,7 +99,7 @@ test("building (started by someone else): joins the same progress", async ({ pag
     steps: [step({ progress: 50 })],
   });
   await openEvent(page, id, /lollapalooza/i);
-  await expect(panel(page)).toContainText(/already making it, joining in/i);
+  await expect(panel(page)).toContainText(/picking songs/i, { timeout: 6000 });
   await expect(panel(page).getByRole("progressbar")).toBeVisible();
 });
 
@@ -113,11 +113,11 @@ test("ready + stale: stays open while it refreshes into the same playlist", asyn
   page.on("request", (r) => r.method() === "POST" && /\/playlist$/.test(r.url()) && started++);
   await openEvent(page, id, /lollapalooza/i);
   await expect(panel(page).getByRole("link", { name: /open in spotify/i })).toBeVisible();
-  await expect(panel(page)).toContainText(/lineup updated, refreshing playlist/i);
+  await expect(panel(page)).toContainText(/refreshing…/i);
   await expect.poll(() => started).toBe(1);
 });
 
-test("partial: lists the artists that were skipped", async ({ page }) => {
+test("partial: opens the playlist with no comment on skipped artists (D-082)", async ({ page }) => {
   await stubPlaylist(page, {
     status: { status: "none" },
     start: { status: 202, body: { status: "building", jobId: "job-1" } },
@@ -135,10 +135,10 @@ test("partial: lists the artists that were skipped", async ({ page }) => {
   await panel(page)
     .getByRole("button", { name: /make playlist/i })
     .click();
-  await expect(panel(page)).toContainText(
-    /2 artists aren't on Spotify, so they were skipped: Nucleya, Ritviz/,
-    { timeout: 6000 },
-  );
+  await expect(panel(page).getByRole("link", { name: /open in spotify/i })).toBeVisible({
+    timeout: 6000,
+  });
+  await expect(panel(page)).not.toContainText(/skipped|Nucleya/);
 });
 
 test("paused: tells when it continues (IST) and keeps polling", async ({ page }) => {
@@ -147,7 +147,7 @@ test("paused: tells when it continues (IST) and keeps polling", async ({ page })
     steps: [step({ status: "paused", resumeAfter: "2026-11-21T13:10:00Z" })],
   });
   await openEvent(page, id, /lollapalooza/i);
-  await expect(panel(page)).toContainText(/spotify asked us to slow down, continuing at 6:40 pm/i, {
+  await expect(panel(page)).toContainText(/paused · back at 6:40 pm/i, {
     timeout: 6000,
   });
 });
@@ -158,7 +158,7 @@ test("unavailable: says so kindly and offers no button", async ({ page }) => {
   await panel(page)
     .getByRole("button", { name: /make playlist/i })
     .click();
-  await expect(panel(page)).toContainText(/playlist making opens soon/i);
+  await expect(panel(page)).toContainText(/opening soon/i);
   await expect(panel(page).getByRole("button")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText('{"error"');
 });
@@ -170,7 +170,7 @@ test("a build that makes no progress never spins forever", async ({ page }) => {
     steps: [step({ status: "queued", stage: null, progress: 0, artistsDone: 0 })],
   });
   await openEvent(page, id, /lollapalooza/i);
-  await expect(panel(page)).toContainText(/taking longer than usual/i, { timeout: 30_000 });
+  await expect(panel(page)).toContainText(/still cooking/i, { timeout: 30_000 });
   await expect(panel(page).getByRole("progressbar")).toHaveCount(0);
 });
 
@@ -235,6 +235,6 @@ test.describe("first paint shows the real playlist state", () => {
     await panel(page)
       .getByRole("button", { name: /make playlist/i })
       .click();
-    await expect(panel(page)).toContainText("Picking songs · 3/8 artists");
+    await expect(panel(page)).toContainText("Picking songs…");
   });
 });

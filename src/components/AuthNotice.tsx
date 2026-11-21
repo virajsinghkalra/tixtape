@@ -5,9 +5,9 @@ import { useEffect } from "react";
 import { useToast } from "./ui/Toast";
 
 const MESSAGES: Record<string, string> = {
-  spotify_denied: "Spotify sign-in was cancelled. No worries: playlists work without logging in.",
+  spotify_denied: "Sign-in cancelled",
 };
-const FALLBACK = "Spotify sign-in didn't work this time. Playlists still work without logging in.";
+const FALLBACK = "Sign-in failed";
 
 /** Turns `?auth_error=…` from the Spotify callback into a friendly toast, then tidies the URL. */
 export function AuthNotice({ code }: { code: string }) {

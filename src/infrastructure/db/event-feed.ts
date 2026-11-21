@@ -22,6 +22,7 @@ const row = z.object({
   ends_at: z.coerce.date().nullable(),
   genre: z.string().nullable(),
   image_url: z.string().nullable(),
+  poster_url: z.string().nullable(),
   created_at: z.coerce.date(),
   venue_id: z.string().nullable(),
   venue_name: z.string().nullable(),
@@ -29,6 +30,7 @@ const row = z.object({
   venue_country: z.string().nullable(),
   artist_count: z.coerce.number(),
   headliners: z.array(z.string()).nullable(),
+  headliner_images: z.array(z.string().nullable()).nullable(),
   headliner_listeners: z.coerce.number().nullable(),
   first_image: z.string().nullable(),
   source_count: z.coerce.number(),
@@ -47,10 +49,11 @@ export class PgEventFeed implements EventFeedReader {
   async upcoming({ from, limit }: { from: Date; limit: number }): Promise<FeedRow[]> {
     const result = await this.db.execute(sql`
       select
-        e.id, e.title, e.type, e.status, e.starts_at, e.starts_at_date_only, e.ends_at, e.genre, e.image_url, e.created_at,
+        e.id, e.title, e.type, e.status, e.starts_at, e.starts_at_date_only, e.ends_at, e.genre, e.image_url, e.poster_url, e.created_at,
         v.id as venue_id, v.name as venue_name, v.city as venue_city, v.country as venue_country,
         (select count(*) from event_artists ea where ea.event_id = e.id) as artist_count,
         top.names as headliners,
+        top.images as headliner_images,
         top.listeners as headliner_listeners,
         (select a.image_url from event_artists ea join artists a on a.id = ea.artist_id
           where ea.event_id = e.id order by ea.billing_rank limit 1) as first_image,
@@ -64,7 +67,9 @@ export class PgEventFeed implements EventFeedReader {
       left join event_stats st on st.event_id = e.id
       left join lateral (
         -- The top-billed tier (usually headliners), in billing order.
-        select array_agg(a.name order by ea.billing_rank) as names, max(a.lastfm_listeners) as listeners
+        select array_agg(a.name order by ea.billing_rank) as names,
+          array_agg(a.image_url order by ea.billing_rank) as images,
+          max(a.lastfm_listeners) as listeners
         from event_artists ea join artists a on a.id = ea.artist_id
         where ea.event_id = e.id and ea.tier = (
           select ea2.tier from event_artists ea2 where ea2.event_id = e.id
@@ -98,10 +103,12 @@ function toFeedRow(r: z.infer<typeof row>): FeedRow {
     endsAt: r.ends_at,
     genre: r.genre,
     imageUrl: r.image_url,
+    posterUrl: r.poster_url,
     venue,
     artistCount: r.artist_count,
     city: venue?.city ?? null,
     headliners: r.headliners ?? [],
+    headlinerImages: r.headliner_images ?? [],
     headlinerListeners: r.headliner_listeners,
     sourceCount: r.source_count,
     views: r.views,

@@ -470,9 +470,7 @@ function statusMessage(state: SearchState, typed: boolean, lookup: LookupView): 
   if (state.retrying) return "Search isn't responding, retrying…";
   if (state.status === "loading") return state.slow ? "Searching…" : "";
   if (state.status === "error") {
-    return state.error === "offline"
-      ? "You're offline. Reconnect and try again."
-      : "Search isn't responding right now. Use Retry to try again.";
+    return state.error === "offline" ? "Offline. Reconnect." : "Search is down. Retry.";
   }
   if (state.status !== "done") return "";
   const r = state.response;

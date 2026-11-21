@@ -6,7 +6,7 @@ import type { EventSummary } from "@/application/ports/events";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CitySwitcher } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
-import { countdownBadge, formatDateRange, istDayCount, istParts } from "@/components/event-format";
+import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
@@ -123,10 +123,7 @@ export default async function Home({ searchParams }: Props) {
             >
               Every lineup. One playlist.
             </h1>
-            <p className="mt-4 max-w-xl text-lg font-medium">
-              Find a concert or festival and press play on the whole lineup: one shared Spotify
-              playlist, headliners first. No login needed.
-            </p>
+            <p className="mt-4 max-w-xl text-lg font-medium">Search. Tap. Play.</p>
             <div className="mt-7 max-w-2xl">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
             </div>
@@ -157,12 +154,7 @@ export default async function Home({ searchParams }: Props) {
 
       {/* The story strip may repeat cards from the sections below. */}
       {thisWeek.length > 0 && (
-        <Section
-          id="rings"
-          emoji="📍"
-          title="Happening this week"
-          blurb="Tap a ring for the 10-second story."
-        >
+        <Section id="rings" emoji="📍" title="Happening this week" blurb="Tap to peek">
           <UpNextRings events={thisWeek.slice(0, 10).map((e) => ringEvent(e, now))} />
         </Section>
       )}
@@ -185,8 +177,8 @@ export default async function Home({ searchParams }: Props) {
         title="The big ones"
         blurb={
           city && front.nearYou.length === 0 && !empty
-            ? `No gigs in ${city} yet. Here's what's on across India.`
-            : "The biggest shows across India."
+            ? `Quiet in ${city}. All India ↓`
+            : "All India"
         }
         items={front.bigOnes}
         now={now}
@@ -268,14 +260,13 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       // The feed carries the top-billed names (and a solo photo), enough for the story.
       artists: e.headliners.map((name, i) => ({
         name,
-        imageUrl: e.artistCount === 1 ? e.soloImage : null,
+        imageUrl: e.headlinerImages[i] ?? (e.artistCount === 1 ? e.soloImage : null),
         tier: "headliner" as const,
         billingRank: i + 1,
       })),
-      preview: null,
+      poster: e.posterUrl,
       playlistHref: `/events/${e.id}#playlist`,
       eventHref: `/events/${e.id}`,
-      days: istDayCount(e.startsAt, e.endsAt),
     }),
   };
 }

@@ -2,14 +2,9 @@ import { cx } from "./ui/cx";
 import { TONE_CLASS, type BlockTone } from "./ui/tone";
 
 const STEPS: { emoji: string; title: string; body: string; tone: BlockTone }[] = [
-  { emoji: "🔍", title: "Search a gig", body: "A festival, an artist or your city.", tone: "lime" },
-  { emoji: "🎤", title: "See the lineup", body: "Headliners first, like the poster.", tone: "sky" },
-  {
-    emoji: "🎧",
-    title: "Open the playlist",
-    body: "One shared playlist in Spotify. No login.",
-    tone: "violet",
-  },
+  { emoji: "🔍", title: "Search a gig", body: "Artist, fest, city", tone: "lime" },
+  { emoji: "🎤", title: "See the lineup", body: "Poster style", tone: "sky" },
+  { emoji: "🎧", title: "Open the playlist", body: "Hit play", tone: "violet" },
 ];
 
 /** A compact three-step strip: what the app does, in one glance. */

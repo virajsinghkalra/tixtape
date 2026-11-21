@@ -17,8 +17,7 @@ export const metadata: Metadata = {
     default: "Tixtape · Every ticket gets a mixtape",
     template: "%s · Tixtape",
   },
-  description:
-    "Search any concert or festival in India and open its lineup as one shared Spotify playlist. No login needed.",
+  description: "Every lineup. One playlist. Concerts and festivals across India.",
 };
 
 export const viewport: Viewport = {

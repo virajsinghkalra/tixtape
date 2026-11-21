@@ -9,6 +9,8 @@ export type FeedRow = EventSummary &
   FeedEvent & {
     /** A solo show's artist photo (Spotify), for cards and stories. */
     soloImage: string | null;
+    /** Spotify photos of the top-billed tier, in billing order (null where missing). */
+    headlinerImages: (string | null)[];
     /** The first official page any source gave ("Buy tickets"). */
     ticketUrl: string | null;
   };

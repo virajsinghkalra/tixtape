@@ -106,7 +106,7 @@ test("a city with no gigs says so once and falls back to all of India", async ({
   await context.addCookies([{ name: "city", value: "Goa", url: baseURL! }]);
   await page.goto("/");
   await expect(page.getByRole("button", { name: /city: goa/i })).toBeVisible();
-  await expect(page.getByText("No gigs in Goa yet. Here's what's on across India.")).toHaveCount(1);
+  await expect(page.getByText("Quiet in Goa. All India ↓")).toHaveCount(1);
   await expect(
     page.getByRole("region", { name: /the big ones/i }).getByTestId("event-card"),
   ).toHaveCount(3);

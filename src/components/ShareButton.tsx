@@ -32,10 +32,10 @@ export function ShareButton({
         return;
       }
       await navigator.clipboard.writeText(url);
-      toast.show("Link copied. Send it to the group chat 🔗");
+      toast.show("Link copied 🔗");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return; // user closed the sheet
-      toast.show("Couldn't share from here. Copy the address bar instead.", "error");
+      toast.show("Couldn't share. Copy the URL.", "error");
     }
   }
 

@@ -2,21 +2,12 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  headline,
-  previewPending,
-  readyLine,
-  showLine,
-  tierLines,
-  unmatchedLine,
-  type PlaylistPreview,
-} from "./playlist-preview";
+import { previewPending, type PlaylistPreview } from "./playlist-preview";
 import {
   activeJob,
   afterFailedStep,
   refreshView,
   formatClock,
-  formatDay,
   nextStepDelay,
   viewFromStart,
   viewFromStatus,
@@ -24,12 +15,11 @@ import {
   type BuildProgress,
   type PlaylistView,
 } from "./playlist-state";
-import { orderLine, pendingLine, spotifyMatchLine } from "./lineup-copy";
+import { PLAYLIST_SOON } from "./lineup-copy";
 import { ShareButton } from "./ShareButton";
 import { Button, ButtonLink } from "./ui/Button";
 import { Confetti } from "./ui/Confetti";
 import { EASE_OUT_EXPO } from "./ui/motion";
-import { Sticker } from "./ui/Sticker";
 import { useToast } from "./ui/Toast";
 
 type Props = {
@@ -37,21 +27,15 @@ type Props = {
   eventTitle: string;
   /** Status rendered on the server (GET /api/events/:id/playlist shape); null = unknown. */
   initialStatus?: unknown;
-  /** The engine's plan for the show (D-065); null when it couldn't be loaded. */
+  /** The engine's plan (D-065): only used to tell "nothing to make yet" (no counts shown). */
   preview: PlaylistPreview | null;
   matched: number;
   total: number;
-  /** The lineup in billing order, for "Playlist coming soon: we're matching …". */
-  names: string[];
-  /** For a solo show: "~32 songs · 2 h of Bhuwin" and "Bhuwin is on Spotify." */
-  soloName?: string;
-  /** Billing tiers with artists: one tier means "billing order", not "openers last". */
-  tierCount: number;
 };
 
 /**
- * The event's one shared playlist (D-036, D-048 §D): made by the Tixtape account, public,
- * no login. States: ready, none → live staged progress → confetti, building (join), stale
+ * The event's one shared playlist (D-036, D-048 §D), made by the Tixtape account. D-082 minimal
+ * copy: a title, the button, and the state in a few words. States: ready, none → live staged progress → confetti, building (join), stale
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
 export function PlaylistPanel({
@@ -60,9 +44,6 @@ export function PlaylistPanel({
   preview,
   matched,
   total,
-  names,
-  soloName,
-  tierCount,
   initialStatus,
 }: Props) {
   // Nothing matched yet (or a 0-song estimate): never "0 songs · 0 min", no "Make playlist".
@@ -148,32 +129,10 @@ export function PlaylistPanel({
       aria-labelledby="playlist-title"
       className="relative scroll-mt-24 rounded-tile border-2 border-night bg-surface p-5 shadow-[5px_6px_0_0_var(--color-night)] sm:p-7 dark:border-line dark:shadow-[5px_6px_0_0_var(--color-violet)]"
     >
-      <Sticker tone="lime" emoji="🎧">
-        The playlist
-      </Sticker>
-      <h2 id="playlist-title" className="mt-3 font-display text-big font-extrabold">
-        One playlist for everyone
+      <h2 id="playlist-title" className="font-display text-big font-extrabold">
+        The playlist <span aria-hidden>🎧</span>
       </h2>
-      <p className="mt-2 text-sm text-muted">
-        Made on Spotify by our Tixtape account. Public and free: no login, just open it and follow.
-        It updates when the lineup changes.
-      </p>
-
-      {pending ? (
-        <p className="mt-5 rounded-field border-2 border-night bg-surface-2 p-4 font-semibold">
-          <span aria-hidden>⏳ </span>
-          {pendingLine(names, total)}
-        </p>
-      ) : (
-        <>
-          {preview ? <PreviewBlock preview={preview} soloName={soloName} /> : null}
-          <p className="mt-4 text-sm text-muted">
-            {[orderLine(total, tierCount), spotifyMatchLine(matched, total, soloName)]
-              .filter(Boolean)
-              .join(" ")}
-          </p>
-        </>
-      )}
+      {pending && <p className="mt-2 text-lg font-semibold">{PLAYLIST_SOON}</p>}
 
       <div className="relative mt-6">
         <Actions view={view} eventTitle={eventTitle} onStart={start} pending={pending} />
@@ -184,38 +143,6 @@ export function PlaylistPanel({
         <Note view={view} />
       </div>
     </section>
-  );
-}
-
-/** "256 songs · about 16 h · matches the show (2 days × 8 h)", then songs per tier. */
-function PreviewBlock({ preview, soloName }: { preview: PlaylistPreview; soloName?: string }) {
-  const tiers = tierLines(preview);
-  const widest = Math.max(...tiers.map((t) => t.songs), 1);
-  const [count, ...rest] = headline(preview, soloName).split(" ");
-  const missing = unmatchedLine(preview);
-  return (
-    <>
-      <p className="mt-5">
-        <span className="font-display text-huge font-extrabold tabular-nums">{count}</span>{" "}
-        <span className="font-semibold">{rest.join(" ")}</span>
-      </p>
-      {showLine(preview) && <p className="text-sm text-muted">{showLine(preview)}</p>}
-      <ul className="mt-4 space-y-3" aria-label="Songs per tier">
-        {tiers.map((t) => (
-          <li key={t.tier} className="text-sm">
-            <p className="font-medium">{t.text}</p>
-            <div aria-hidden className="mt-1.5 h-2 overflow-hidden rounded-chip bg-surface-2">
-              <div
-                className="h-full origin-left rounded-chip bg-violet"
-                style={{ transform: `scaleX(${t.songs / widest})` }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
-      {missing && <p className="mt-3 text-sm font-semibold">{missing}</p>}
-      {readyLine(preview) && <p className="mt-2 text-sm text-muted">{readyLine(preview)}</p>}
-    </>
   );
 }
 
@@ -300,28 +227,17 @@ function Note({ view }: { view: PlaylistView }) {
       content = <p className={`${box} bg-surface-2`}>Starting…</p>;
       break;
     case "building":
-      content = <Progress job={view} joined={view.joined} />;
+      content = <Progress job={view} />;
       break;
     case "ready":
       content = (
         <div className={`${box} bg-lime text-on-block`}>
           <p className="font-semibold">
-            <span aria-hidden>🎉 </span>
-            {view.justMade
-              ? "It's live on Spotify. Follow it to keep it in your library."
-              : "Live on Spotify"}
-            {view.builtAt ? ` · updated ${formatDay(view.builtAt)}` : ""} · by Tixtape
+            Live on Spotify <span aria-hidden>🎉</span>
           </p>
-          {view.skipped.length > 0 && (
-            <p className="mt-2">
-              {view.skipped.length} {view.skipped.length === 1 ? "artist isn't" : "artists aren't"}{" "}
-              on Spotify, so {view.skipped.length === 1 ? "it was" : "they were"} skipped:{" "}
-              {view.skipped.join(", ")}.
-            </p>
-          )}
           {view.refresh && (
             <div className="mt-3">
-              <p className="font-semibold">Lineup updated, refreshing playlist…</p>
+              <p className="font-semibold">Refreshing…</p>
               {view.refresh !== "pending" && (
                 <Bar progress={view.refresh.progress} label={view.refresh.label} />
               )}
@@ -333,9 +249,7 @@ function Note({ view }: { view: PlaylistView }) {
     case "unavailable":
       content = (
         <p className={`${box} bg-orange text-on-block`}>
-          <span aria-hidden>😴 </span>
-          Playlist making opens soon. We&apos;re connecting our Spotify account; check back in a
-          little while.
+          Opening soon <span aria-hidden>😴</span>
         </p>
       );
       break;
@@ -361,16 +275,14 @@ function Note({ view }: { view: PlaylistView }) {
   );
 }
 
-function Progress({ job, joined }: { job: BuildProgress; joined: boolean }) {
+function Progress({ job }: { job: BuildProgress }) {
   return (
     <div className="mt-4 rounded-field border-2 border-night bg-surface-2 p-4 text-sm">
-      {job.waitUntil ? (
+      {job.waitUntil && (
         <p className="font-semibold">
           <span aria-hidden>🐢 </span>
-          Spotify asked us to slow down, continuing at {formatClock(job.waitUntil)}.
+          Paused · back at {formatClock(job.waitUntil)}
         </p>
-      ) : (
-        joined && <p className="font-semibold">Someone&apos;s already making it, joining in…</p>
       )}
       <Bar progress={job.progress} label={job.label} />
     </div>

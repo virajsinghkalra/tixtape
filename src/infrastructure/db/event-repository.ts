@@ -55,6 +55,7 @@ const toSummary = (e: EventRow, v: VenueRow | null, count: number): AdminEventSu
   endsAt: e.endsAt,
   genre: e.genre,
   imageUrl: e.imageUrl,
+  posterUrl: e.posterUrl,
   venue: v ? { id: asVenueId(v.id), name: v.name, city: v.city, country: v.country } : null,
   artistCount: count,
   visibility: e.visibility,

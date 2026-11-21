@@ -1043,3 +1043,30 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - With no demand data (or if it can't be read) the run is the plain D-073 rotation.
 - **Scarcity first:** a top metro with fewer than 5 upcoming **published** shows is served before anything else, fewest first. Searched artists come next, then the other demand metros, then the floor.
 - **Retention:** counters are aggregate and anonymous. A sweep may delete rows older than 90 days (Platform, optional).
+
+### D-082 · Minimal copy, and real pictures for every event
+
+- **Status:** Accepted · **Owner:** UI (owner request) · **Date:** 2026-11-22. Supersedes the copy parts of D-065 and D-077.
+- **Copy rule:**
+  - Tiny Gen Z copy: 2–4 words where possible. No explanatory sentences.
+  - **Never shown:**
+    - song or minute counts, durations, per-tier breakdowns, "matches the show";
+    - billing-order lines;
+    - Spotify-match commentary ("N of M found", "X is on Spotify", skipped artists), "no login needed", slide counts.
+  - **Unmatched artists:** just the name. Match dots stay on admin pages only.
+  - **Where it lives:** one copy module, `src/components/lineup-copy.ts` (`PLAYLIST_SOON`, `STORY_CTA`, `introLine`, `moreLine`), and the playlist states in `playlist-state.ts`. Unit tests check the word limits.
+  - Screen-reader-only hints may stay longer.
+- **Playlist panel:**
+  - A title, the Make/Open button, and the state in a few words: "Matching…", "Picking songs…", "Paused · back at 5:33 pm", "Live on Spotify 🎉", "Opening soon 😴".
+  - With nothing matched (or a 0-song estimate) it says "Playlist soon ⏳" and hides "Make playlist".
+- **Story:**
+  - A headline and at most one short line per slide.
+  - The last slide always has "Open playlist →" (`/events/{id}#playlist`) and, off the event page, "See event →".
+  - Tap zones are handled on the track, so links inside a slide always get the tap. The old overlay buttons swallowed them and closed the modal.
+- **Pictures, best first** (`visualFor`, `EventVisual`):
+  1. **The official poster:** `events.poster_url` (migration 0013, pure add). It is a separate column from `image_url`, so ingestion merges never blank it.
+     - `src/scripts/fill-event-images.ts` fills it from the `og:image` of an allow-listed `official` source page, read through `PolitePageReader`: robots.txt, pacing and the SSRF guard apply, and denied domains are never fetched.
+     - The URL is hotlinked, never re-hosted.
+  2. **A collage** of the top tier's Spotify photos (up to 4).
+  3. **A branded gradient** with a sticker.
+  - Plain lazy `<img>` with `referrerPolicy="no-referrer"`; no `next/image` remote patterns.

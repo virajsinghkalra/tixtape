@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { EventSummary } from "@/application/ports/events";
 import { eventTone } from "./event-color";
+import { EventVisual } from "./EventVisual";
 import { lineupTeaser } from "./lineup-copy";
 import { formatStartTime, istParts } from "./event-format";
 import { ButtonLink } from "./ui/Button";
@@ -21,8 +22,10 @@ type Props = {
   variant?: "feed" | "compact";
   /** Why this card is here, e.g. "Olivia Dean plays here" on search results. */
   note?: string | null;
-  /** A solo show's artist photo: fills the colour block so the card leads with a face. */
-  image?: string | null;
+  /** D-082: the official poster; fills the colour block when there is one. */
+  poster?: string | null;
+  /** D-082: headliner photos (billing order); a collage when there's no poster. */
+  faces?: readonly (string | null)[];
   /** A tour shown as one card (D-079): the featured date is `event`; the rest are listed. */
   tour?: TourInfo;
 };
@@ -44,10 +47,11 @@ export function EventCard({
   headliners = [],
   variant = "feed",
   note,
-  image,
+  poster,
+  faces = [],
   tour,
 }: Props) {
-  const photo = event.artistCount === 1 && image ? image : null;
+  const photo = Boolean(poster ?? event.posterUrl) || faces.some(Boolean);
   const { day, month, weekday } = istParts(event.startsAt);
   const compact = variant === "compact";
   const place = event.venue ? `${event.venue.city} · ${event.venue.name}` : "Venue TBA";
@@ -74,9 +78,11 @@ export function EventCard({
         >
           {photo && (
             <div aria-hidden className="absolute inset-0 -z-10">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-(--duration-slow) group-hover:scale-105"
-                style={{ backgroundImage: `url("${photo}")` }}
+              <EventVisual
+                poster={poster ?? event.posterUrl}
+                faces={faces}
+                label={event.title}
+                className="transition-transform duration-(--duration-slow) group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.9),rgb(11_11_15/0.25)_65%,rgb(11_11_15/0.1))]" />
             </div>

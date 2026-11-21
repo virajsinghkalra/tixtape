@@ -78,6 +78,8 @@ export type EventSummary = {
   endsAt: Date | null;
   genre: string | null;
   imageUrl: string | null;
+  /** D-082: the official page's og:image (hotlinked), when we have one. */
+  posterUrl?: string | null;
   venue: VenueSummary | null;
   artistCount: number;
 };

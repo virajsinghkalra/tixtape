@@ -121,7 +121,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 ?
               </>
             ) : (
-              "Try an artist, a festival or a city."
+              "Try an artist or city"
             )}
           </EmptyState>
           {data.fallback.length > 0 && (
@@ -162,7 +162,7 @@ function ResultGrid(props: {
                 now={props.now}
                 index={i}
                 headliners={groupByTier(d.lineup)[0]?.artists.map((a) => a.name) ?? []}
-                image={d.lineup.length === 1 ? d.lineup[0]!.imageUrl : null}
+                faces={groupByTier(d.lineup)[0]?.artists.map((a) => a.imageUrl) ?? []}
                 ticketUrl={ticketUrl(d.sources)}
                 note={reasonLabel({
                   ...r,

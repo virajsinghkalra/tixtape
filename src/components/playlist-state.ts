@@ -6,6 +6,7 @@
  *                                     unresolved[], resumeAfter?, playlistUrl?, error?}
  */
 import { z } from "zod";
+import { PLAYLIST_SOON } from "./lineup-copy";
 
 export type BuildProgress = {
   jobId: string;
@@ -19,8 +20,7 @@ export type BuildProgress = {
 
 /** About 12 s of identical steps (8 × 1.5 s): stop polling and say so. */
 export const MAX_STALLED_STEPS = 8;
-const SLOW =
-  "This is taking longer than usual. It keeps building in the background, so check back in a few minutes.";
+const SLOW = "Still cooking 🍳 Check back soon.";
 
 export type PlaylistView =
   /** Status not known yet: show a quiet placeholder, never a "Make playlist" button. */
@@ -75,9 +75,9 @@ const stepBody = z.object({
   error: z.string().optional(),
 });
 
-export const JOINING_LABEL = "Joining the build…";
+export const JOINING_LABEL = "Joining…";
 
-const GENERIC = "Something went wrong making the playlist. Try again in a minute.";
+const GENERIC = "Oops. Try again.";
 
 const ready = (
   url: string,
@@ -122,18 +122,14 @@ export function viewFromStart(
 ): PlaylistView {
   if (httpStatus === 503) return { kind: "unavailable" };
   if (httpStatus === 422) {
-    return {
-      kind: "problem",
-      message:
-        "None of these artists are on Spotify yet, so there's nothing to add. Check back soon.",
-    };
+    return { kind: "problem", message: PLAYLIST_SOON };
   }
   if (httpStatus === 429) {
     const secs = Number(retryAfter);
     const wait = Number.isFinite(secs) && secs > 0 ? `${Math.ceil(secs / 60)} min` : "a minute";
     return {
       kind: "problem",
-      message: `Lots of playlists being made right now. Try again in ${wait}.`,
+      message: `Busy. Retry in ${wait}.`,
     };
   }
   const parsed = startBody.safeParse(body);
@@ -144,7 +140,7 @@ export function viewFromStart(
     joined: false,
     jobId: parsed.data.jobId,
     progress: 0,
-    label: "Matching artists…",
+    label: "Matching…",
     waitUntil: null,
     stalled: 0,
   };
@@ -169,9 +165,7 @@ export function viewFromStep(
     });
   }
   if (p.status === "failed") {
-    return refreshing
-      ? { ...previous, refresh: null }
-      : { kind: "problem", message: p.error ?? GENERIC };
+    return refreshing ? { ...previous, refresh: null } : { kind: "problem", message: GENERIC };
   }
   const label = stageLabel(p);
   const waitUntil = p.status === "paused" ? (p.resumeAfter ?? null) : null;
@@ -193,7 +187,7 @@ export function viewFromStep(
   return { kind: "building", joined: previous.kind === "building" && previous.joined, ...progress };
 }
 
-/** "Matching artists" → "Picking songs 8/13" → "Creating playlist" → "Adding songs 92%". */
+/** D-082 tiny labels: "Matching…" → "Picking songs…" → "Creating…" → "Adding songs…". */
 export function stageLabel(p: {
   status: string;
   stage?: string | null;
@@ -201,18 +195,16 @@ export function stageLabel(p: {
   artistsDone: number;
   artistsTotal: number;
 }): string {
-  if (p.status === "queued" || !p.stage) return "Matching artists…";
+  if (p.status === "queued" || !p.stage) return "Matching…";
   switch (p.stage) {
     case "select":
-      return p.artistsTotal > 0
-        ? `Picking songs · ${p.artistsDone}/${p.artistsTotal} artists`
-        : "Picking songs…";
+      return "Picking songs…";
     case "create":
-      return "Creating the playlist…";
+      return "Creating…";
     case "write":
-      return `Adding songs · ${p.progress}%`;
+      return "Adding songs…";
     default:
-      return "Finishing up…";
+      return "Finishing…";
   }
 }
 
@@ -238,25 +230,15 @@ const TIME = new Intl.DateTimeFormat("en-IN", {
   hour12: true,
   timeZone: "Asia/Kolkata",
 });
-const DAY = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  timeZone: "Asia/Kolkata",
-});
 
 /** "6:40 pm" in IST. */
 export function formatClock(iso: string): string {
   return TIME.format(new Date(iso)).toLowerCase();
 }
 
-/** "21 Nov" in IST. */
-export function formatDay(iso: string): string {
-  return DAY.format(new Date(iso));
-}
-
 /**
  * A client status refresh without job progress must not replace what we already know about the
- * same job (e.g. a server-rendered pause) with "Joining the build…".
+ * same job (e.g. a server-rendered pause) with "Joining…".
  */
 export function refreshView(current: PlaylistView, next: PlaylistView): PlaylistView {
   const known = activeJob(current);
@@ -274,7 +256,7 @@ export function refreshView(current: PlaylistView, next: PlaylistView): Playlist
 /** After a failed step: keep the view, but leave "Joining…" so the retry waits ~1.5 s. */
 export function afterFailedStep(view: PlaylistView): PlaylistView {
   if (view.kind === "building" && view.label === JOINING_LABEL) {
-    return { ...view, label: "Checking the build…" };
+    return { ...view, label: "Checking…" };
   }
   return { ...view };
 }

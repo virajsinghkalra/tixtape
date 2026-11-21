@@ -83,7 +83,7 @@ export default async function EventPage({ params, searchParams }: Params) {
       <EventHeader event={event} ticketUrl={ticketUrl(event.sources)} now={now} />
       {groups.length > 0 && (
         <div className="mt-12">
-          <EventStory event={event} now={now} preview={preview} />
+          <EventStory event={event} now={now} />
         </div>
       )}
       <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
@@ -102,11 +102,6 @@ export default async function EventPage({ params, searchParams }: Params) {
               preview={preview}
               matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}
               total={event.lineup.length}
-              names={[...event.lineup]
-                .sort((a, b) => a.billingRank - b.billingRank)
-                .map((a) => a.name)}
-              soloName={event.lineup.length === 1 ? event.lineup[0]!.name : undefined}
-              tierCount={groups.length}
             />
           </div>
         )}

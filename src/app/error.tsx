@@ -15,10 +15,6 @@ export default function ErrorPage({ error, reset }: { error: Error; reset: () =>
         Sound check failed
       </Sticker>
       <h1 className="mt-5 font-display text-huge font-extrabold">We lost the signal</h1>
-      <p className="mt-4 text-muted">
-        Something went wrong loading this page. It&apos;s on our side, not yours. Try again in a
-        moment.
-      </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button size="lg" onClick={reset}>
           Try again

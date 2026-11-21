@@ -4,7 +4,6 @@ import { EmptyState } from "./EmptyState";
 import { shareText, tierLabel } from "./lineup-copy";
 import { groupByTier, isMatched } from "./lineup-view";
 import { spotifyArtistUrl } from "./links";
-import { MatchBadge, MatchLegend } from "./MatchBadge";
 import { ShareButton } from "./ShareButton";
 import { Sticker } from "./ui/Sticker";
 import type { Tone } from "./ui/tone";
@@ -31,18 +30,13 @@ const TIER_TONE: Record<BillingTier, Tone> = {
   support: "orange",
 };
 
-/** The shareable lineup card: a night-black poster in both themes, with Spotify match dots. */
+/** The shareable lineup card: a night-black poster in both themes. Names only, no match notes. */
 export function LineupPoster({ title, venueLine, lineup, highlight }: Props) {
   const spotlight = highlight?.trim().toLowerCase();
   const groups = groupByTier(lineup);
   const solo = lineup.length === 1 ? lineup[0]! : null;
   if (groups.length === 0) {
-    return (
-      <EmptyState emoji="🫣" title="Lineup coming soon">
-        The organisers haven&apos;t announced the artists yet. We&apos;ll add them as soon as they
-        do.
-      </EmptyState>
-    );
+    return <EmptyState emoji="🫣" title="Lineup soon" />;
   }
   return (
     <section
@@ -90,9 +84,6 @@ export function LineupPoster({ title, venueLine, lineup, highlight }: Props) {
           </li>
         ))}
       </ol>
-      <div className="mt-10 border-t border-line pt-5">
-        <MatchLegend statuses={lineup.map((a) => a.matchStatus)} soloName={solo?.name} />
-      </div>
     </section>
   );
 }
@@ -113,14 +104,7 @@ function SoloPhoto({ name, imageUrl }: { name: string; imageUrl: string | null }
 }
 
 function ArtistName({ artist: a, tier }: { artist: LineupArtist; tier: BillingTier }) {
-  const name = (
-    <span className="inline-flex items-start gap-1.5">
-      <span>{a.name}</span>
-      <span className="mt-[0.2em] inline-flex text-base leading-none">
-        <MatchBadge status={a.matchStatus} />
-      </span>
-    </span>
-  );
+  const name = <span>{a.name}</span>;
   if (a.spotifyId && isMatched(a.matchStatus)) {
     return (
       <a

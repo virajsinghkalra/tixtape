@@ -17,7 +17,7 @@ export function LogoutButton() {
       window.location.assign("/");
     } catch (err) {
       console.error(err);
-      toast.show("Couldn't log you out. Check your connection and try again.", "error");
+      toast.show("Couldn't log out. Retry.", "error");
       setBusy(false);
     }
   }

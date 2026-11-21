@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BillingTier } from "@/domain/shared/lineup";
-import type { PlaylistPreview } from "./playlist-preview";
-import { planStory, type StoryArtist, type StoryInput } from "./story-plan";
+import { planStory, type SlidePlan, type StoryArtist, type StoryInput } from "./story-plan";
 
 const artist = (
   name: string,
@@ -22,81 +21,57 @@ const input = (artists: StoryArtist[], over: Partial<StoryInput> = {}): StoryInp
   city: "Mumbai",
   badge: { emoji: "⏰", label: "21 days to go" },
   artists,
-  preview: null,
   playlistHref: "/events/e1#playlist",
   eventHref: "/events/e1",
-  days: 1,
   ...over,
 });
 
-const soloPreview: PlaylistPreview = {
-  songs: 32,
-  minutes: 120,
-  perTier: [{ tier: "headliner", artists: 1, songs: 32, minutes: 120 }],
-  showMinutes: 120,
-  days: 1,
-  unmatched: 0,
-};
+/** Every visible string on a slide, for the minimal-copy checks (D-082). */
+const words = (slides: SlidePlan[]) => JSON.stringify(slides);
 
 describe("planStory: solo (1 artist)", () => {
-  const plan = planStory(
-    input([artist("Bhuwin", "headliner", 1, "https://i.scdn.co/bhuwin.jpg")], {
-      preview: soloPreview,
-    }),
-  );
+  const plan = planStory(input([artist("Bhuwin", "headliner", 1, "https://i.scdn.co/bhuwin.jpg")]));
 
   it("is 2 slides: the artist hero, then the playlist", () => {
     expect(plan.slides.map((s) => s.kind)).toEqual(["solo", "playlist"]);
     expect(plan.heading).toBe("The rundown");
-  });
-
-  it("the hero carries the artist photo and a smaller title for a long name", () => {
-    const hero = plan.slides[0]!;
-    expect(hero).toMatchObject({
+    expect(plan.slides[0]).toMatchObject({
       kind: "solo",
       artist: { imageUrl: "https://i.scdn.co/bhuwin.jpg" },
-      titleSize: "md",
     });
   });
 
-  it("the playlist slide talks about the artist, with no 'openers' and no 'full lineup' link", () => {
-    const last = plan.slides[1]!;
-    expect(last).toMatchObject({
+  it("the playlist slide is a headline and two links: the playlist and the event", () => {
+    expect(plan.slides[1]).toMatchObject({
       kind: "playlist",
-      headline: "~32 songs · 2 h of Bhuwin",
-      cta: { href: "/events/e1#playlist", text: "Get the playlist" },
-      secondary: null,
+      headline: "Bhuwin, all night.",
+      face: { name: "Bhuwin" },
+      cta: { href: "/events/e1#playlist", text: "Open playlist" },
+      secondary: { href: "/events/e1", text: "See event" },
     });
-    expect(JSON.stringify(plan)).not.toMatch(/openers|headliners|1 artists/i);
+  });
+
+  it("on the event page itself there's no 'See event'", () => {
+    const here = planStory(
+      input([artist("Bhuwin", "headliner", 1)], { playlistHref: "#playlist", eventHref: null }),
+    );
+    expect(here.slides.at(-1)).toMatchObject({ cta: { href: "#playlist" }, secondary: null });
   });
 });
 
 describe("planStory: duo and trio", () => {
-  it("duo: intro, the lineup with faces, playlist; the 'full lineup' link shows", () => {
+  it("duo: intro, the lineup with faces, playlist", () => {
     const plan = planStory(
       input([artist("Anyma", "headliner", 1), artist("Aeden", "support", 2)], {
         title: "Anyma Presents Aeden",
       }),
     );
     expect(plan.slides.map((s) => s.kind)).toEqual(["intro", "names", "playlist"]);
-    expect(plan.slides[0]).toMatchObject({ who: "Anyma and Aeden. One night." });
     expect(plan.slides[1]).toMatchObject({ kicker: "🔥 The lineup", faces: true });
     expect(plan.slides[2]).toMatchObject({
-      detail: "Headliners first, openers last.",
-      secondary: { text: "See the full lineup" },
+      headline: "Every act. One playlist.",
+      secondary: { text: "See event" },
     });
-  });
-
-  it("trio in one tier: billing order, not 'openers last'", () => {
-    const plan = planStory(
-      input([
-        artist("A", "headliner", 1),
-        artist("B", "headliner", 2),
-        artist("C", "headliner", 3),
-      ]),
-    );
-    expect(plan.slides[0]).toMatchObject({ who: "A, B and C. One night." });
-    expect(plan.slides.at(-1)).toMatchObject({ detail: "In billing order." });
   });
 });
 
@@ -109,7 +84,7 @@ describe("planStory: festival (many artists)", () => {
         artist("Fontaines D.C.", "sub", 3),
         artist("Ritviz", "support", 4),
       ],
-      { title: "Lollapalooza India 2027" },
+      { title: "Lollapalooza India 2027", poster: "https://lollaindia.com/p.jpg" },
     ),
   );
 
@@ -122,47 +97,22 @@ describe("planStory: festival (many artists)", () => {
       "playlist",
     ]);
     expect(plan.slides[1]).toMatchObject({ kicker: "🔥 Top of the bill" });
-    expect(plan.slides[3]).toMatchObject({
-      kicker: "💎 Catch this one early",
-      more: null,
-    });
-    expect(plan.heading).toBe("The rundown");
+    expect(plan.slides[3]).toMatchObject({ kicker: "💎 Catch this one early", more: null });
   });
 
-  it("a festival with one headliner still reads naturally", () => {
-    const one = planStory(
-      input([
-        artist("A", "headliner", 1),
-        artist("B", "sub", 2),
-        artist("C", "mid", 3),
-        artist("D", "support", 4),
-      ]),
-    );
-    expect(one.slides[1]).toMatchObject({ kicker: "🔥 Top of the bill" });
+  it("the intro carries the official poster", () => {
+    expect(plan.slides[0]).toMatchObject({ kind: "intro", poster: "https://lollaindia.com/p.jpg" });
   });
 });
 
 describe("planStory: empty lineup", () => {
-  it("is intro + playlist, saying the lineup is coming", () => {
+  it("is intro + playlist", () => {
     const plan = planStory(input([]));
     expect(plan.slides.map((s) => s.kind)).toEqual(["intro", "playlist"]);
-    expect(plan.slides[0]).toMatchObject({ who: "Lineup drops soon. Watch this space." });
   });
 });
 
-describe("planStory: solo without a preview (home story)", () => {
-  it("still leads the playlist slide with the artist", () => {
-    const plan = planStory(input([artist("Anyma", "headliner", 1, "https://i.scdn.co/a.jpg")]));
-    expect(plan.slides[1]).toMatchObject({
-      kind: "playlist",
-      headline: "Anyma, all night.",
-      face: { name: "Anyma" },
-      secondary: null,
-    });
-  });
-});
-
-describe("planStory: a 34-act, 2-day festival fits portrait cards", () => {
+describe("planStory: a 34-act festival fits portrait cards", () => {
   const big = Array.from({ length: 34 }, (_, i) =>
     artist(
       `Act ${i + 1}`,
@@ -171,14 +121,9 @@ describe("planStory: a 34-act, 2-day festival fits portrait cards", () => {
       i < 3 ? `https://i/${i}.jpg` : null,
     ),
   );
-  const plan = planStory(input(big, { title: "HOME Festival 2026", days: 2 }));
+  const plan = planStory(input(big, { title: "HOME Festival 2026" }));
 
-  it("never counts slides, and the intro is a cheat sheet with a face stack", () => {
-    expect(JSON.stringify(plan.slides)).not.toMatch(/\bslides?\b/i);
-    expect(plan.slides[0]).toMatchObject({
-      kind: "intro",
-      who: "34 acts. 2 days. Here's your cheat sheet.",
-    });
+  it("the intro has a face stack of the photos it has", () => {
     expect(plan.slides[0]!.kind === "intro" && plan.slides[0]!.faces.map((f) => f.name)).toEqual([
       "Act 1",
       "Act 2",
@@ -186,27 +131,35 @@ describe("planStory: a 34-act, 2-day festival fits portrait cards", () => {
     ]);
   });
 
-  it("long tiers show a few names, then '+ N more on the lineup'", () => {
+  it("long tiers show a few names, then '+ N more'", () => {
     const bill = plan.slides.find((s) => s.id === "bill");
     const gems = plan.slides.find((s) => s.id === "gems");
-    expect(bill).toMatchObject({ more: "+ 4 more on the lineup" });
+    expect(bill).toMatchObject({ more: "+ 4 more" });
     expect(bill?.kind === "names" && bill.artists).toHaveLength(6);
-    expect(gems).toMatchObject({ more: "+ 16 more on the lineup", faces: false });
+    expect(gems).toMatchObject({ more: "+ 16 more", faces: false });
   });
 });
 
-describe("planStory: nothing matched on Spotify yet", () => {
-  it("says the playlist is coming soon instead of 0 songs", () => {
-    const zero: PlaylistPreview = { ...soloPreview, songs: 0, minutes: 0, unmatched: 1 };
-    const plan = planStory(
-      input([artist("Shreya Ghoshal", "headliner", 1)], { preview: zero, matched: 0 }),
-    );
-    const last = plan.slides.at(-1)!;
-    expect(last).toMatchObject({
-      kind: "playlist",
-      headline: "Shreya Ghoshal, all night.",
-      detail: "Playlist coming soon: we're matching Shreya Ghoshal on Spotify.",
-    });
-    expect(JSON.stringify(plan.slides)).not.toMatch(/\b0 (songs|min)\b/);
+describe("minimal copy (D-082)", () => {
+  const plans = [
+    planStory(input([artist("Bhuwin", "headliner", 1)])),
+    planStory(input([artist("A", "headliner", 1), artist("B", "sub", 2)])),
+    planStory(
+      input(Array.from({ length: 12 }, (_, i) => artist(`A${i}`, i ? "support" : "headliner", i))),
+    ),
+  ];
+  it.each(plans.map((p, i) => [i, p] as const))(
+    "story %i: no slide counts, song or minute counts, or Spotify-match commentary",
+    (_, plan) => {
+      expect(words(plan.slides)).not.toMatch(
+        /\bslides?\b|\bsongs?\b|\b\d+ min\b|\d+ h\b|matches the show|openers last|billing order|on spotify|cheat sheet/i,
+      );
+    },
+  );
+
+  it("nothing matched on Spotify yet: 'Playlist soon ⏳', never 0 songs", () => {
+    const plan = planStory(input([artist("Shreya Ghoshal", "headliner", 1)], { matched: 0 }));
+    expect(plan.slides.at(-1)).toMatchObject({ kind: "playlist", headline: "Playlist soon ⏳" });
+    expect(words(plan.slides)).not.toMatch(/\b0 (songs|min)\b/);
   });
 });

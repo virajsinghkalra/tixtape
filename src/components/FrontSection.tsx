@@ -69,7 +69,7 @@ export function FrontSection({
                 index={i}
                 variant={row ? "compact" : "feed"}
                 headliners={lead.headliners}
-                image={lead.soloImage}
+                faces={lead.headlinerImages}
                 ticketUrl={lead.ticketUrl}
                 tour={item.kind === "tour" ? tourInfo(item.tour, city) : undefined}
               />

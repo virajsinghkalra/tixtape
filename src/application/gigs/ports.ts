@@ -38,6 +38,8 @@ export type ReadResult =
       jsonLd: unknown[];
       /** Same-host links whose path or text looks like a tour/live/events page. */
       tourLinks: string[];
+      /** D-082: the page's og:image (absolute https URL), when it has one. */
+      image?: string | null;
     }
   /** HTTP 404/410: the page is gone (re-verification holds the event). */
   | { status: "gone"; url: string };

@@ -1,6 +1,7 @@
 /**
- * Copy that depends on how many artists play (one source of truth, DRY). A solo show reads
- * "Bhuwin, all night.", never "Headliners first, openers last" or "1 artists".
+ * Copy that depends on how many artists play (one source of truth, DRY). D-082 minimal copy:
+ * 2–4 words where possible, no explanatory sentences, no song or minute counts, no Spotify-match
+ * commentary. A solo show reads "Bhuwin, all night.", never "1 artists".
  */
 import type { BillingTier } from "@/domain/shared/lineup";
 
@@ -29,7 +30,7 @@ export function joinNames(names: readonly string[]): string {
 export function whoLine(names: readonly string[], total = names.length): string {
   switch (lineupShape(total)) {
     case "empty":
-      return "Lineup coming soon.";
+      return "Lineup soon 🫣";
     case "solo":
       return `${names[0]}, all night.`;
     case "duo":
@@ -37,7 +38,7 @@ export function whoLine(names: readonly string[], total = names.length): string 
     case "trio":
       return `${joinNames(names.slice(0, 3))}. One night.`;
     case "festival":
-      return `${plural(total, "artist")}. Here's who to know.`;
+      return `${plural(total, "artist")}.`;
   }
 }
 
@@ -54,28 +55,9 @@ export function tierLabel(tier: BillingTier, count: number): string {
   return count === 1 ? one : many;
 }
 
-/** The order the playlist plays in, or null when there's nothing to order (a solo show). */
-export function orderLine(artistCount: number, tiersWithArtists: number): string | null {
-  if (artistCount <= 1) return null;
-  if (tiersWithArtists <= 1) return "In billing order.";
-  return "Headliners first, openers last.";
-}
-
-/** How many artists Spotify knows, worded for the lineup size. */
-export function spotifyMatchLine(matched: number, total: number, soloName?: string): string {
-  if (total === 0) return "";
-  if (total === 1) {
-    const name = soloName ?? "This artist";
-    return matched > 0 ? `${name} is on Spotify.` : `${name} isn't matched on Spotify yet.`;
-  }
-  if (matched === 0) return `None of the ${total} artists are matched on Spotify yet.`;
-  return `${matched} of ${plural(total, "artist")} matched on Spotify so far.`;
-}
-
 /** What the share sheet says. */
 export function shareText(title: string, names: readonly string[]): string {
-  if (names.length === 1) return `${names[0]} live: ${title}. One playlist to get ready.`;
-  return `${title}: the lineup and one playlist`;
+  return names.length === 1 ? `${names[0]}, live 🎧` : `${title} 🎧`;
 }
 
 export type TitleSize = "xl" | "lg" | "md";
@@ -102,13 +84,13 @@ export function lineupTeaser(headliners: readonly string[], artistCount: number)
 /** The story's header. Never counts slides. */
 export const STORY_HEADER = "The rundown";
 
-/** "34 acts. 2 days. Here's your cheat sheet." Sized to the lineup and the show length. */
+/** "34 acts. 2 days." Sized to the lineup and the show length. */
 export function introLine(names: readonly string[], total: number, days: number): string {
   const shape = lineupShape(total);
-  if (shape === "empty") return "Lineup drops soon. Watch this space.";
+  if (shape === "empty") return "Lineup soon 🫣";
   if (shape === "solo") return whoLine(names, total);
   const when = days > 1 ? `${days} days` : "One night";
-  if (shape === "festival") return `${total} acts. ${when}. Here's your cheat sheet.`;
+  if (shape === "festival") return `${total} acts. ${when}.`;
   return `${joinNames(names.slice(0, total))}. ${when}.`;
 }
 
@@ -120,19 +102,17 @@ export const STORY_KICKERS = {
   playlist: "🎧 The playlist",
 } as const;
 
-/** "+ 20 more on the lineup", or null when everyone fits. */
+/** "+ 20 more", or null when everyone fits. */
 export function moreLine(hidden: number): string | null {
-  return hidden > 0 ? `+ ${hidden} more on the lineup` : null;
+  return hidden > 0 ? `+ ${hidden} more` : null;
 }
 
-/**
- * Nothing matched on Spotify yet (e.g. while Spotify rate-limits matching): a friendly pending
- * line instead of "0 songs · 0 min". "…we're matching Shreya Ghoshal on Spotify."
- */
-export function pendingLine(names: readonly string[], total = names.length): string {
-  const who =
-    total <= 3 && names.length >= total
-      ? joinNames(names.slice(0, total))
-      : `all ${plural(total, "artist")}`;
-  return `Playlist coming soon: we're matching ${who} on Spotify.`;
-}
+/** Nothing matched on Spotify yet: never "0 songs · 0 min". */
+export const PLAYLIST_SOON = "Playlist soon ⏳";
+
+/** The story's last slide: a headline and two ways out (D-082). */
+export const STORY_CTA = {
+  headline: "Every act. One playlist.",
+  playlist: "Open playlist",
+  event: "See event",
+} as const;

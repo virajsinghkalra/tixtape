@@ -1,8 +1,7 @@
 import type { EventDetail } from "@/application/ports/events";
 import { countdownBadge, formatDateRange, istDayCount } from "./event-format";
-import { introLine, STORY_HEADER } from "./lineup-copy";
+import { introLine, STORY_CTA, STORY_HEADER } from "./lineup-copy";
 import { isMatched } from "./lineup-view";
-import type { PlaylistPreview } from "./playlist-preview";
 import { planStory } from "./story-plan";
 import { renderStory } from "./StorySlides";
 import { ButtonLink } from "./ui/Button";
@@ -11,8 +10,6 @@ import { StoryViewer } from "./ui/StoryViewer";
 type Props = {
   event: EventDetail;
   now: Date;
-  /** The same engine preview as the playlist panel (D-065), so both always agree. */
-  preview: PlaylistPreview | null;
 };
 
 /** How many artist photos the side column shows. */
@@ -22,7 +19,7 @@ const WALL = 12;
  * "The rundown": the event as a phone-shaped story card (never a full-width banner), with a
  * side column on wide screens so there is no empty space next to it.
  */
-export function EventStory({ event, now, preview }: Props) {
+export function EventStory({ event, now }: Props) {
   const lineup = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
   const days = istDayCount(event.startsAt, event.endsAt);
   const plan = planStory({
@@ -37,10 +34,9 @@ export function EventStory({ event, now, preview }: Props) {
       tier: a.tier,
       billingRank: a.billingRank,
     })),
-    preview,
+    poster: event.posterUrl,
     playlistHref: "#playlist",
     eventHref: null,
-    days,
     matched: lineup.filter((a) => isMatched(a.matchStatus)).length,
   });
   const wall = lineup.slice(0, WALL);
@@ -88,11 +84,11 @@ export function EventStory({ event, now, preview }: Props) {
           )}
           <div className="flex flex-wrap gap-3">
             <ButtonLink href="#playlist" size="lg">
-              <span aria-hidden>🎧</span> Get the playlist
+              <span aria-hidden>🎧</span> {STORY_CTA.playlist}
             </ButtonLink>
             {lineup.length > 1 && (
               <ButtonLink href="#lineup" variant="secondary" size="lg">
-                See the full lineup <span aria-hidden>↓</span>
+                Full lineup <span aria-hidden>↓</span>
               </ButtonLink>
             )}
           </div>

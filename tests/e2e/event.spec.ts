@@ -7,7 +7,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   await warmUp(browser, baseURL);
 });
 
-test("lineup poster: headliners first and biggest, support last, each with a Spotify state", async ({
+test("lineup poster: headliners first and biggest, support last, names only (D-082)", async ({
   page,
   request,
 }) => {
@@ -22,8 +22,9 @@ test("lineup poster: headliners first and biggest, support last, each with a Spo
       .first()
       .evaluate((el) => parseFloat(getComputedStyle(el.firstElementChild!).fontSize));
   expect(await size("headliner")).toBeGreaterThan(await size("support"));
-  await expect(page.locator('[data-testid="lineup-artist"] [data-match]')).toHaveCount(8);
-  await expect(page.getByText(/of\s+8\s+found on spotify/i)).toBeVisible();
+  await expect(page.locator('[data-testid="lineup-artist"]')).toHaveCount(8);
+  await expect(page.locator('[data-testid="lineup-artist"] [data-match]')).toHaveCount(0);
+  await expect(page.getByText(/found on spotify/i)).toHaveCount(0);
 });
 
 test("event story: step through the slides with the arrow buttons", async ({ page, request }) => {
@@ -39,7 +40,7 @@ test("unknown and malformed ids return a real 404", async ({ page }) => {
   for (const path of ["/events/00000000-0000-4000-8000-000000000000", "/events/abc"]) {
     const res = await page.goto(path);
     expect(res?.status()).toBe(404);
-    await expect(page.getByRole("heading", { name: /isn.t on the bill/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /not on the bill/i })).toBeVisible();
   }
 });
 
@@ -57,7 +58,7 @@ test("'All events' goes home", async ({ page, request }) => {
   await expect(page).toHaveURL(/\/$/, NAVIGATION);
 });
 
-test("Spotify labels aren't repeated: one link name per matched artist and one summary line", async ({
+test("no Spotify-match commentary: matched artists are just links (D-082)", async ({
   page,
   request,
 }) => {
@@ -65,7 +66,7 @@ test("Spotify labels aren't repeated: one link name per matched artist and one s
   const poster = page.getByRole("region", { name: "The lineup" });
   const text = await poster.innerText();
   expect(text).not.toMatch(/\((on|finding on) spotify\)/i);
-  expect(text.match(/found on spotify/gi)).toHaveLength(1);
+  expect(text).not.toMatch(/found on spotify|not on spotify|checking the spotify/i);
   // Matched artists (when the data has any) are one link each, named "<artist> on Spotify".
   for (const link of await poster.getByRole("link", { name: /on spotify/i }).all()) {
     await expect(link).toHaveAttribute("aria-label", /^.+ on Spotify \(opens in new tab\)$/);

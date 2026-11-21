@@ -18,11 +18,7 @@ export function TrySearchingTile({ queries }: Props) {
         Lineups loading
       </Sticker>
       <div>
-        <h2 className="font-display text-big font-extrabold">New gigs land here soon.</h2>
-        <p className="mt-2 font-medium">
-          Meanwhile, search any festival or artist. If it isn&apos;t here yet, we&apos;ll check
-          Spotify for India dates.
-        </p>
+        <h2 className="font-display text-big font-extrabold">New gigs soon</h2>
       </div>
       <div>
         <p className="mb-2 text-sm font-bold">Try searching</p>

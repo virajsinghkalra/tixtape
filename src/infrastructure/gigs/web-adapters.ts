@@ -52,6 +52,7 @@ export class PolitePageReader implements PageReader {
       text: htmlToText(html),
       jsonLd: jsonLdBlocks(html),
       tourLinks: tourLinks(html, url),
+      image: ogImage(html, url),
     };
   }
 }
@@ -60,6 +61,24 @@ function pageTitle(html: string): string {
   const og = /<meta\b[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["']/iu.exec(html)?.[1];
   const title = /<title\b[^>]*>([\s\S]*?)<\/title>/iu.exec(html)?.[1];
   return decodeEntities((og ?? title ?? "").replace(/\s+/gu, " ").trim()).slice(0, 300);
+}
+
+/** D-082: the page's `og:image` (or `twitter:image`) as an absolute https URL, or null. */
+export function ogImage(html: string, base: string): string | null {
+  for (const tag of html.matchAll(/<meta\b[^>]*>/giu)) {
+    const attrs = tag[0];
+    const key = /\b(?:property|name)=["']([^"']+)["']/iu.exec(attrs)?.[1]?.toLowerCase();
+    if (key !== "og:image" && key !== "og:image:secure_url" && key !== "twitter:image") continue;
+    const content = /\bcontent=["']([^"']+)["']/iu.exec(attrs)?.[1];
+    if (!content) continue;
+    try {
+      const url = safeHttpUrl(new URL(decodeEntities(content.trim()), base).href);
+      if (url?.startsWith("https://")) return url;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
 
 /** Same-host links that look like a tour or events page. */

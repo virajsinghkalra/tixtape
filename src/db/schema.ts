@@ -109,6 +109,8 @@ export const events = pgTable(
     lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
     genre: text("genre"),
     imageUrl: text("image_url"),
+    /** D-082: the official page's og:image, hotlinked (never re-hosted); filled by a script. */
+    posterUrl: text("poster_url"),
     lineupHash: text("lineup_hash"),
     dedupeKey: text("dedupe_key").notNull(),
     createdAt: createdAt(),

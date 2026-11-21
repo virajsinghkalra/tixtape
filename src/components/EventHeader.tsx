@@ -1,5 +1,6 @@
 import type { EventDetail } from "@/application/ports/events";
 import { eventTone } from "./event-color";
+import { EventVisual } from "./EventVisual";
 import { formatDateRange, formatStartTime } from "./event-format";
 import { shareText, titleSize, type TitleSize } from "./lineup-copy";
 import { ShareButton } from "./ShareButton";
@@ -26,7 +27,9 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
   const status = STATUS[event.status];
   const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
-  const names = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank).map((a) => a.name);
+  const ordered = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
+  const names = ordered.map((a) => a.name);
+  const top = ordered.filter((a) => a.tier === ordered[0]?.tier);
   return (
     <header>
       <ButtonLink href="/" variant="ghost" className="-ml-3">
@@ -34,12 +37,14 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
       </ButtonLink>
       <Tile
         tone={eventTone(event.id)}
-        className={cx(
-          "pop-in mt-3",
-          solo && "grid gap-6 md:grid-cols-[minmax(0,1fr)_16rem] md:items-center",
-        )}
+        className="pop-in mt-3 grid gap-6 md:grid-cols-[minmax(0,1fr)_18rem] md:items-center"
       >
-        {solo && <SoloArtist name={solo.name} imageUrl={solo.imageUrl} />}
+        <HeroPicture
+          poster={event.posterUrl}
+          faces={top.map((a) => a.imageUrl)}
+          label={names[0] ?? event.title}
+          caption={solo?.name ?? null}
+        />
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
             <Countdown
@@ -91,30 +96,32 @@ export function EventHeader({ event, ticketUrl, now }: Props) {
 }
 
 /**
- * A solo show leads with the artist: their Spotify photo as a big tilted card, or a giant
- * initial when there's no photo, so the hero is never an empty block.
+ * D-082: the hero picture for every event: the official poster, else a collage of the headliners'
+ * Spotify photos, else a branded gradient with a sticker. Never an empty block.
  */
-function SoloArtist({ name, imageUrl }: { name: string; imageUrl: string | null }) {
+function HeroPicture({
+  poster,
+  faces,
+  label,
+  caption,
+}: {
+  poster: string | null | undefined;
+  faces: (string | null)[];
+  label: string;
+  caption: string | null;
+}) {
   return (
     <figure className="relative order-first md:order-last">
-      <div
-        className={cx(
-          "grid aspect-[4/3] w-full rotate-2 place-items-center overflow-hidden rounded-tile border-2 border-night bg-night bg-cover bg-center shadow-[5px_6px_0_0_var(--color-night)] md:aspect-square",
-        )}
-        style={imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined}
-        aria-hidden
-      >
-        {!imageUrl && (
-          <span className="font-display text-[8rem] leading-none font-extrabold text-lime">
-            {name.charAt(0)}
-          </span>
-        )}
+      <div className="relative aspect-[4/3] w-full rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] md:aspect-square">
+        <EventVisual poster={poster} faces={faces} label={label} />
       </div>
-      <figcaption className="absolute -bottom-3 left-3">
-        <span className="inline-block -rotate-3 rounded-chip border-2 border-night bg-lime px-3 py-1 text-sm font-bold text-on-block">
-          🎤 {name}
-        </span>
-      </figcaption>
+      {caption && (
+        <figcaption className="absolute -bottom-3 left-3">
+          <span className="inline-block -rotate-3 rounded-chip border-2 border-night bg-lime px-3 py-1 text-sm font-bold text-on-block">
+            🎤 {caption}
+          </span>
+        </figcaption>
+      )}
     </figure>
   );
 }

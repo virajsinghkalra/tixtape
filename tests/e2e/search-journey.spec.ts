@@ -185,9 +185,7 @@ test.describe("B. live lookup when nothing matches (D-050)", () => {
     await stubLookup(page, 200, { status: "not_found", artist: { name: "Coldplay" } });
     await page.goto("/");
     await search(page).fill("coldplay");
-    await expect(
-      page.getByText("Coldplay: no India dates yet. We'll keep checking."),
-    ).toBeVisible();
+    await expect(page.getByText("Coldplay: no India dates yet")).toBeVisible();
   });
 
   test("a partial name matching several artists asks which one; picking one searches again", async ({

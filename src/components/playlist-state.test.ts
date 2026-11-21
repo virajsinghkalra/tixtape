@@ -71,7 +71,7 @@ describe("viewFromStart (POST)", () => {
   it("maps 503, 422, 429 and anything else to friendly states", () => {
     expect(viewFromStart(503, {}, null)).toEqual({ kind: "unavailable" });
     expect(viewFromStart(422, {}, null)).toMatchObject({
-      message: expect.stringMatching(/on Spotify yet/),
+      message: "Playlist soon ⏳",
     });
     expect(viewFromStart(429, {}, "120")).toMatchObject({
       message: expect.stringContaining("2 min"),
@@ -87,7 +87,7 @@ describe("viewFromStep", () => {
   it("names each stage while building", () => {
     expect(viewFromStep(step({}), building)).toMatchObject({
       kind: "building",
-      label: "Picking songs · 8/13 artists",
+      label: "Picking songs…",
     });
   });
 
@@ -116,7 +116,7 @@ describe("viewFromStep", () => {
     const mid = viewFromStep(step({}), stale);
     expect(mid).toMatchObject({
       kind: "ready",
-      refresh: { label: "Picking songs · 8/13 artists" },
+      refresh: { label: "Picking songs…" },
     });
     expect(
       viewFromStep(step({ status: "succeeded", progress: 100, playlistUrl: URL_ }), mid),
@@ -138,29 +138,26 @@ describe("viewFromStep", () => {
     expect(formatClock("2026-11-21T13:10:00Z")).toBe("6:40 pm");
   });
 
-  it("a failed first build shows the job's safe message", () => {
+  it("a failed first build shows one tiny message (D-082), not the job's error text", () => {
     expect(
       viewFromStep(step({ status: "failed", error: "Spotify is down" }), building),
     ).toMatchObject({
       kind: "problem",
-      message: "Spotify is down",
+      message: "Oops. Try again.",
     });
   });
 });
 
 describe("stageLabel", () => {
   it.each([
-    [
-      { status: "queued", stage: null, progress: 0, artistsDone: 0, artistsTotal: 0 },
-      "Matching artists…",
-    ],
+    [{ status: "queued", stage: null, progress: 0, artistsDone: 0, artistsTotal: 0 }, "Matching…"],
     [
       { status: "running", stage: "create", progress: 82, artistsDone: 13, artistsTotal: 13 },
-      "Creating the playlist…",
+      "Creating…",
     ],
     [
       { status: "running", stage: "write", progress: 92, artistsDone: 13, artistsTotal: 13 },
-      "Adding songs · 92%",
+      "Adding songs…",
     ],
   ])("%j", (p, label) => {
     expect(stageLabel(p)).toBe(label);
@@ -168,13 +165,13 @@ describe("stageLabel", () => {
 });
 
 describe("never an endless wait", () => {
-  it("stops after several steps with no progress and says it keeps going in the background", () => {
+  it("stops after several steps with no progress and says so in two words", () => {
     let view: PlaylistView = building;
     for (let i = 0; i <= MAX_STALLED_STEPS; i++)
       view = viewFromStep(step({ status: "queued", stage: null, progress: 0 }), view);
     expect(view).toMatchObject({
       kind: "problem",
-      message: expect.stringMatching(/longer than usual/),
+      message: expect.stringMatching(/still cooking/i),
     });
   });
 
@@ -193,7 +190,7 @@ describe("never an endless wait", () => {
   });
 });
 
-describe("a paused build shows as paused at once (no 'Joining the build…')", () => {
+describe("a paused build shows as paused at once (no 'Joining…')", () => {
   const paused = {
     jobId: "job-1",
     status: "paused",
@@ -218,7 +215,7 @@ describe("a paused build shows as paused at once (no 'Joining the build…')", (
 
   it("without progress it asks the job straight away instead of waiting 1.5 s", () => {
     const view = viewFromStatus({ status: "building", jobId: "job-1" });
-    expect(view).toMatchObject({ kind: "building", label: "Joining the build…" });
+    expect(view).toMatchObject({ kind: "building", label: "Joining…" });
     expect(nextStepDelay(activeJob(view)!, new Date())).toBe(0);
   });
 
