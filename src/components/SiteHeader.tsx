@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { SPOTIFY_LOGIN_URL } from "./links";
 import { LogoutButton } from "./LogoutButton";
 import { Wordmark } from "./Wordmark";
 
 export type HeaderUser = { name: string };
 
-/** Logged out: a quiet "Sign in" (playlists never need it). Logged in: who + Log out. */
+/**
+ * Logged out: nothing. Playlists never need a login, and Spotify Development Mode lets only
+ * allow-listed accounts sign in, so a public button would send visitors to a Spotify error.
+ * Admins sign in at /api/auth/spotify/login. Logged in: who + Log out.
+ */
 export function SiteHeader({ user }: { user: HeaderUser | null }) {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur-xl">
@@ -31,16 +34,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
             <span className="sr-only sm:hidden">Logged in as {user.name}</span>
             <LogoutButton />
           </div>
-        ) : (
-          // Secondary on purpose: playlists need no login, and Spotify's Development Mode lets
-          // only a few allow-listed people sign in at all.
-          <a
-            href={SPOTIFY_LOGIN_URL}
-            className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-muted underline-offset-4 hover:text-ink hover:underline"
-          >
-            Sign in
-          </a>
-        )}
+        ) : null}
       </div>
     </header>
   );
