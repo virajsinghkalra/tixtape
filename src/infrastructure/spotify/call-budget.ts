@@ -31,16 +31,18 @@ export type SpotifyCallClass = (typeof SPOTIFY_CALL_CLASSES)[number];
 export type BackgroundClass = Exclude<SpotifyCallClass, "build">;
 
 export const CALL_WINDOW_MS = 10_000;
-export const APP_CALLS_PER_WINDOW = 8;
-export const BACKGROUND_CALLS_PER_WINDOW = 3;
+// Tightened after the 2026-11-21 429 (Lead, 2026-11-22): 5 app-wide per 10 s (≤ 30 per rolling
+// 30 s at the worst edge), background at most 2 of them so builds keep ≥ 3.
+export const APP_CALLS_PER_WINDOW = 5;
+export const BACKGROUND_CALLS_PER_WINDOW = 2;
 const DAY_MS = 86_400_000;
 
 export const BACKGROUND_LIMITS: Record<BackgroundClass, { perWindow: number; perDay: number }> = {
-  match: { perWindow: 2, perDay: 1_500 },
+  match: { perWindow: 1, perDay: 800 },
   // ≤ 1 call per 10 s (well under the "1 per 2 s" ceiling), 1,000 a day.
-  prewarm: { perWindow: 1, perDay: 1_000 },
-  discovery: { perWindow: 1, perDay: 400 },
-  revalidate: { perWindow: 1, perDay: 400 },
+  prewarm: { perWindow: 1, perDay: 500 },
+  discovery: { perWindow: 1, perDay: 250 },
+  revalidate: { perWindow: 1, perDay: 250 },
 };
 
 /** Builds wait at most this long for a slot before returning progress (step budget). */
