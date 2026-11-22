@@ -82,7 +82,9 @@ export function EventHeader({ event, now }: Props) {
           <p className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-lg font-semibold">
             <span className="flex items-baseline gap-2">
               <span aria-hidden>📅</span>
-              <time dateTime={event.startsAt.toISOString()}>{when}</time>
+              <time dateTime={event.startsAt.toISOString()}>
+                {when.replace(" · ", "\u00a0· ").replace(/(\d) (am|pm) IST/, "$1\u00a0$2\u00a0IST")}
+              </time>
             </span>
             <span className="flex items-baseline gap-2">
               <span aria-hidden>📍</span>
