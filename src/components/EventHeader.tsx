@@ -23,6 +23,8 @@ type Props = {
   now: Date;
   /** A ready playlist (own or tour's): the primary button plays it. */
   playUrl?: string | null;
+  /** No playlist yet: play the top-billed artist instead. */
+  fallbackPlay?: { name: string; url: string } | null;
 };
 
 /** Long titles step down a size so they never stack into four giant lines. */
@@ -32,7 +34,7 @@ const H1: Record<TitleSize, string> = { xl: "text-mega", lg: "text-huge", md: "t
  * Event page header (UX #5): back link, the picture, stickers, the title and one facts row.
  * Desktop gets the one Play button here; phones get it in the sticky bottom bar.
  */
-export function EventHeader({ event, now, playUrl = null }: Props) {
+export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }: Props) {
   const status = STATUS[event.status];
   const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
@@ -97,7 +99,12 @@ export function EventHeader({ event, now, playUrl = null }: Props) {
               <span>{where}</span>
             </span>
           </p>
-          <PlayCta eventId={event.id} playUrl={playUrl} className="mt-5 max-w-xs max-sm:hidden" />
+          <PlayCta
+            eventId={event.id}
+            playUrl={playUrl}
+            fallback={fallbackPlay}
+            className="mt-5 max-w-xs max-sm:hidden"
+          />
         </div>
       </Tile>
     </header>

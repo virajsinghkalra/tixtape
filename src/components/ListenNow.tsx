@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { track } from "./analytics/track";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { PLAYLIST_COOKING } from "./lineup-copy";
-import { buttonClass } from "./ui/Button";
 import type { ListenNow as Data } from "@/domain/events/listen-now";
 
 /**
@@ -46,20 +44,18 @@ export function ListenNow({
   }
   if (data.artists.length === 0 && !data.paused) return null;
   return (
-    <div className="flex flex-col gap-2">
-      {data.paused && <p className="mb-2 text-lg font-semibold">{PLAYLIST_COOKING}</p>}
-      {data.artists.map((a) => (
-        <a
-          key={a.spotifyId}
-          href={`https://open.spotify.com/artist/${a.spotifyId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => track("playlist_open_spotify", { eventId })}
-          className={buttonClass("secondary", "md", "w-full")}
+    <div className="flex flex-col gap-3">
+      {data.paused && <p className="text-lg font-semibold">{PLAYLIST_COOKING}</p>}
+      {data.artists.map((a, i) => (
+        <SpotifyOpenLink
+          key={a.url}
+          href={a.url}
+          eventId={eventId}
+          variant={i === 0 ? undefined : "secondary"}
+          size={i === 0 ? "lg" : "md"}
         >
-          Open {a.name} on Spotify <span aria-hidden>↗</span>
-          <span className="sr-only"> (opens Spotify)</span>
-        </a>
+          <span aria-hidden>▶</span> Play {a.name}
+        </SpotifyOpenLink>
       ))}
     </div>
   );

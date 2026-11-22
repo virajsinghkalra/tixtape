@@ -22,7 +22,7 @@ import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { ButtonLink } from "@/components/ui/Button";
 import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
-import { sharedOrTourStatus } from "@/server/listen-now";
+import { listenNow, sharedOrTourStatus } from "@/server/listen-now";
 import { playlists } from "@/server/playlists";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +85,12 @@ export default async function EventPage({ params, searchParams }: Params) {
     .catch(() => null);
 
   const playUrl = readyUrl(initialPlaylistStatus);
+  // No playlist yet: the bottom bar still plays something (the top-billed artist on Spotify).
+  const fallbackPlay = playUrl
+    ? null
+    : await listenNow(event.id)
+        .then((d) => d?.artists[0] ?? null)
+        .catch(() => null);
   const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
   const outbound = ticketLink(event.sources.map((s) => s.url));
   // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
@@ -108,7 +114,7 @@ export default async function EventPage({ params, searchParams }: Params) {
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
       <EventVisit eventId={event.id} highlight={Boolean(artist)} />
-      <EventHeader event={event} now={now} playUrl={playUrl} />
+      <EventHeader event={event} now={now} playUrl={playUrl} fallbackPlay={fallbackPlay} />
       {event.archived && (
         // D-070: reachable by its link, clearly in the past.
         <p role="note" className="mt-3 font-display text-lg font-bold">
@@ -149,7 +155,7 @@ export default async function EventPage({ params, searchParams }: Params) {
         </div>
       )}
       <EventBottomBar>
-        <PlayCta eventId={event.id} playUrl={playUrl} className="flex-1" />
+        <PlayCta eventId={event.id} playUrl={playUrl} fallback={fallbackPlay} className="flex-1" />
         <ShareButton title={event.title} text={shareText(event.title, names)} size="lg" />
       </EventBottomBar>
     </div>

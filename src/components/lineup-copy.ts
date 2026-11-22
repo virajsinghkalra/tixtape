@@ -112,7 +112,7 @@ export function playlistBadge(status: "ready" | "building" | null | undefined): 
 /** Nothing matched on Spotify yet: never "0 songs · 0 min". */
 export const PLAYLIST_SOON = "Playlist soon ⏳";
 /** Spotify cool-down: the playlist lands once it lifts. */
-export const PLAYLIST_COOKING = "Playlist's cooking 🍳 drops tomorrow. Vibe here till then:";
+export const PLAYLIST_COOKING = "Playlist's cooking 🍳 till then 👇";
 
 /** The story's last slide: a headline and two ways out (D-082). */
 export const STORY_CTA = {

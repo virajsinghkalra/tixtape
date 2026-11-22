@@ -43,16 +43,23 @@ describe("pickSibling", () => {
 });
 
 describe("artists", () => {
-  it("keeps the top 3 billed with an id, skipping the rest", () => {
+  it("keeps the top 3 billed, every one with a playable link", () => {
     const billed = [
-      { name: "A", spotifyId: null },
+      { name: "A R", spotifyId: null },
       { name: "B", spotifyId: "sb" },
       { name: "C", spotifyId: "sc" },
       { name: "D", spotifyId: "sd" },
-      { name: "E", spotifyId: "se" },
     ];
-    expect(pickArtists(billed).map((a) => a.name)).toEqual(["B", "C", "D"]);
-    expect(pickArtists([{ name: "A", spotifyId: null }])).toEqual([]);
+    expect(pickArtists(billed).map((a) => a.name)).toEqual(["A R", "B", "C"]);
+    // No Spotify id yet (matching paused): a Spotify search, never an empty list.
+    expect(pickArtists([{ name: "Satinder Sartaaj", spotifyId: null }])).toEqual([
+      {
+        name: "Satinder Sartaaj",
+        spotifyId: null,
+        url: "https://open.spotify.com/search/Satinder%20Sartaaj",
+      },
+    ]);
+    expect(pickArtists(billed)[1]!.url).toBe("https://open.spotify.com/artist/sb");
   });
   it("shows the sibling alone when there is one, else the artists", () => {
     const billed = [{ name: "B", spotifyId: "sb" }];
@@ -61,7 +68,7 @@ describe("artists", () => {
       sibling: {},
     });
     expect(buildListenNow(cur, billed, [], now)).toEqual({
-      artists: [{ name: "B", spotifyId: "sb" }],
+      artists: [{ name: "B", spotifyId: "sb", url: "https://open.spotify.com/artist/sb" }],
     });
   });
 });

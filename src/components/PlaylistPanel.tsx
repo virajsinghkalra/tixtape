@@ -148,7 +148,8 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
       <h2 id="playlist-title" className="font-display text-big font-extrabold">
         The playlist <span aria-hidden>🎧</span>
       </h2>
-      {pending && <p className="mt-2 text-lg font-semibold">{PLAYLIST_SOON}</p>}
+      {/* The cooking note + play buttons (ListenNow) replace this line: never two messages. */}
+      {pending && tour === false && <p className="mt-2 text-lg font-semibold">{PLAYLIST_SOON}</p>}
 
       <div className="relative mt-6">
         {(view.kind === "idle" || view.kind === "building") && (

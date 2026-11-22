@@ -12,8 +12,15 @@ export type SiblingCandidate = {
 
 export type ListenNow = {
   sibling?: { url: string; title: string };
-  artists: { name: string; spotifyId: string }[];
+  /** Always playable: the artist's Spotify page, or a Spotify search for an unmatched name. */
+  artists: { name: string; spotifyId: string | null; url: string }[];
 };
+
+/** No Spotify id yet (matching paused): a Spotify search still lands on the artist. No API call. */
+export const spotifyArtistUrl = (name: string, spotifyId: string | null) =>
+  spotifyId
+    ? `https://open.spotify.com/artist/${spotifyId}`
+    : `https://open.spotify.com/search/${encodeURIComponent(name)}`;
 
 const MAX_ARTISTS = 3;
 
@@ -49,16 +56,15 @@ export function pickSibling(
   return best ? { url: best.url, title: titleStem(best.title) } : null;
 }
 
-/** Top billed artists (billing order) that have a Spotify id, at most three. */
+/** Top billed artists (billing order), at most three, each with a playable Spotify link. */
 export function pickArtists(
   billed: readonly { name: string; spotifyId: string | null }[],
 ): ListenNow["artists"] {
-  const out: ListenNow["artists"] = [];
-  for (const a of billed) {
-    if (a.spotifyId) out.push({ name: a.name, spotifyId: a.spotifyId });
-    if (out.length === MAX_ARTISTS) break;
-  }
-  return out;
+  return billed.slice(0, MAX_ARTISTS).map((a) => ({
+    name: a.name,
+    spotifyId: a.spotifyId,
+    url: spotifyArtistUrl(a.name, a.spotifyId),
+  }));
 }
 
 export function buildListenNow(
