@@ -44,7 +44,8 @@ type Props = {
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
 export function PlaylistPanel({ eventId, actions, preview, matched, total, initialStatus }: Props) {
-  const [tour, setTour] = useState(false);
+  // null while the tour/cool-down check loads: no "Make playlist" flash before it answers.
+  const [tour, setTour] = useState<boolean | null>(null);
   const [view, setView] = useState<PlaylistView>(() =>
     initialStatus ? viewFromStatus(initialStatus) : { kind: "checking" },
   );
@@ -154,7 +155,7 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
           <ListenNow eventId={eventId} onTour={setTour} />
         )}
         {/* One tour, one playlist: a sibling's playlist is this event's, so nothing to make. */}
-        {!(tour && (view.kind === "idle" || view.kind === "building")) && (
+        {!(tour !== false && (view.kind === "idle" || view.kind === "building")) && (
           <Actions view={view} onStart={start} pending={pending} />
         )}
         {view.kind === "ready" && view.justMade && <Confetti key={view.url} />}

@@ -130,3 +130,23 @@ describe("type and genre (issue 5)", () => {
     expect(parsed.filters).toEqual(filters);
   });
 });
+
+describe("question-style and Hinglish searches", () => {
+  const now = new Date("2026-11-22T14:00:00Z");
+  it("'jalandhar mei konsa show hai' searches just 'jalandhar'", () => {
+    expect(parseSearchText("jalandhar mei konsa show hai", now).text).toBe("jalandhar");
+  });
+  it("'upcoming' browses everything still to come", () => {
+    const p = parseSearchText("upcoming", now);
+    expect(p.text).toBe("");
+    expect(p.filters.from).toEqual(now);
+  });
+  it("'upcoming weekend' is this weekend", () => {
+    const p = parseSearchText("upcoming weekend", now);
+    expect(p.text).toBe("");
+    expect(p.filters.from!.getTime()).toBeGreaterThan(now.getTime());
+  });
+  it("artist names survive the filler words", () => {
+    expect(parseSearchText("koi diljit show hai", now).text).toBe("diljit");
+  });
+});

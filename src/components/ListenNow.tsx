@@ -30,7 +30,7 @@ export function ListenNow({
         // A tour sibling is this event's playlist; while Spotify cools down nothing can be made.
         onTour?.(Boolean(body?.sibling || body?.paused));
       })
-      .catch(() => undefined);
+      .catch(() => live && onTour?.(false));
     return () => {
       live = false;
     };

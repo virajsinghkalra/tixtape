@@ -50,7 +50,37 @@ const FILLER = new Set([
   "live",
   "ticket",
   "tickets",
+  // Question-style English and Hinglish ("jalandhar mei konsa show hai", "any gigs in pune").
+  "any",
+  "which",
+  "whats",
+  "konsa",
+  "kaunsa",
+  "konse",
+  "kaunse",
+  "kon",
+  "kaun",
+  "hai",
+  "hain",
+  "kya",
+  "kab",
+  "kahan",
+  "kidhar",
+  "mei",
+  "mein",
+  "baaki",
+  "baki",
+  "sab",
+  "saare",
+  "sare",
+  "koi",
+  "wala",
+  "wale",
+  "wali",
 ]);
+/** "upcoming", "soon": everything still to come, soonest first. */
+const UPCOMING_WORDS = new Set(["upcoming", "soon"]);
+const UPCOMING_SPAN_MS = 400 * 86_400_000;
 const PREPOSITIONS = new Set(["in", "at", "near"]);
 const TYPE_WORDS: Readonly<Record<string, EventType>> = {
   festival: "festival",
@@ -142,6 +172,13 @@ function dateAt(tokens: string[], i: number, now: Date): Segment | null {
   if (one === "today" || one === "tonight")
     return { kind: "date", words: [one], window: dayWindow(now, 0) };
   if (one === "tomorrow") return { kind: "date", words: [one], window: dayWindow(now, 1) };
+  if (UPCOMING_WORDS.has(one)) {
+    return {
+      kind: "date",
+      words: [one],
+      window: { from: now, to: new Date(now.getTime() + UPCOMING_SPAN_MS) },
+    };
+  }
   if (one === "weekend") return { kind: "date", words: [one], window: weekendWindow(now) };
   const month = MONTHS[one];
   if (month !== undefined) {
@@ -201,7 +238,8 @@ function dateFilter(segments: Segment[]): DateWindow | undefined {
   if (month?.monthOnly !== undefined && year?.year !== undefined) {
     return monthWindow(year.year, month.monthOnly);
   }
-  return dates[dates.length - 1]?.window;
+  const narrow = dates.filter((s) => !s.words.some((w) => UPCOMING_WORDS.has(w)));
+  return (narrow[narrow.length - 1] ?? dates[dates.length - 1])?.window;
 }
 
 /**
