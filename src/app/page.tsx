@@ -23,7 +23,6 @@ import { SearchLauncher } from "@/components/SearchLauncher";
 import { Section } from "@/components/Section";
 import { planStory } from "@/components/story-plan";
 import { UpNextRings, type RingEvent } from "@/components/UpNextRings";
-import { buttonClass } from "@/components/ui/Button";
 import { BottomBar } from "@/components/ui/BottomBar";
 import { Marquee } from "@/components/ui/Marquee";
 import { Sticker } from "@/components/ui/Sticker";
@@ -214,12 +213,6 @@ export default async function Home({ searchParams }: Props) {
         layout="row"
         seeAll={`/search?from=${today}`}
       />
-
-      <div className="mx-auto mt-10 flex max-w-6xl justify-center px-4 sm:px-6">
-        <Link href="/upcoming" className={buttonClass("secondary")}>
-          <span aria-hidden>🔮</span> Upcoming <span aria-hidden>→</span>
-        </Link>
-      </div>
 
       {marquee.length > 0 && (
         <Marquee label="Artists coming up" items={marquee} tone="violet" className="mt-12" />
