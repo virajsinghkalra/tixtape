@@ -211,7 +211,7 @@ export function EventCard({
           <SpotifyOpenLink
             href={playlistUrl}
             size="md"
-            className="min-w-0 flex-1"
+            className="min-w-0 flex-1 whitespace-nowrap"
             eventId={event.id}
           >
             {/* "Play the playlist" overflows the button at 360px next to Tickets. */}
