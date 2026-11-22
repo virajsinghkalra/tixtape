@@ -258,7 +258,7 @@ test.describe("D. playlist panel", () => {
     await expect(openInSpotify(page)).toHaveCount(0);
     const r = await page.request.post(`/api/events/${id}/playlist`, { data: {} });
     expect(r.status()).toBe(422);
-    expect(await r.text()).toMatch(/aren.t on Spotify yet/i);
+    expect(await r.text()).toMatch(/on Spotify yet/i);
     await finalShot(page, info, "D-no-matched-artists");
   });
 

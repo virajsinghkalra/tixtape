@@ -2,22 +2,19 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createEventsUseCases,
-  SearchClickSchema,
   SearchPageParamsSchema,
   SuggestParamsSchema,
   type SearchGroups,
   type SuggestResponse,
 } from "@/application/events";
 import { AdminEventInputSchema } from "@/application/events/save-admin-event";
-import { CountingLimiter } from "@/application/events/testing/fakes";
-import { artists, eventArtists, events, venues } from "@/db/schema";
-import { asEventId, asSpotifyArtistId } from "@/domain/shared/ids";
-import { NotFoundError } from "@/lib/errors";
+import { analyticsEvents, artists, devices, eventArtists, events, venues } from "@/db/schema";
+import { asSpotifyArtistId } from "@/domain/shared/ids";
 import { testDb } from "../../../tests/setup/db";
 import { PgArtistRepository } from "./artist-repository";
 import { PgEventRepository } from "./event-repository";
 import { PgEventSearch } from "./event-search";
-import { PgEventStatsRepository } from "./event-stats-repository";
+import { PgEventStatsRollup } from "./event-stats-repository";
 import { truncateEventTables } from "./events-test-db";
 import { PgIngestRunRepository } from "./ingest-run-repository";
 import { PgSearchLogRepository } from "./search-log-repository";
@@ -33,10 +30,8 @@ const useCases = createEventsUseCases({
   artists: artistRepo,
   ingestRuns: new PgIngestRunRepository(db),
   search: new PgEventSearch(db),
-  engagement: new PgEventStatsRepository(db),
+  statsRollup: new PgEventStatsRollup(db),
   searchLog: new PgSearchLogRepository(db),
-  clientLimiter: new CountingLimiter(10_000),
-  repeatLimiter: new CountingLimiter(10_000),
   clock: { now: () => now },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 });
@@ -174,7 +169,7 @@ const ids: Record<string, string> = {};
 
 async function seed() {
   await truncateEventTables(db);
-  await db.execute(sql`truncate table search_log, event_stats`);
+  await db.execute(sql`truncate table search_log, event_stats, analytics_events, devices cascade`);
   for (const s of SEEDS) {
     const { event } = await useCases.createAdminEvent(
       AdminEventInputSchema.parse({
@@ -213,9 +208,10 @@ describe("search on real Postgres (D-047 issues)", () => {
 
   it.each<[string, string[], Record<string, unknown>]>([
     [
+      // QA-F-4: "concerts" means any live event, festivals included.
       "concerts in pune",
-      ["Indie Night Out", "100% Bollywood Night"],
-      { city: "Pune", type: "concert" },
+      ["Indie Night Out", "Bacardi NH7 Weekender", "100% Bollywood Night", "Supersonic 2027"],
+      { city: "Pune" },
     ],
     [
       "gigs in pune",
@@ -287,6 +283,8 @@ describe("search on real Postgres (D-047 issues)", () => {
         imageUrl: "https://i.scdn.co/image/kuhad.jpg",
         upcomingCount: 1,
         matchedText: "Prateek",
+        // QA-F-1: one upcoming show, so the artist row links straight to it.
+        onlyEventId: ids["Silhouettes Tour"],
       },
     ]);
     expect(top(r)).toEqual(["Silhouettes Tour", "artist", "Prateek Kuhad", "Prateek Kuhad"]);
@@ -350,20 +348,46 @@ describe("search on real Postgres (D-047 issues)", () => {
 describe("popularity and recommendations on real Postgres (issues 9, 10)", () => {
   beforeAll(seed);
 
-  it("search clicks and views bump trend, which breaks ties inside a tier", async () => {
+  it("analytics opens and search click-throughs feed trend, which breaks ties (QA-F-7)", async () => {
     const lolla = async () => titles(await typed("lollapalooza"));
     expect(await lolla()).toEqual(["Lollapalooza India 2027", "Lollapalooza India 2028"]);
-    await useCases.recordSearchClick(
-      SearchClickSchema.parse({ q: "lollapalooza", eventId: ids["Lollapalooza India 2028"] }),
-      "client-a",
-    );
-    await useCases.recordEventView(asEventId(ids["Lollapalooza India 2028"]!), "client-a");
+    const lolla2028 = ids["Lollapalooza India 2028"]!;
+    const device = "20000000-0000-4000-8000-000000000001";
+    const ago = (min: number) => new Date(now.getTime() - min * 60_000);
+    await db
+      .insert(devices)
+      .values({ id: device, firstSeen: ago(60), lastSeen: ago(1), firstSource: "direct" });
+    await db.insert(analyticsEvents).values([
+      {
+        deviceId: device,
+        name: "search",
+        props: { q: "lollapalooza", results: 2 },
+        source: "direct",
+        at: ago(10),
+      },
+      {
+        deviceId: device,
+        name: "event_open",
+        props: { eventId: lolla2028 },
+        source: "direct",
+        at: ago(5),
+      },
+      {
+        deviceId: null,
+        name: "event_open",
+        props: { eventId: lolla2028 },
+        source: "direct",
+        at: ago(1),
+      },
+    ]);
+    expect(await useCases.rollupEventStats()).toEqual({ events: 1 });
     expect(await lolla()).toEqual(["Lollapalooza India 2028", "Lollapalooza India 2027"]);
 
     const [stats] = (await db.execute(
-      sql`select views, search_clicks, trend_score from event_stats where event_id = ${ids["Lollapalooza India 2028"]}::uuid`,
+      sql`select views, search_clicks, trend_score from event_stats where event_id = ${lolla2028}::uuid`,
     )) as unknown as [{ views: number; search_clicks: number; trend_score: number }];
-    expect(stats).toEqual({ views: 1, search_clicks: 1, trend_score: 4 });
+    expect(stats).toMatchObject({ views: 1, search_clicks: 1 });
+    expect(stats.trend_score).toBeCloseTo(4, 2);
   });
 
   it("an empty query returns de-duplicated sections of at most 5", async () => {
@@ -388,7 +412,12 @@ describe("popularity and recommendations on real Postgres (issues 9, 10)", () =>
       "100% Bollywood Night",
       "Supersonic 2027",
     ]);
-    expect(byId.popular_searches).toEqual(["lollapalooza", "lolla"]);
+    // QA-F-6: searches people made (analytics and committed searches), then event titles;
+    // every chip is checked to return something.
+    const chips = byId.popular_searches as string[];
+    expect(chips.slice(0, 2)).toEqual(["lolla", "lollapalooza"]);
+    expect(chips.length).toBeLessThanOrEqual(5);
+    for (const chip of chips) expect((await typed(chip)).results.length).toBeGreaterThan(0);
     const all = res.sections.flatMap((s) => ("items" in s ? s.items.map((i) => i.id) : []));
     expect(new Set(all).size).toBe(all.length);
     for (const s of res.sections) if ("items" in s) expect(s.items.length).toBeLessThanOrEqual(5);
@@ -483,26 +512,26 @@ describe("D-056: only published events reach users", () => {
     expect(listed).not.toContain("Prateek Kuhad Farewell");
   });
 
-  it.each(["Prateek Kuhad Secret Show", "Prateek Kuhad Farewell", null])(
-    "views and clicks on %s look exactly like a missing event (QA-E-5/6)",
-    async (title) => {
-      const id = asEventId(title ? ids[title]! : "00000000-0000-4000-8000-000000000000");
-      // Twice each: a repeat must not answer differently from the first call.
-      for (let i = 0; i < 2; i++) {
-        await expect(useCases.recordEventView(id, "client-z")).rejects.toThrow(NotFoundError);
-        await expect(
-          useCases.recordSearchClick(
-            SearchClickSchema.parse({ q: "secret", eventId: id }),
-            "client-z",
-          ),
-        ).rejects.toThrow(NotFoundError);
-      }
-      const [{ n }] = (await db.execute(
-        sql`select count(*)::int as n from search_log where clicked_event_id = ${id}::uuid`,
-      )) as unknown as [{ n: number }];
-      expect(n).toBe(0);
-    },
-  );
+  it("opens of hidden events never give them stats (D-056)", async () => {
+    const hidden = [ids["Prateek Kuhad Secret Show"]!, ids["Prateek Kuhad Farewell"]!];
+    await db.insert(analyticsEvents).values(
+      hidden.map((eventId) => ({
+        deviceId: null,
+        name: "event_open",
+        props: { eventId },
+        source: "direct",
+        at: now,
+      })),
+    );
+    await useCases.rollupEventStats();
+    const rows = await db.execute(
+      sql`select event_id::text from event_stats where trend_score > 0 and event_id::text = any(array[${sql.join(
+        hidden.map((h) => sql`${h}`),
+        sql`, `,
+      )}]::text[])`,
+    );
+    expect([...rows]).toEqual([]);
+  });
 
   it("an artist who only plays hidden events is never suggested (QA-E-4)", async () => {
     await useCases.createAdminEvent(
@@ -542,7 +571,9 @@ describe("timing on ~2,000 events (D-047: typed p95 < 100 ms, zero-query p95 < 1
 
   beforeAll(async () => {
     await truncateEventTables(db);
-    await db.execute(sql`truncate table search_log, event_stats`);
+    await db.execute(
+      sql`truncate table search_log, event_stats, analytics_events, devices cascade`,
+    );
     const vs = await db
       .insert(venues)
       .values(

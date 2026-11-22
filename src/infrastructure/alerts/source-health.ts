@@ -31,6 +31,7 @@ export function trackSourceRuns(
     if (!due) continue;
     alerts.push({
       key: `source-failing:${run.source}`,
+      severity: "action",
       subject: `Event source "${run.source}" failed ${count} runs in a row`,
       body: `The scheduled ingest couldn't read "${run.source}" in its last ${count} runs.\n\nLast error: ${run.error}\n\nCheck the "Ingest events" workflow logs.`,
     });

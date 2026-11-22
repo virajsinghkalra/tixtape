@@ -34,6 +34,8 @@ import {
   type DiscoveryRunReport,
 } from "@/application/gigs/run-discovery";
 import { enrichPress } from "@/application/gigs/enrich-press";
+import { runPipeline, type PipelineStep } from "@/application/gigs/run-pipeline";
+import { PgSpotifyGateStore } from "@/infrastructure/db/spotify-gate-store";
 import { publishDueCandidates, type NightOutcome } from "@/application/gigs/publish-due-candidates";
 import { reverifyAutoPublished, type ReverifyOutcome } from "@/application/gigs/reverify-published";
 import { listingsForRun } from "@/domain/gigs/demand";
@@ -93,7 +95,10 @@ function printReverify(outcomes: readonly ReverifyOutcome[]): void {
   for (const o of outcomes) line(`  ${o.result.padEnd(9)} ${o.nightKey} ${o.detail}`);
 }
 
-async function main(): Promise<void> {
+/** The run report, filled as steps finish; always written (`finish`). */
+const report: Record<string, unknown> = {};
+
+async function main(): Promise<boolean> {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes("--dry-run");
   const candidatesOnly = argv.includes("--candidates-only");
@@ -119,7 +124,7 @@ async function main(): Promise<void> {
   });
   const now = c.clock.now();
   const write = !dryRun;
-  const report: Record<string, unknown> = { at: now.toISOString(), dryRun, candidatesOnly };
+  Object.assign(report, { at: now.toISOString(), dryRun, candidatesOnly });
   line(
     `Gig coverage run ${now.toISOString()} ${dryRun ? "DRY RUN (nothing written)" : candidatesOnly ? "candidates only" : "full"}`,
   );
@@ -149,7 +154,11 @@ async function main(): Promise<void> {
   );
 
   const fresh: NonNullable<Parameters<typeof publishDueCandidates>[1]["extra"]>[number][] = [];
-  if (!argv.includes("--skip-listings")) {
+  const steps: PipelineStep[] = [];
+  const step = (name: string, needsSpotify: boolean, run: () => Promise<unknown>) => {
+    if (!argv.includes(`--skip-${name}`)) steps.push({ name, needsSpotify, run });
+  };
+  step("listings", true, async () => {
     const listings = await runListings(
       { validator, store: services.candidates, clock: c.clock, logger: c.logger },
       gigs.listings(state, highApeCities),
@@ -160,9 +169,10 @@ async function main(): Promise<void> {
     );
     fresh.push(...listings.candidates);
     report.listings = listings;
-  }
+    return listings;
+  });
 
-  if (!argv.includes("--skip-discovery")) {
+  step("discovery", true, async () => {
     const watchlist = await loadWatchlist({
       ...gigs.watchlist,
       validator,
@@ -188,9 +198,10 @@ async function main(): Promise<void> {
     printDiscovery(discovery);
     fresh.push(...discovery.candidates);
     report.discovery = discovery;
-  }
+    return discovery;
+  });
 
-  if (!argv.includes("--skip-enrich")) {
+  step("enrich", false, async () => {
     // D-089: give already-collected news articles their publisher, date and quotes.
     const enriched = await enrichPress(
       {
@@ -207,62 +218,87 @@ async function main(): Promise<void> {
     );
     fresh.push(...enriched.enriched);
     report.enrich = enriched;
-  }
+  });
 
-  if (!candidatesOnly && !argv.includes("--skip-publish")) {
-    const blockedReason = dryRun ? "dry run" : await gigs.publishSwitch.blockedReason(now);
-    if (blockedReason)
-      line(`\nPublishing is off this run: ${blockedReason}. Nights are judged and held.`);
-    const outcomes = await publishDueCandidates(
-      {
-        ...gigs.stores,
+  if (!candidatesOnly)
+    step("publish", false, async () => {
+      const blockedReason = dryRun ? "dry run" : await gigs.publishSwitch.blockedReason(now);
+      if (blockedReason)
+        line(`\nPublishing is off this run: ${blockedReason}. Nights are judged and held.`);
+      const outcomes = await publishDueCandidates(
+        {
+          ...gigs.stores,
+          verification: services.verification,
+          store: services.candidates,
+          ingest: ev.ingest,
+          findEventId: services.findEventId,
+          alerts: c.alerts,
+          clock: c.clock,
+          logger: c.logger,
+        },
+        {
+          blockedReason,
+          record: write,
+          extraPaths: {
+            firstParty: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
+            press: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
+          },
+          extra: fresh,
+        },
+      );
+      printGate(outcomes);
+      report.gate = outcomes;
+    });
+
+  if (!candidatesOnly && !dryRun)
+    step("reverify", false, async () => {
+      const outcomes = await reverifyAutoPublished({
+        audit: gigs.stores.audit,
+        reader: gigs.reader(state),
         verification: services.verification,
-        store: services.candidates,
-        ingest: ev.ingest,
-        findEventId: services.findEventId,
+        matches: gigs.stores.matches,
+        updateStartTime: (id, official, hhmm) => gigs.updateStartTime(id, official.night, hhmm),
         alerts: c.alerts,
         clock: c.clock,
         logger: c.logger,
-      },
-      {
-        blockedReason,
-        record: write,
-        extraPaths: {
-          firstParty: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
-          press: gigEnv.AUTO_PUBLISH_EXTRA_PATHS,
-        },
-        extra: fresh,
-      },
-    );
-    printGate(outcomes);
-    report.gate = outcomes;
-  }
-
-  if (!candidatesOnly && !dryRun && !argv.includes("--skip-reverify")) {
-    const outcomes = await reverifyAutoPublished({
-      audit: gigs.stores.audit,
-      reader: gigs.reader(state),
-      verification: services.verification,
-      matches: gigs.stores.matches,
-      updateStartTime: (id, official, hhmm) => gigs.updateStartTime(id, official.night, hhmm),
-      alerts: c.alerts,
-      clock: c.clock,
-      logger: c.logger,
+      });
+      printReverify(outcomes);
+      report.reverify = outcomes;
     });
-    printReverify(outcomes);
-    report.reverify = outcomes;
-  }
 
-  const reportPath = arg(argv, "report");
-  if (reportPath) {
-    await writeFile(reportPath, JSON.stringify(report, null, 2));
-    line(`\nReport written to ${reportPath}`);
+  // A closed Spotify gate (429 or the D-080 daily cap) defers the Spotify steps, never fails.
+  const spotifyPausedUntil = await new PgSpotifyGateStore(c.db).readPausedUntil();
+  const run = await runPipeline(steps, { now, spotifyPausedUntil });
+  report.steps = run.steps;
+  report.deferred = run.deferred;
+  for (const d of run.deferred) line(`\n⏸ ${d}`);
+  for (const f of run.steps.filter((x) => x.status === "failed")) {
+    line(`\n✖ ${f.name} failed: ${"detail" in f ? f.detail : ""}`);
   }
-  await c.db.$close();
+  return run.failed;
+}
+
+/** Writes the report whatever happened, then exits: 1 only for real errors (not a Spotify pause). */
+async function finish(run: () => Promise<boolean>): Promise<void> {
+  const argv = process.argv.slice(2);
+  let failed = true;
+  try {
+    failed = await run();
+  } catch (e) {
+    console.error(e);
+    report.error = e instanceof Error ? e.message : String(e);
+  } finally {
+    const reportPath = arg(argv, "report");
+    if (reportPath) {
+      await writeFile(reportPath, JSON.stringify(report, null, 2));
+      line(`\nReport written to ${reportPath}`);
+    }
+    await container()
+      .db.$close()
+      .catch(() => undefined);
+  }
+  process.exitCode = failed ? 1 : 0;
 }
 
 // D-080: every Spotify call in this script counts as `discovery` (background, capped).
-runAsSpotifyClass("discovery", main).catch((e: unknown) => {
-  console.error(e);
-  process.exit(1);
-});
+void finish(() => runAsSpotifyClass("discovery", main));

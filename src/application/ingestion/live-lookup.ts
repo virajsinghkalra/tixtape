@@ -9,6 +9,7 @@
  * D-055) and Ticketmaster when configured (events written `held`, D-056) → our search again.
  * Results come from our search, so they follow its visibility rules (published only).
  */
+import { parseSearchText } from "@/domain/events/query-parse";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { IngestSummary, Suggestion } from "@/application/events";
@@ -175,12 +176,24 @@ export class LiveLookup {
     q: string,
     progress: { recognised: Recognised | null },
   ): Promise<LookupResponse> {
-    const existing = await this.deps.search(q);
-    if (existing.length > 0) return { status: "found", results: existing };
-    const recognised = await this.recognise(q);
-    progress.recognised = recognised;
-    const term = recognised.artist?.name ?? q;
     const now = this.deps.clock.now();
+    // QA-F-5: only the words that name something; "pune this weekend" names no artist.
+    // Typed as-is when no filter words were taken out, so names keep their casing.
+    const parsed = parseSearchText(q, now);
+    const name = Object.keys(parsed.filters).length === 0 ? q.trim() : parsed.text;
+    // QA-F-2/3: recognise at once, so the 6 s cap never leaves us without the artist's name
+    // (or the "did you mean" candidates) for the answer that gets cached.
+    const recognition = (
+      name === "" ? Promise.resolve(NOTHING_RECOGNISED) : this.recognise(name)
+    ).then((r) => (progress.recognised = r));
+    const existing = await this.deps.search(q);
+    if (existing.length > 0) {
+      void recognition.catch(() => undefined);
+      return { status: "found", results: existing };
+    }
+    const recognised = await recognition;
+    if (name === "") return notFound(recognised);
+    const term = recognised.artist?.name ?? name;
     const artist = recognised.artist;
     const [wiki, tm, gigs] = await Promise.allSettled([
       this.fromWikipedia(term, now),
@@ -232,6 +245,8 @@ export class LiveLookup {
     return s.itemsNew + s.itemsMerged + s.itemsUpdated;
   }
 }
+
+const NOTHING_RECOGNISED: Recognised = { artist: null, artists: [] };
 
 /** What we know when the work stops: the recognised artist(s), if any. */
 function notFound(recognised: Recognised | null): LookupResponse {

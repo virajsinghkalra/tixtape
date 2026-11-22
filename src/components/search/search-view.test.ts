@@ -103,6 +103,16 @@ describe("routing after a click", () => {
       "/events/e1?artist=Olivia%20Dean",
     );
   });
+  it("one show matched by its title (no matchedArtist) still opens it directly (QA-F-1)", () => {
+    // "diljit": the show's title contains the name, so its row says "title", not "artist".
+    const titleMatch = [ev("Diljit Dosanjh: Aura Tour", { id: "e9", matchReason: "title" })];
+    expect(
+      artistHref(
+        { name: "Diljit Dosanjh", upcomingCount: 1, matchedText: "", onlyEventId: "e9" },
+        titleMatch,
+      ),
+    ).toBe("/events/e9?artist=Diljit%20Dosanjh");
+  });
   it("an artist with more shows opens their list; a city opens the city list", () => {
     expect(artistHref({ name: "Olivia Dean", upcomingCount: 2, matchedText: "" }, results)).toBe(
       "/search?artist=Olivia%20Dean",

@@ -30,6 +30,8 @@ export type ArtistEntity = {
   imageUrl?: string;
   upcomingCount: number;
   matchedText: string;
+  /** The single upcoming show, when there's exactly one (QA-F-1). */
+  onlyEventId?: string;
 };
 
 export type CityEntity = { city: string; upcomingCount: number };

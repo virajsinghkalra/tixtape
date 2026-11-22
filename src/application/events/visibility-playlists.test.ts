@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getSharedStatus, startSharedBuild } from "@/application/playlists/shared-builds";
 import type { EventVisibility } from "@/domain/events/visibility";
-import { NotFoundError } from "@/lib/errors";
+import { ConflictError, NotFoundError } from "@/lib/errors";
 import { createEventsUseCases } from "./index";
 import { fakeEventsWorld } from "./testing/fakes";
 
@@ -41,7 +41,7 @@ async function eventWith(visibility: EventVisibility) {
 }
 
 describe("playlists only exist for published events (D-056)", () => {
-  it.each(["held", "archived"] as const)("%s: status and start are 404", async (visibility) => {
+  it.each(["held"] as const)("%s: status and start are 404", async (visibility) => {
     const { id, deps, unreachable } = await eventWith(visibility);
     await expect(getSharedStatus(deps as never, id)).rejects.toThrow(NotFoundError);
     await expect(
@@ -54,6 +54,24 @@ describe("playlists only exist for published events (D-056)", () => {
       ),
     ).rejects.toThrow(NotFoundError);
     expect(deps.shared.findByEvent).not.toHaveBeenCalled();
+  });
+
+  it("archived: the status still answers, but no new build starts (D-070)", async () => {
+    const { id, deps } = await eventWith("archived");
+    expect(await getSharedStatus(deps as never, id)).toEqual({ status: "none" });
+    await expect(startSharedBuild(deps as never, id, "ip")).rejects.toThrow(ConflictError);
+  });
+
+  it("archived with a playlist: start returns the existing one, never rebuilds it", async () => {
+    const { id, deps } = await eventWith("archived");
+    deps.shared.findByEvent = vi.fn(
+      async () =>
+        ({ url: "https://open.spotify.com/playlist/x", lineupHashAtBuild: "old" }) as never,
+    );
+    expect(await startSharedBuild(deps as never, id, "ip")).toEqual({
+      status: "ready",
+      url: "https://open.spotify.com/playlist/x",
+    });
   });
 
   it("published: status reads through to the playlist store", async () => {

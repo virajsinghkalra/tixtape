@@ -14,9 +14,8 @@ export const MAX_RESULTS = 8;
  * Which D-047 endpoints are live. The UI is built for all of them. A flag turns a feature on
  * once its endpoint ships, so the browser never makes calls that 404 or 400 in the meantime.
  * - recommendations: `GET /api/events/suggest?q=` (empty q). Until then: server-built sections.
- * - telemetry: `POST /api/search/click` and `POST /api/events/:id/view`.
  */
-export const SEARCH_CAPABILITIES = { recommendations: false, telemetry: false } as const;
+export const SEARCH_CAPABILITIES = { recommendations: false } as const;
 
 const eventResult = z.object({
   id: z.string(),
@@ -42,6 +41,7 @@ const suggestResponse = z.object({
         imageUrl: z.string().optional(),
         upcomingCount: z.number().int().min(0),
         matchedText: z.string().default(""),
+        onlyEventId: z.string().optional(),
       }),
     )
     .default([]),
@@ -103,27 +103,3 @@ export async function fetchRecommendations(
 }
 
 export const defaultSearchSource: SearchSource = suggestSource();
-
-/** Fire-and-forget logging; failures are ignored by design (D-047). */
-export function logSearchClick(query: string, eventId: string): void {
-  if (!SEARCH_CAPABILITIES.telemetry || !query) return;
-  post("/api/search/click", { q: query, eventId });
-}
-
-export function logEventView(eventId: string): void {
-  if (!SEARCH_CAPABILITIES.telemetry) return;
-  post(`/api/events/${eventId}/view`, undefined);
-}
-
-function post(url: string, body: unknown): void {
-  try {
-    void fetch(url, {
-      method: "POST",
-      keepalive: true,
-      headers: body === undefined ? undefined : { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }).catch(() => {});
-  } catch {
-    // Logging must never affect the user.
-  }
-}

@@ -139,13 +139,18 @@ export function withoutFilter(
   return next.replace(/\s+/g, " ").trim();
 }
 
-/** Artist with one upcoming show → that event, artist highlighted; 2+ shows → their list. */
+/**
+ * Artist with one upcoming show → that event, artist highlighted; 2+ shows → their list.
+ * The server names the one event (`onlyEventId`, QA-F-1): the result rows can't be trusted for
+ * it, because a show matched by its title ("Diljit Dosanjh: Aura Tour") carries no artist.
+ */
 export function artistHref(artist: ArtistEntity, results: readonly EventResult[]): string {
   const theirs = results.filter(
     (r) => r.matchedArtist?.toLowerCase() === artist.name.toLowerCase(),
   );
-  if (artist.upcomingCount === 1 && theirs.length === 1) {
-    return `/events/${theirs[0]!.id}?artist=${encodeURIComponent(artist.name)}`;
+  const only = artist.onlyEventId ?? (theirs.length === 1 ? theirs[0]!.id : undefined);
+  if (artist.upcomingCount === 1 && only) {
+    return `/events/${only}?artist=${encodeURIComponent(artist.name)}`;
   }
   return `/search?artist=${encodeURIComponent(artist.name)}`;
 }

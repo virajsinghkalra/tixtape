@@ -5,7 +5,7 @@
 import { listNeedingImage } from "./image-holds";
 import type { EventVisualRow } from "@/application/ports/events";
 import type { ArtistRepository } from "@/application/ports/artists";
-import type { EventEngagement, RateLimiter, SearchLog } from "@/application/ports/engagement";
+import type { EventStatsRollup, SearchLog } from "@/application/ports/engagement";
 import type { EventSearch } from "@/application/ports/event-search";
 import type { SourceAdapter, SourceFetchOptions } from "@/application/ports/event-source";
 import type { EventMerge, EventRepository } from "@/application/ports/events";
@@ -33,13 +33,6 @@ import {
   type AdminEventPatch,
   type AdminSaveResult,
 } from "./save-admin-event";
-import {
-  recordEventView,
-  recordPlaylistOpen,
-  recordSearchClick,
-  type EngagementResult,
-  type SearchClick,
-} from "./engagement";
 import {
   searchPage,
   suggest,
@@ -73,8 +66,6 @@ export type {
   SuggestResponse,
 } from "./search-events";
 export { SearchPageParamsSchema, SuggestParamsSchema } from "./search-events";
-export type { EngagementResult, SearchClick } from "./engagement";
-export { SearchClickSchema } from "./engagement";
 export type { ArtistEntity, CityEntity, MatchReason, Suggestion } from "@/domain/events/search";
 
 /** D-047 §6: anonymous search logs are kept 90 days. */
@@ -98,11 +89,8 @@ export type EventsUseCases = {
   suggest(params: SuggestParams): Promise<SuggestResponse>;
   /** Full results page (D-048), same engine, paginated. Logs committed queries. */
   searchPage(params: SearchPageParams): Promise<SearchPageResponse>;
-  /** Throw `NotFoundError` / `RateLimitedError`. `clientKey` is only used in memory. */
-  recordEventView(eventId: EventId, clientKey: string): Promise<EngagementResult>;
-  recordSearchClick(click: SearchClick, clientKey: string): Promise<EngagementResult>;
-  /** For the Playlist Engine: a playlist for this event was opened. */
-  recordPlaylistOpen(eventId: EventId, clientKey: string): Promise<EngagementResult>;
+  /** The sweep: rebuild `event_stats` from the analytics events (QA-F-7). */
+  rollupEventStats(): Promise<{ events: number }>;
   /** Admin list of queries that found nothing (D-047 §6). */
   listZeroResultQueries(since: Date, limit: number): Promise<{ query: string; count: number }[]>;
   /** D-091: upcoming published events with no poster and no headliner photo (admin view, digest). */
@@ -118,10 +106,8 @@ export type EventsPorts = {
   artists: ArtistRepository;
   ingestRuns: IngestRunRepository;
   search: EventSearch;
-  engagement: EventEngagement;
+  statsRollup: EventStatsRollup;
   searchLog: SearchLog;
-  clientLimiter: RateLimiter;
-  repeatLimiter: RateLimiter;
   clock: { now(): Date };
   logger: Pick<Logger, "info" | "warn" | "error">;
 };
@@ -137,9 +123,7 @@ export function createEventsUseCases(ports: EventsPorts): EventsUseCases {
     ingest: (adapter, opts) => ingestEvents(ports, adapter, opts),
     suggest: (params) => suggest(ports, params),
     searchPage: (params) => searchPage(ports, params),
-    recordEventView: (id, key) => recordEventView(ports, id, key),
-    recordSearchClick: (click, key) => recordSearchClick(ports, click, key),
-    recordPlaylistOpen: (id, key) => recordPlaylistOpen(ports, id, key),
+    rollupEventStats: () => ports.statsRollup.rollup(ports.clock.now()),
     listZeroResultQueries: (since, limit) => ports.searchLog.listZeroResultQueries(since, limit),
     listEventsNeedingImage: () => listNeedingImage(ports.events, ports.clock.now()),
     pruneSearchLog: () =>

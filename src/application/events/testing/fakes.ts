@@ -4,14 +4,13 @@
  * taken dedupe key) so use-case tests exercise real behaviour.
  */
 import type { Artist, ArtistRepository } from "@/application/ports/artists";
-import type { EventEngagement, RateLimiter, SearchLog } from "@/application/ports/engagement";
+import type { EventStatsRollup, SearchLog } from "@/application/ports/engagement";
 import type {
   EventSearch,
   Recommendations,
   SearchCandidates,
 } from "@/application/ports/event-search";
-import type { EventResult, SearchPlan } from "@/domain/events/search";
-import type { EngagementKind } from "@/domain/events/trend";
+import type { EventResult, SearchPlan, SuggestionCandidate } from "@/domain/events/search";
 import type { EventVisual } from "@/domain/events/publish-visual";
 import type { EventVisibility } from "@/domain/events/visibility";
 import type {
@@ -47,7 +46,7 @@ import {
   type VenueId,
 } from "@/domain/shared/ids";
 import type { EventSource } from "@/domain/shared/lineup";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { ConflictError } from "@/lib/errors";
 
 let seq = 0;
 const nextId = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`;
@@ -385,14 +384,21 @@ export class FakeEventSearch implements EventSearch {
     thisWeekend: [],
     nearYou: [],
     popularSearches: [],
+    popularFallback: [],
   };
   readonly calls: { plan: SearchPlan; now: Date; limit: number }[] = [];
   readonly fallbackCalls: { city: string | null; from: Date | null; to: Date | null }[] = [];
   readonly recommendationCalls: Parameters<EventSearch["findRecommendations"]>[0][] = [];
+  /** Per free text, when set: lets a test give each query its own candidates. */
+  candidatesByText: Record<string, SuggestionCandidate[]> | null = null;
   async findCandidates(plan: SearchPlan, now: Date, limit: number) {
     this.calls.push({ plan, now, limit });
-    return { ...this.candidates, events: this.candidates.events.slice(0, limit) };
+    const events = this.candidatesByText
+      ? (this.candidatesByText[plan.text] ?? [])
+      : this.candidates.events;
+    return { ...this.candidates, events: events.slice(0, limit) };
   }
+
   async findFallback(filters: { city: string | null; from: Date | null; to: Date | null }) {
     this.fallbackCalls.push(filters);
     return filters.city
@@ -405,26 +411,19 @@ export class FakeEventSearch implements EventSearch {
   }
 }
 
-export class FakeEngagement implements EventEngagement {
-  readonly recorded: { eventId: EventId; kind: EngagementKind; at: Date }[] = [];
-  constructor(private readonly visibilityOf: (id: string) => EventVisibility | null = () => null) {}
-  async isPublished(eventId: EventId) {
-    return this.visibilityOf(eventId) === "published";
-  }
-  async record(eventId: EventId, kind: EngagementKind, at: Date) {
-    if (!(await this.isPublished(eventId))) throw new NotFoundError("That event doesn't exist.");
-    this.recorded.push({ eventId, kind, at });
+/** Counts rollup runs; the real one is SQL over `analytics_events` (QA-F-7). */
+export class FakeStatsRollup implements EventStatsRollup {
+  readonly runs: Date[] = [];
+  async rollup(now: Date) {
+    this.runs.push(now);
+    return { events: 0 };
   }
 }
 
 export class FakeSearchLog implements SearchLog {
   readonly searches: { query: string; resultsCount: number; at: Date }[] = [];
-  readonly clicks: { query: string; eventId: EventId; at: Date }[] = [];
   async recordSearch(query: string, resultsCount: number, at: Date) {
     this.searches.push({ query, resultsCount, at });
-  }
-  async recordClick(query: string, eventId: EventId, at: Date) {
-    this.clicks.push({ query, eventId, at });
   }
   async listZeroResultQueries() {
     return [];
@@ -434,26 +433,13 @@ export class FakeSearchLog implements SearchLog {
   }
 }
 
-/** Allows `limit` takes per key, forever (tests control time by building a new one). */
-export class CountingLimiter implements RateLimiter {
-  private readonly counts = new Map<string, number>();
-  constructor(private readonly limit: number) {}
-  async take(key: string) {
-    const n = (this.counts.get(key) ?? 0) + 1;
-    this.counts.set(key, n);
-    return n <= this.limit;
-  }
-}
-
 export function fakeEventsWorld(now = new Date("2026-01-15T00:00:00Z")) {
   const venues = new FakeVenueRepository();
   const artists = new FakeArtistRepository();
   const events = new FakeEventRepository(venues, artists);
   const ingestRuns = new FakeIngestRunRepository();
   const search = new FakeEventSearch();
-  const engagement = new FakeEngagement(
-    (id) => events.events.find((e) => e.id === id)?.visibility ?? null,
-  );
+  const statsRollup = new FakeStatsRollup();
   const searchLog = new FakeSearchLog();
   return {
     venues,
@@ -461,10 +447,8 @@ export function fakeEventsWorld(now = new Date("2026-01-15T00:00:00Z")) {
     events,
     ingestRuns,
     search,
-    engagement,
+    statsRollup,
     searchLog,
-    clientLimiter: new CountingLimiter(60) as RateLimiter,
-    repeatLimiter: new CountingLimiter(1) as RateLimiter,
     clock: { now: () => now },
   };
 }

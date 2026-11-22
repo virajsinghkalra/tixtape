@@ -20,21 +20,24 @@ export function TrySearchingTile({ queries }: Props) {
       <div>
         <h2 className="font-display text-big font-extrabold">New gigs soon</h2>
       </div>
-      <div>
-        <p className="mb-2 text-sm font-bold">Try searching</p>
-        <ul className="flex flex-wrap gap-2">
-          {queries.map((q) => (
-            <li key={q}>
-              <ChipButton
-                onClick={() => runSearch(q)}
-                className="border-night bg-surface text-ink hover:-rotate-2"
-              >
-                {q}
-              </ChipButton>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* QA-F-6: chips are checked to find something, so there may be none to offer. */}
+      {queries.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-bold">Try searching</p>
+          <ul className="flex flex-wrap gap-2">
+            {queries.map((q) => (
+              <li key={q}>
+                <ChipButton
+                  onClick={() => runSearch(q)}
+                  className="border-night bg-surface text-ink hover:-rotate-2"
+                >
+                  {q}
+                </ChipButton>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Tile>
   );
 }

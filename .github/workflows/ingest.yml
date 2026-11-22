@@ -26,8 +26,8 @@ jobs:
       NODE_ENV: production
       LOG_LEVEL: warn
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -35,7 +35,7 @@ jobs:
       # Keeps robots.txt, crawl-delay timestamps and Spotify artist verdicts between runs.
       # Also keeps consecutive source failures for the D-060 alert. Restore and save are split
       # so the state is saved even when the run fails (a failing source exits 1).
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: node_modules/.cache/lineupmixes
           key: collector-state-${{ github.run_id }}
@@ -65,7 +65,7 @@ jobs:
           ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
         run: npx tsx src/scripts/ingest-alerts.ts ingest-report.json
       - if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: node_modules/.cache/lineupmixes
           key: collector-state-${{ github.run_id }}

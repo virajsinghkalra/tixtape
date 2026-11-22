@@ -71,8 +71,16 @@ export type SearchQuery = {
   filterLabel: string | null;
 };
 
-/** Collapses whitespace; the length rule (2–100) applies to this form. */
-export const tidyQuery = (raw: string) => raw.trim().replace(/\s+/gu, " ");
+/**
+ * Collapses whitespace and drops control characters (a NUL byte made Postgres fail, QA-F-14);
+ * the length rule (2–100) applies to this form.
+ */
+export const tidyQuery = (raw: string) => cleanQueryText(raw).trim().replace(/\s+/gu, " ");
+
+/** Control characters (NUL, escapes, …) become spaces: they never mean anything in a search. */
+export function cleanQueryText(raw: string): string {
+  return raw.replace(/\p{Cc}/gu, " ");
+}
 
 /** `explicit` filters (from URL parameters) override ones parsed from the text. */
 export function buildSearchQuery(
@@ -206,6 +214,8 @@ export type ArtistCandidate = {
   similarity: number;
   isFilter: boolean;
   upcomingCount: number;
+  /** The single upcoming show when there's exactly one (QA-F-1), else null. */
+  onlyEventId: string | null;
 };
 
 export type CityCandidate = { city: string; upcomingCount: number };
@@ -237,6 +247,8 @@ export type ArtistEntity = {
   imageUrl?: string;
   upcomingCount: number;
   matchedText: string;
+  /** With exactly one upcoming show: that event, so the artist row opens it directly (QA-F-1). */
+  onlyEventId?: string;
 };
 
 export type CityEntity = { city: string; upcomingCount: number };
@@ -452,6 +464,7 @@ export function rankArtists(
       ...(a.imageUrl ? { imageUrl: a.imageUrl } : {}),
       upcomingCount: a.upcomingCount,
       matchedText: (q.text && titleSpan(a.name, q.text)) || a.name,
+      ...(a.upcomingCount === 1 && a.onlyEventId ? { onlyEventId: a.onlyEventId } : {}),
     }));
 }
 

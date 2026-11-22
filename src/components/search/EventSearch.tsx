@@ -33,7 +33,7 @@ import {
   type FilterChip,
   type SearchOption,
 } from "./search-view";
-import { fetchRecommendations, logSearchClick, SEARCH_CAPABILITIES } from "./source";
+import { fetchRecommendations, SEARCH_CAPABILITIES } from "./source";
 import type { EventResult, RecommendationSection } from "./types";
 import { useEventSearch } from "./useEventSearch";
 import { track } from "../analytics/track";
@@ -259,7 +259,6 @@ export function EventSearch({
 
   function openEvent(e: EventResult) {
     remember(value);
-    logSearchClick(value.trim(), e.id);
     setOpening(e);
     go(`/events/${e.id}`);
   }
@@ -297,7 +296,13 @@ export function EventSearch({
       if (n === 0) return;
       const step = e.key === "ArrowDown" ? 1 : -1;
       setActive((i) => (i === -1 && step === -1 ? n - 1 : (i + step + n) % n));
-    } else if ((e.key === "ArrowRight" || e.key === "End") && ghost && atEnd) {
+    } else if (
+      (e.key === "ArrowRight" || e.key === "End" || (e.key === "Tab" && !e.shiftKey)) &&
+      ghost &&
+      atEnd
+    ) {
+      // QA-F-9: Tab also accepts the ghost completion (only when there is one, so Tab still
+      // moves focus otherwise).
       e.preventDefault();
       update(value + ghost);
     } else if (e.key === "Enter") {
@@ -406,7 +411,8 @@ export function EventSearch({
           </span>
         </div>
         <p id={hintId} className="sr-only">
-          Type at least two letters. Up and down arrows choose, Enter opens, right arrow completes.
+          Type at least two letters. Up and down arrows choose, Enter opens, Tab or right arrow
+          completes.
         </p>
         <p role="status" className="sr-only">
           {statusMessage(state, typed, lookup)}
@@ -457,7 +463,6 @@ export function EventSearch({
                 lookup={lookup}
                 onOpenEvent={(e) => {
                   remember(value);
-                  logSearchClick(value.trim(), e.id);
                   setOpening(e);
                 }}
               />

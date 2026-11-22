@@ -37,7 +37,10 @@ export type ParsedQuery = {
 };
 
 /** Words that carry no meaning in a search. Prepositions also mark a following city. */
+/** QA-F-4: "concerts", "gigs" and "shows" mean any live event, festivals included. */
 const FILLER = new Set([
+  "concert",
+  "concerts",
   "gig",
   "gigs",
   "show",
@@ -52,8 +55,6 @@ const PREPOSITIONS = new Set(["in", "at", "near"]);
 const TYPE_WORDS: Readonly<Record<string, EventType>> = {
   festival: "festival",
   festivals: "festival",
-  concert: "concert",
-  concerts: "concert",
 };
 
 /**

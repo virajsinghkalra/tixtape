@@ -655,6 +655,12 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - Every alert is also logged. A lasting condition repeats at most once a day; a failing source alerts on its 3rd consecutive failed run, then every 8 runs (about daily).
   - Senders: the sweep (held events, publisher reauth) and the ingest workflow's source-health step. Setup in `docs/DEPLOY.md` §7.
 
+- **Addendum (2026-11-22, severity):** a daily red run and GitHub's failure email for a routine digest were noise. Alerts now carry a severity:
+  - **action:** a source failing 3 runs in a row, the publisher needing reauth, or the auto-publish spike pause. Without SMTP, an action alert writes the job summary, adds an error annotation and **fails the run**. It repeats at most once a day for a lasting condition, even when its text changes (`ThrottledAlerts`; `ingest-alerts.ts` now uses it too).
+  - **info:** the default, used by the daily gig digest, held events and gig hold notices. It goes to email when SMTP is set, otherwise to the job summary as a notice. **The run stays green.**
+  - A failed delivery, and any real error, still fail the run.
+  - `discover-gigs.ts` treats a closed Spotify gate (a 429 or the D-080 cap) as a soft skip. Spotify steps are reported as "deferred: spotify gate until …", the other steps still run, the report is always written, and the exit code is 0.
+
 ### D-061 · AI models (Gemini / OpenAI) are helpers, never a source of truth
 
 - **Status:** Accepted · **Owner:** Lead (user offered API keys) · **Date:** 2026-11-21. Supersedes the "no AI" part of D-052.
@@ -1175,6 +1181,12 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - `POST /api/ux` takes `{metric}` or `{vital, value, path}`. A vital is stored as `vitals:<home|event|search|other>:<lcp|inp|cls>:<good|ni|poor>`, sampled at 25%.
   - `og_hit` is counted by the share-image route. Install and offline views are counted by the client.
 - **Share:** "Link copied" shows at once (optimistic); `copyText` falls back to `execCommand` where the Clipboard API is missing.
+- **Security (final QA):**
+  - **QA-F-13:** Zod 4 probes `new Function("")` when it builds object schemas. Under our CSP the probe throws (and is caught), but browsers still report a `script-src` violation on every page. `src/instrumentation-client.ts` runs `z.config({ jitless: true })` in the browser before any app code. A unit test checks that no eval probe happens.
+  - **Nonce CSP for pages:** `src/middleware.ts` sets `script-src 'nonce-<128-bit>' 'strict-dynamic'` per request (with `'self' https: 'unsafe-inline'` as fallbacks that nonce-aware browsers ignore). Next puts the nonce on its own scripts. Injected inline scripts without the nonce no longer run.
+    - **Cost:** every page was already rendered per request (`ƒ`), so nothing loses static caching. The static outputs (icons, OG images, manifest, robots, sitemap, `/sw.js`, fonts), `/api/*` and router prefetches skip the middleware and keep the static policy from `next.config.ts`.
+    - **Policy source:** both policies come from one builder, `src/lib/csp.ts`.
+    - **Styles:** they stay `'unsafe-inline'`, because `motion` animates with inline styles.
 
 ### D-088 · Remind me, app deep links, zero-result discovery and on-device saves
 

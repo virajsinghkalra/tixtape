@@ -22,13 +22,23 @@ function feed(): EventFeedReader {
   reader = {
     async upcoming(opts) {
       const now = Date.now();
-      if (cached && now - cached.at < TTL_MS) return cached.rows;
+      if (cached && now - cached.at < TTL_MS) {
+        // QA-F-15: never serve a card for an event hidden or archived since it was cached (that
+        // page would 404). Works across instances and for changes made by scripts.
+        const live = await db.stillPublished(cached.rows.map((r) => r.id));
+        return cached.rows.filter((r) => live.has(r.id));
+      }
       const rows = await db.upcoming(opts);
       cached = { at: now, rows };
       return rows;
     },
   };
   return reader;
+}
+
+/** Drops this instance's cached feed (e.g. right after an admin publishes or holds an event). */
+export function invalidateFeed(): void {
+  cached = undefined;
 }
 
 export function frontPage(opts: { now: Date; city: string | null }) {

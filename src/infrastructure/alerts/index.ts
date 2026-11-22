@@ -1,8 +1,9 @@
 /**
  * Alerts wiring (D-060). Every alert is logged. It is also emailed when `ALERT_SMTP_USER` and
  * `ALERT_SMTP_PASS` are set (Gmail app password), and written to the GitHub Actions job summary
- * when running in Actions. Without SMTP, the job summary alert also fails the job, so GitHub
- * emails the repository owner.
+ * when running in Actions. Without SMTP, an `action` alert also fails the job, so GitHub emails
+ * the repository owner; an `info` alert (digests, held events) only writes the summary
+ * (D-060 addendum).
  */
 import type { Alert, Alerts } from "@/application/ports/alerts";
 import type { Env } from "@/lib/env";

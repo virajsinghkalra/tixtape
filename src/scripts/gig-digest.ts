@@ -2,7 +2,8 @@
  * Daily Gig Coverage digest (D-060, D-073/D-074), run right after `discover-gigs.ts` in the same
  * daily workflow. Covers the last 24 hours: events the auto-gate published (title, date, city,
  * sources), nights held or rejected and why, re-verification changes, and new leads. Sent through
- * the Alerts port only when there is something to report.
+ * the Alerts port only when there is something to report, as an `info` alert: without SMTP it
+ * goes to the job summary and the run stays green (D-060 addendum). Only errors exit 1.
  *
  *   npx tsx src/scripts/gig-digest.ts
  */

@@ -31,25 +31,25 @@ jobs:
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
       TOKEN_ENC_KEY_VERSION: ${{ vars.TOKEN_ENC_KEY_VERSION || '1' }}
       LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
-      # Optional: without these, alerts go to the job summary and fail the run (D-060).
+      # Optional: without these, alerts go to the job summary; only "action" alerts fail the run (D-060 addendum).
       ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
       ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Remembers which alerts were sent, so a lasting condition alerts at most daily.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: node_modules/.cache/lineupmixes/alerts-sweep.json
           key: sweep-alerts-${{ github.run_id }}
           restore-keys: sweep-alerts-
       - run: npx tsx src/scripts/sweep.ts
       - if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: node_modules/.cache/lineupmixes/alerts-sweep.json
           key: sweep-alerts-${{ github.run_id }}

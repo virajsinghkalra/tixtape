@@ -54,7 +54,13 @@ export async function startSharedBuild(
 ): Promise<StartResult> {
   const event = await deps.events.getEvent(eventId);
   const row = await deps.shared.findByEvent(eventId);
+  const stored = row;
   if (isCurrent(row, event)) return { status: "ready", url: row.url };
+  // D-070: an event that has happened keeps its playlist but never starts a new build.
+  if (event.archived) {
+    if (stored) return { status: "ready", url: stored.url };
+    throw new ConflictError("This event has already happened, so there's no playlist to make.");
+  }
 
   const active = await deps.jobs.findActiveShared(eventId);
   if (active) return building(active);

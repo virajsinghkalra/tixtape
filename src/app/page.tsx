@@ -3,7 +3,7 @@ import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
 import type { Tour } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
-import { CitySwitcher } from "@/components/CitySwitcher";
+import { CityEmptyNote, CitySwitcher } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
 import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
@@ -17,7 +17,6 @@ import { HowItWorks } from "@/components/HowItWorks";
 import { TrySearchingTile } from "@/components/TrySearchingTile";
 import { EventSearch } from "@/components/search/EventSearch";
 import { localSections, toEventResult } from "@/components/search/local-sections";
-import { POPULAR_SEARCHES } from "@/components/search/run-search";
 import type { RecommendationSection } from "@/components/search/types";
 import { SearchLauncher } from "@/components/SearchLauncher";
 import { Section } from "@/components/Section";
@@ -41,20 +40,21 @@ const WEEK_MS = 7 * 86_400_000;
 const SMALL_CATALOGUE = 4;
 
 /**
- * "Popular searches" (D-047) from the suggest engine's empty-query sections, in-process. Falls
- * back to well-known names while search logs are empty or the engine isn't available.
+ * "Popular searches" (D-047) from the suggest engine's empty-query sections, in-process: real
+ * searches that found something, then upcoming event titles, each checked to return results
+ * (QA-F-6). No hardcoded names: a chip that finds nothing is never shown.
  */
 async function popularSearches(): Promise<string[]> {
   try {
     const res = await events().suggest(SuggestParamsSchema.parse({}));
-    const fromLogs =
+    const chips =
       "sections" in res
         ? res.sections.find((x) => x.id === "popular_searches")?.queries
         : undefined;
-    return fromLogs && fromLogs.length >= 3 ? fromLogs.slice(0, 6) : POPULAR_SEARCHES;
+    return chips?.slice(0, 6) ?? [];
   } catch (err) {
-    console.error("Popular searches unavailable; using defaults", err);
-    return POPULAR_SEARCHES;
+    console.error("Popular searches unavailable", err);
+    return [];
   }
 }
 
@@ -171,6 +171,8 @@ export default async function Home({ searchParams }: Props) {
           </SectionBoundary>
         </Section>
       )}
+
+      {city && nearYou.length === 0 && !empty && <CityEmptyNote city={city} />}
 
       {city && (
         <FrontSection

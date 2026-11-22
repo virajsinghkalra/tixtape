@@ -129,7 +129,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
         </Link>
 
         {count > 1 && (
-          <div className="flex justify-end gap-1.5 px-4 pb-3" role="group" aria-label="Shows">
+          <div className="flex justify-end px-2 pb-1" role="group" aria-label="Shows">
             {items.map((it, i) => (
               <button
                 key={it.id}
@@ -137,7 +137,8 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
                 aria-label={`Show ${i + 1}: ${it.title}`}
                 aria-current={i === index || undefined}
                 onClick={() => setIndex(i)}
-                className="grid size-6 place-items-center"
+                // QA-F-17: a 44px hit area around a small dot.
+                className="grid size-11 place-items-center"
               >
                 <span
                   className={cx(

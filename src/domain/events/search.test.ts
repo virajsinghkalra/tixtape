@@ -54,6 +54,7 @@ const artistCand = (over: Partial<ArtistCandidate> = {}): ArtistCandidate => ({
   similarity: 0,
   isFilter: false,
   upcomingCount: 1,
+  onlyEventId: null,
   ...over,
 });
 
@@ -100,6 +101,14 @@ describe("buildSearchQuery", () => {
       expect(normal(k)).toBe(k);
       expect(normal(v)).toBe(v);
     }
+  });
+
+  it.each([
+    ["lolla\u0000", "lolla"],
+    ["\u0000\u001b[31mnh7\t\n", "[31mnh7"],
+    ["\u0000", ""],
+  ])("tidyQuery drops control characters: %j → %j (QA-F-14)", (raw, clean) => {
+    expect(tidyQuery(raw)).toBe(clean);
   });
 
   it("tidyQuery collapses whitespace", () => {
@@ -382,6 +391,18 @@ describe("entities (issue 7)", () => {
       },
     ]);
   });
+
+  it.each([
+    [1, "e1", "e1"],
+    [2, null, undefined],
+    [1, null, undefined],
+  ] as const)(
+    "upcoming %i, only event %s → onlyEventId %s (QA-F-1)",
+    (upcomingCount, onlyEventId, expected) => {
+      const [entity] = rankArtists(q("prateek"), [artistCand({ upcomingCount, onlyEventId })]);
+      expect(entity!.onlyEventId).toBe(expected);
+    },
+  );
 
   it("omits unknown Spotify id and image instead of sending null", () => {
     const [entity] = rankArtists(q("prateek"), [artistCand({ spotifyId: null, imageUrl: null })]);

@@ -1,7 +1,8 @@
 /**
  * $0 fallback when SMTP isn't configured (D-060): the alert goes to the GitHub Actions job
- * summary and an error annotation, and the job is marked failed so GitHub's own failed-run
- * email reaches the repository owner.
+ * summary. Only an `action` alert (D-060 addendum) adds an error annotation and marks the job
+ * failed, so GitHub's own failed-run email reaches the owner; `info` (digests, held events)
+ * is a notice and the run stays green.
  */
 import { appendFile } from "node:fs/promises";
 import type { Alert, Alerts } from "@/application/ports/alerts";
@@ -15,10 +16,16 @@ export class JobSummaryAlerts implements Alerts {
   ) {}
 
   async send(alert: Alert): Promise<void> {
-    await appendFile(this.summaryPath, `### Alert: ${oneLine(alert.subject)}\n\n${alert.body}\n\n`);
-    console.error(
-      `::error title=${oneLine(alert.subject).replace(/[:,]/g, " ")}::${oneLine(alert.body)}`,
+    const action = alert.severity === "action";
+    const label = action ? "Action needed" : "Info";
+    await appendFile(
+      this.summaryPath,
+      `### ${label}: ${oneLine(alert.subject)}\n\n${alert.body}\n\n`,
     );
-    if (this.failJob) process.exitCode = 1;
+    const level = action ? "error" : "notice";
+    console.error(
+      `::${level} title=${oneLine(alert.subject).replace(/[:,]/g, " ")}::${oneLine(alert.body)}`,
+    );
+    if (this.failJob && action) process.exitCode = 1;
   }
 }

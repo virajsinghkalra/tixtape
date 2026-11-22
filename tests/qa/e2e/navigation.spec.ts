@@ -28,10 +28,13 @@ test.describe("P3.2 navigation", () => {
   // was QA-UI-1: unknown event id rendered a not-found page but with HTTP 200 (soft 404)
   test("unknown event id: proper not-found page with HTTP 404", async ({ page }, info) => {
     const res = await page.goto("/events/00000000-0000-4000-8000-000000000000");
-    await page.screenshot({
-      path: `tests/qa/e2e/screenshots/${info.project.name}-event-unknown.png`,
-      fullPage: true,
-    });
+    await page
+      .screenshot({
+        path: `tests/qa/e2e/screenshots/${info.project.name}-event-unknown.png`,
+        fullPage: true,
+        timeout: 20_000,
+      })
+      .catch(() => {});
     await expect(page.locator("body")).toContainText(
       /not found|couldn.t find|doesn.t exist|no such|isn.t on the bill|404/i,
     );
@@ -46,10 +49,13 @@ test.describe("P3.2 navigation", () => {
     const errs: string[] = [];
     page.on("pageerror", (e) => errs.push(e.message));
     const res = await page.goto("/events/abc");
-    await page.screenshot({
-      path: `tests/qa/e2e/screenshots/${info.project.name}-event-abc.png`,
-      fullPage: true,
-    });
+    await page
+      .screenshot({
+        path: `tests/qa/e2e/screenshots/${info.project.name}-event-abc.png`,
+        fullPage: true,
+        timeout: 20_000,
+      })
+      .catch(() => {});
     await expect(page.locator("body")).toContainText(
       /not found|couldn.t find|doesn.t exist|no such|isn.t on the bill|404/i,
     );

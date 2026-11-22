@@ -154,6 +154,7 @@ async function alertPublisher(alerts: ThrottledAlerts): Promise<string> {
   if (!status.needsReauth) return "publisher ok";
   await alerts.send({
     key: "publisher-reauth",
+    severity: "action",
     subject: "The playlist publisher must sign in to Spotify again",
     body: `Shared playlists can't be built or updated until the publisher account${status.displayName ? ` (${status.displayName})` : ""} reconnects. Sign in at /api/auth/spotify/login as that account, then POST /api/admin/publisher. See docs/DEPLOY.md.`,
   });
@@ -180,6 +181,7 @@ async function guardAutoPublishSpike(alerts: ThrottledAlerts): Promise<string> {
   }
   await alerts.send({
     key: "auto-publish-spike",
+    severity: "action",
     subject: `Auto-publish paused: ${count} events published in 24 h`,
     body: `The auto-gate published ${count} events in the last 24 hours, above the limit of ${AUTO_PUBLISH_SPIKE_LIMIT}. Auto-publish is paused until ${until.toISOString()} (settings key auto_publish_paused_until); nights are still discovered and judged, and held for review.\n\nCheck the recent publish_audit entries. To resume early, delete that settings row. To stop auto-publish entirely, set the repository variable AUTO_PUBLISH_ENABLED to false.`,
   });
@@ -270,6 +272,9 @@ async function main(): Promise<void> {
     return `${n} deleted`;
   });
   await task("search log", async () => `${await events().pruneSearchLog()} deleted`);
+  // QA-F-7: trending comes from the anonymous analytics (event opens, search click-throughs,
+  // playlist opens); recomputed each run, so it's idempotent.
+  await task("event stats", async () => `${(await events().rollupEventStats()).events} events`);
   await task("sessions", async () => `${await c.spotify.sessions.deleteExpired(now)} expired`);
   await task("rate limits", async () => {
     const n = await deleteExpiredRateLimits(c.db, new Date(now.getTime() - DAY_MS));

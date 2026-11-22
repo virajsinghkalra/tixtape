@@ -51,6 +51,7 @@ type ArtistRow = {
   sim: number;
   is_filter: boolean;
   upcoming_count: number;
+  only_event: string | null;
 };
 
 /** `%`, `_` and `\` are literals in user text. The domain already folds them away; defence in depth. */
@@ -198,13 +199,16 @@ export class PgEventSearch implements EventSearch {
         limit ${limit}
       ),
       artist_counts as (
-        select artist_id, count(distinct event_id)::int as n from lineup group by artist_id
+        select artist_id, count(distinct event_id)::int as n,
+          -- QA-F-1: with exactly one upcoming show, the artist row links straight to it.
+          case when count(distinct event_id) = 1 then min(event_id::text) end as only_event
+        from lineup group by artist_id
       )
       select
         (select coalesce(json_agg(te), '[]'::json) from top_events te) as events,
         (select coalesce(json_agg(x), '[]'::json) from (
           select m.id, m.name, m.normalized_name, m.spotify_id, m.image_url, m.sim, m.is_filter,
-            coalesce(c.n, 0) as upcoming_count
+            coalesce(c.n, 0) as upcoming_count, c.only_event
           from matched_artists m left join artist_counts c on c.artist_id = m.id
           order by m.is_filter desc, m.direct desc, coalesce(c.n, 0) desc, m.sim desc, m.name
           limit 20) x) as artists,
@@ -242,6 +246,7 @@ export class PgEventSearch implements EventSearch {
         similarity: Number(a.sim),
         isFilter: a.is_filter,
         upcomingCount: a.upcoming_count,
+        onlyEventId: a.only_event,
       })),
       cities: (row?.cities ?? []).map((c) => ({ city: c.city, upcomingCount: c.upcoming_count })),
     };
@@ -285,6 +290,7 @@ export class PgEventSearch implements EventSearch {
       weekend: (EventRow & { trend: number })[];
       near: (EventRow & { trend: number })[];
       popular: string[];
+      popular_fallback: string[];
     }>(sql`
       with up as materialized (
         select e.id, e.title, e.type, e.starts_at, e.starts_at_date_only,
@@ -301,12 +307,29 @@ export class PgEventSearch implements EventSearch {
           from (select * from up order by starts_at, id limit ${n}) x) as up_next,
         ${listed(sql`starts_at <= ${ts(weekend.to)} and ends_at >= ${ts(weekend.from)}`)} as weekend,
         ${listed(sql`${text(city)} is not null and city = ${text(city)}`)} as near,
-        (select coalesce(json_agg(q.query_normalized), '[]'::json) from (
-          select query_normalized from search_log
-          where created_at >= ${ts(input.popularSince)} and results_count > 0
-          group by query_normalized
-          order by count(clicked_event_id) desc, count(*) desc, query_normalized
-          limit 5) q) as popular
+        -- QA-F-6: what people searched and found (D-090 analytics, then committed searches),
+        -- most people first; the application keeps only chips that still return something.
+        (select coalesce(json_agg(q.query order by q.n desc, q.query), '[]'::json) from (
+          select query, sum(n)::int as n from (
+            select lower(trim(a.props->>'q')) as query,
+              count(distinct coalesce(a.device_id::text, a.id::text)) as n
+            from analytics_events a
+            where a.name = 'search' and a.at >= ${ts(input.popularSince)}
+              and coalesce((a.props->>'results')::int, 0) > 0
+            group by 1
+            union all
+            select query_normalized, count(*) from search_log
+            where created_at >= ${ts(input.popularSince)} and results_count > 0
+            group by 1
+          ) both_logs
+          where char_length(query) between 2 and 100
+          group by query
+          order by sum(n) desc, query
+          limit 15) q) as popular,
+        -- The fallback chips: upcoming events people can open.
+        (select coalesce(json_agg(x.title order by x.trend desc, x.starts_at, x.id), '[]'::json)
+          from (select title, trend, starts_at, id from up order by trend desc, starts_at, id limit 10) x)
+          as popular_fallback
     `);
     return {
       trending: (row?.trending ?? []).map(toEventResult),
@@ -314,6 +337,7 @@ export class PgEventSearch implements EventSearch {
       thisWeekend: (row?.weekend ?? []).map(toEventResult),
       nearYou: (row?.near ?? []).map(toEventResult),
       popularSearches: row?.popular ?? [],
+      popularFallback: row?.popular_fallback ?? [],
     };
   }
 }

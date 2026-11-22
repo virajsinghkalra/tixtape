@@ -42,13 +42,15 @@ describe("alphanumeric spacing (issue 6)", () => {
 
 describe("city filters and filler words (issue 2)", () => {
   it.each([
-    ["concerts in pune", "", { city: "Pune", type: "concert" }],
+    // QA-F-4: "concerts", "gigs", "shows" mean any live event, festivals included.
+    ["concerts in pune", "", { city: "Pune" }],
     ["gigs in pune", "", { city: "Pune" }],
     ["lolla mumbai", "lolla", { city: "Mumbai" }],
     ["shows at bombay", "", { city: "Mumbai" }],
     ["live events near bangalore", "", { city: "Bengaluru" }],
     ["pune", "", { city: "Pune" }],
-    ["pune concerts", "", { city: "Pune", type: "concert" }],
+    ["pune concerts", "", { city: "Pune" }],
+    ["shows in mumbai", "", { city: "Mumbai" }],
     ["sunburn goa", "sunburn", { city: "Goa" }],
     ["new delhi", "", { city: "Delhi" }],
     ["navi mumbai", "", { city: "Navi Mumbai" }],
@@ -112,7 +114,8 @@ describe("type and genre (issue 5)", () => {
   it.each([
     ["festival", "", { type: "festival" }],
     ["festivals", "", { type: "festival" }],
-    ["concert", "", { type: "concert" }],
+    // Only filler: searched as typed rather than nothing.
+    ["concert", "concert", {}],
     ["ziro festival", "ziro", { type: "festival" }],
     ["edm", "", { genre: "edm" }],
     ["hip hop", "", { genre: "hip hop" }],

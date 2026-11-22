@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { lineupCompleteness, type LineupCompleteness } from "@/domain/events/lineup-completeness";
 import { checkPublishVisual, type VisualCheck } from "@/domain/events/publish-visual";
+import { cleanQueryText } from "@/domain/events/search";
 import type {
   AdminEventDetail,
   AdminEventSummary,
@@ -30,12 +31,16 @@ export function endOfDayIfDate(value: string): Date {
   return value.length === 10 ? new Date(new Date(value).getTime() + DAY_MS - 1) : new Date(value);
 }
 
+/** QA-F-14: control characters (a NUL byte gave a 500) are dropped; what's left is validated. */
+const cleanText = (max: number) =>
+  z.string().transform(cleanQueryText).pipe(z.string().trim().min(1).max(max));
+
 const listShape = {
-  city: z.string().trim().min(1).max(100).optional(),
+  city: cleanText(100).optional(),
   from: dateOrDateTime.optional(),
   /** A bare date includes that whole (UTC) day. */
   to: dateOrDateTime.optional(),
-  q: z.string().trim().min(1).max(100).optional(),
+  q: cleanText(100).optional(),
   type: z.enum(EVENT_TYPES).optional(),
   page: z.coerce.number().int().min(1).max(10_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -132,17 +137,20 @@ export type EventVerification = {
 export type PublicEventDetail = EventDetail & { verification?: EventVerification };
 
 /**
- * Public detail: a held or archived event is a 404, exactly like a missing one (D-056).
- * The Playlist Engine reads events through this too, so unpublished events get no playlist.
+ * Public detail: a held event is a 404, exactly like a missing one (D-056). An archived one
+ * is still shown, marked `archived` (D-070). The Playlist Engine reads events through this
+ * too: held events get no playlist, and archived ones keep theirs but can't start a build.
  */
 export async function getEvent(events: EventRepository, id: EventId): Promise<PublicEventDetail> {
   const event = await events.getDetail(id);
-  if (!event || event.visibility !== PUBLIC_VISIBILITY) {
+  // D-070: held is 404 like missing; archived stays reachable by its link (QA-F-12).
+  if (!event || (event.visibility !== PUBLIC_VISIBILITY && event.visibility !== "archived")) {
     throw new NotFoundError("That event doesn't exist.");
   }
   const outside = event.sources.filter((s) => s.source !== "admin");
   return {
     ...withoutAdminFields(event),
+    archived: event.visibility === "archived",
     verification: {
       sourcesCount: outside.length,
       lastVerifiedAt: event.lastVerifiedAt,

@@ -16,11 +16,13 @@ import {
   trackSourceRuns,
   type SourceRun,
 } from "@/infrastructure/alerts/source-health";
-import { createAlerts } from "@/infrastructure/alerts";
+import { systemClock } from "@/application/ports/clock";
+import { createAlerts, ThrottledAlerts } from "@/infrastructure/alerts";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 
 const STATE = "node_modules/.cache/lineupmixes/source-health.json";
+const ALERT_STATE = "node_modules/.cache/lineupmixes/alerts-ingest.json";
 const ReportSchema = z.object({
   sources: z.array(z.object({ source: z.string(), error: z.string().nullish() })),
 });
@@ -44,7 +46,8 @@ async function main(): Promise<void> {
   const runs = await runsFrom(process.argv[2]);
   const { state, alerts } = trackSourceRuns(await loadSourceHealth(STATE), runs);
   await saveSourceHealth(STATE, state);
-  const sink = createAlerts({ env: env(), logger });
+  // D-060 addendum: a lasting failure fails the run at most once a day.
+  const sink = new ThrottledAlerts(createAlerts({ env: env(), logger }), ALERT_STATE, systemClock);
   for (const alert of alerts) await sink.send(alert);
   console.warn(
     `source health: ${Object.entries(state)

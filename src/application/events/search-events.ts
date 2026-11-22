@@ -9,6 +9,7 @@ import { weekendWindow } from "@/domain/events/ist-calendar";
 import {
   asListing,
   buildSearchQuery,
+  cleanQueryText,
   didYouMean,
   planSearch,
   rankArtists,
@@ -58,7 +59,10 @@ const queryText = z
   .refine((q) => lengthOf(q) <= SUGGEST_MAX_LENGTH, {
     message: `Search text can be at most ${SUGGEST_MAX_LENGTH} characters.`,
   });
-const cityParam = z.string().trim().min(1).max(100);
+/** QA-F-14: control characters are dropped before validating. */
+const cleanParam = (max: number) =>
+  z.string().transform(cleanQueryText).pipe(z.string().trim().min(1).max(max));
+const cityParam = cleanParam(100);
 
 /** D-018: strict. `city` is the user's city, used for "Near you" on an empty query. */
 export const SuggestParamsSchema = z.strictObject({
@@ -72,7 +76,7 @@ export const SearchPageParamsSchema = z
   .strictObject({
     q: queryText.optional(),
     city: cityParam.optional(),
-    artist: z.string().trim().min(1).max(200).optional(),
+    artist: cleanParam(200).optional(),
     from: dateOrDateTime.optional(),
     to: dateOrDateTime.optional(),
     type: z.enum(EVENT_TYPES).optional(),
@@ -103,7 +107,8 @@ export type SearchPageResponse = SearchGroups & { total: number; page: number; p
 
 // ── Engine ────────────────────────────────────────────────────────────────
 
-type Window = { offset: number; limit: number; candidates: number };
+/** `fallback: false` skips the "nothing matched" extras (fallback, hint): checks only. */
+type Window = { offset: number; limit: number; candidates: number; fallback?: boolean };
 
 async function runSearch(
   deps: SearchDeps,
@@ -127,7 +132,7 @@ async function runSearch(
     filters: query.filters,
     total: ranked.length,
   };
-  if (ranked.length > 0) return groups;
+  if (ranked.length > 0 || window.fallback === false) return groups;
   const hint = didYouMean(query, found.events, found.artists);
   return {
     ...groups,
@@ -183,8 +188,43 @@ async function recommendations(deps: SearchDeps, city: string | undefined) {
     thisWeekend: lists.thisWeekend.map(asListing),
     ...(nearCity ? { nearYou: { city: nearCity, items: lists.nearYou.map(asListing) } } : {}),
     upNext: lists.upNext.map(asListing),
-    popularSearches: lists.popularSearches,
+    popularSearches: await popularChips(deps, [...lists.popularSearches, ...lists.popularFallback]),
   });
+}
+
+const MAX_CHIP_CHECKS = 8;
+
+/**
+ * QA-F-6: chips are what people searched and found, then upcoming event titles, and each is
+ * checked with the real engine: a chip that returns nothing is never shown.
+ */
+async function popularChips(deps: SearchDeps, candidates: readonly string[]): Promise<string[]> {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const raw of candidates) {
+    const q = tidyQuery(raw).slice(0, SUGGEST_MAX_LENGTH);
+    const key = foldText(q);
+    if ([...q].length < SUGGEST_MIN_LENGTH || key === "" || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(q);
+  }
+  const checked = await Promise.all(
+    unique.slice(0, MAX_CHIP_CHECKS).map(async (q) => {
+      try {
+        const found = await runSearch(
+          deps,
+          q,
+          {},
+          { offset: 0, limit: 1, candidates: 20, fallback: false },
+        );
+        return found.total > 0 ? q : null;
+      } catch (e) {
+        deps.logger.warn({ err: e }, "search: popular chip check failed");
+        return null;
+      }
+    }),
+  );
+  return checked.filter((q): q is string => q !== null).slice(0, SECTION_SIZE);
 }
 
 /** Full results page. Page 1 of a text search is a committed query and is logged (D-047 §6). */

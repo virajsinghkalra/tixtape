@@ -38,6 +38,23 @@ describe("ListEventsQuerySchema", () => {
   });
 });
 
+describe("control characters in list queries (QA-F-14)", () => {
+  it.each([
+    [{ q: "lolla\u0000" }, { q: "lolla" }],
+    [{ q: "lol\u0000la" }, { q: "lol la" }],
+    [{ city: "Pu\u0007ne" }, { city: "Pu ne" }],
+  ])("%j is cleaned to %j", (raw, expected) => {
+    expect(ListEventsQuerySchema.parse(raw)).toMatchObject(expected);
+  });
+
+  it.each([[{ q: "\u0000" }], [{ q: "\u0000\u0001 " }], [{ city: "\u0000" }]])(
+    "%j has nothing left and is rejected",
+    (raw) => {
+      expect(ListEventsQuerySchema.safeParse(raw).success).toBe(false);
+    },
+  );
+});
+
 describe("listEvents / getEvent", () => {
   async function seeded() {
     const world = fakeEventsWorld();
@@ -100,12 +117,11 @@ describe("listEvents / getEvent", () => {
   });
 
   it.each(["held", "archived"] as const)(
-    "a %s event is hidden from public reads but visible to admins (D-056)",
+    "a %s event is never listed, and admins see it",
     async (visibility) => {
       const world = await seeded();
       const target = world.events.events[0]!;
       await world.events.setVisibility(target.id, visibility);
-      await expect(getEvent(world.events, target.id)).rejects.toThrow(NotFoundError);
       const page = await listEvents(world.events, ListEventsQuerySchema.parse({}));
       expect(page.items.map((e) => e.id)).not.toContain(target.id);
       expect(page.total).toBe(2);
@@ -117,6 +133,19 @@ describe("listEvents / getEvent", () => {
       expect(admin.items.map((e) => [e.id, e.visibility])).toEqual([[target.id, visibility]]);
     },
   );
+
+  it("by direct link: held is a 404, archived is shown as past (D-070, QA-F-12)", async () => {
+    const world = await seeded();
+    const [held, archived, published] = world.events.events;
+    await world.events.setVisibility(held!.id, "held");
+    await world.events.setVisibility(archived!.id, "archived");
+    await expect(getEvent(world.events, held!.id)).rejects.toThrow(NotFoundError);
+    expect(await getEvent(world.events, archived!.id)).toMatchObject({
+      id: archived!.id,
+      archived: true,
+    });
+    expect(await getEvent(world.events, published!.id)).toMatchObject({ archived: false });
+  });
 
   it("public detail carries verification; public rows carry no admin fields", async () => {
     const world = await seeded();

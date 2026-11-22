@@ -363,3 +363,23 @@ describe("recogniseArtist", () => {
     ).toBeNull();
   });
 });
+
+describe("lookup query understanding (QA-F-2, F-3, F-5)", () => {
+  it("filter words alone ('pune this weekend') name no artist: no Spotify call, no sources", async () => {
+    const { lookup, wikipedia, deps } = setup();
+    expect(await lookup.lookup("pune this weekend", "ip-1")).toEqual(
+      expect.objectContaining({ status: "not_found" }),
+    );
+    expect(wikipedia.lookUp).not.toHaveBeenCalled();
+    expect((deps.catalog as FakeArtistCatalog).queries).toEqual([]);
+  });
+
+  it("recognises the artist from the words left after the filters, then uses its real name", async () => {
+    const { lookup, wikipedia, deps } = setup();
+    wikipedia.lookUp.mockResolvedValue([]);
+    const answer = await lookup.lookup("coldplay in mumbai", "ip-1");
+    expect((deps.catalog as FakeArtistCatalog).queries).toEqual(["coldplay"]);
+    expect(wikipedia.lookUp).toHaveBeenCalledWith("Coldplay", start);
+    expect(answer).toMatchObject({ status: "not_found", artist: { name: "Coldplay" } });
+  });
+});

@@ -35,7 +35,8 @@ beforeEach(() => {
     upNext: [],
     thisWeekend: [],
     nearYou: [],
-    popularSearches: ["lolla"],
+    popularSearches: ["sunburn"],
+    popularFallback: [],
   };
   wired.current = createEventsUseCases({
     ...world,

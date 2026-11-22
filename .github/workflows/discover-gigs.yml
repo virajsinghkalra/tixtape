@@ -32,15 +32,15 @@ jobs:
       NODE_ENV: production
       LOG_LEVEL: warn
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --include=dev # scripts need tsx/dotenv; NODE_ENV=production would omit devDependencies
       # Same collector state as ingest.yml (crawl delays, robots.txt, Spotify verdicts, search
       # budget). Restore and save are split so the state is saved even when the run fails.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: node_modules/.cache/lineupmixes
           key: collector-state-${{ github.run_id }}
@@ -56,7 +56,7 @@ jobs:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           GITHUB_MODELS_TOKEN: ${{ secrets.GITHUB_MODELS_TOKEN }}
-          # Optional: without these, alerts go to the job summary and fail the run (D-060).
+          # Optional: without these, alerts go to the job summary; only "action" alerts fail the run (D-060 addendum).
           ALERT_SMTP_USER: ${{ secrets.ALERT_SMTP_USER }}
           ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
           # D-059: the app mailbox in the User-Agent. Not secret; a repository variable.
@@ -91,14 +91,14 @@ jobs:
           ALERT_SMTP_PASS: ${{ secrets.ALERT_SMTP_PASS }}
         run: npx tsx src/scripts/gig-digest.ts
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gigs-report
           path: gigs-report.json
           if-no-files-found: warn
           retention-days: 14
       - if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: node_modules/.cache/lineupmixes
           key: collector-state-${{ github.run_id }}

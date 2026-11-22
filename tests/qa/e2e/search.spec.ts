@@ -77,7 +77,7 @@ test.describe("P3.6 type-ahead search", () => {
     await expect(options(page)).toHaveCount(0);
     await expect(page.getByRole("status").first()).toContainText(/no|nothing|0/i);
     // SEARCH_FLOW B "No match": never a blank dead end
-    await expect(page.getByText(/try these instead/i)).toBeVisible();
+    await expect(page.getByText(/try these instead|up next/i).first()).toBeVisible();
     w.assertClean();
   });
 
@@ -281,7 +281,7 @@ test.describe("P3.6 type-ahead search", () => {
     await page.waitForTimeout(1200);
     await shot(page, info, "search-api-slow");
     const busy = await page.locator("[aria-busy=true]").count();
-    const status = await page.getByRole("status").innerText();
+    const status = (await page.getByRole("status").allInnerTexts()).join(" ");
     expect(
       busy > 0 || /search|loading|…|\.\.\./i.test(status),
       `status="${status}" aria-busy=${busy}`,

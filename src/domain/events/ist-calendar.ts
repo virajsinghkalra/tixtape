@@ -36,14 +36,21 @@ export function dayWindow(now: Date, offsetDays: number): DateWindow {
 }
 
 /**
- * Friday 00:00 to Sunday 23:59:59.999 IST. During a weekend (Fri–Sun) that's the current
- * one; otherwise the coming one. `weeksAhead` 1 gives "next weekend".
+ * The upcoming weekend, Friday 00:00 to Sunday 23:59:59.999 IST (QA-F-5):
+ * - Monday–Thursday: the coming one.
+ * - Friday or Saturday: the current one, from the start of today (days already gone aren't
+ *   "this weekend").
+ * - Sunday: the next one; this weekend is all but over.
+ * `weeksAhead` 1 gives "next weekend", the full Friday–Sunday after that.
  */
 export function weekendWindow(now: Date, weeksAhead = 0): DateWindow {
   const d = istDay(now);
   const sinceFriday = (d.weekday + 2) % 7; // Fri 0, Sat 1, Sun 2, Mon 3 … Thu 6
-  const toFriday = sinceFriday <= 2 ? -sinceFriday : 7 - sinceFriday;
-  return span(istMidnight(d.year, d.month, d.day + toFriday + 7 * weeksAhead), 3);
+  const toFriday = sinceFriday <= 1 ? -sinceFriday : 7 - sinceFriday;
+  const friday = istMidnight(d.year, d.month, d.day + toFriday + 7 * weeksAhead);
+  const full = span(friday, 3);
+  if (weeksAhead > 0 || sinceFriday > 1) return full;
+  return { from: istMidnight(d.year, d.month, d.day), to: full.to };
 }
 
 export function monthWindow(year: number, month: number): DateWindow {

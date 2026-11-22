@@ -413,7 +413,11 @@ test.describe("B. while typing", () => {
     await search(page).pressSequentially("nh7", { delay: 40 });
     await expect(page.getByText(/you.re offline/i).first()).toBeVisible();
     await context.setOffline(false);
-    await page.getByRole("button", { name: /retry/i }).click();
+    // Retry, unless the box already retried by itself when the connection came back
+    await page
+      .getByRole("button", { name: /retry/i })
+      .click({ timeout: 3000 })
+      .catch(() => {});
     await expect(groupOptions(page, /events/i).filter({ hasText: /NH7/i })).toHaveCount(1);
   });
 

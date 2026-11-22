@@ -105,6 +105,27 @@ describe("ThrottledAlerts", () => {
     await throttled().send({ ...alert, subject: "3 events need review" });
     expect(sent).toHaveLength(3);
   });
+
+  it("repeats an action alert at most once a day even when its text changes", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alerts-"));
+    let now = new Date("2026-11-21T00:00:00Z");
+    const sent: Alert[] = [];
+    const inner: Alerts = { send: async (a) => void sent.push(a) };
+    const throttled = () => new ThrottledAlerts(inner, join(dir, "s.json"), { now: () => now });
+    const failing = (n: number): Alert => ({
+      key: "source-failing:highape",
+      severity: "action",
+      subject: `Event source "highape" failed ${n} runs in a row`,
+      body: "x",
+    });
+    await throttled().send(failing(3));
+    await throttled().send(failing(4));
+    await throttled().send(failing(5));
+    expect(sent).toHaveLength(1);
+    now = new Date("2026-11-22T00:00:01Z");
+    await throttled().send(failing(11));
+    expect(sent).toHaveLength(2);
+  });
 });
 
 describe("createAlerts", () => {
@@ -121,13 +142,26 @@ describe("createAlerts", () => {
   };
   const logger = { warn: vi.fn(), error: vi.fn() };
 
-  it("without SMTP, writes the job summary and fails the job so GitHub notifies", async () => {
+  it("without SMTP, an action alert writes the job summary and fails the job so GitHub notifies", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const dir = await mkdtemp(join(tmpdir(), "alerts-"));
     const summary = join(dir, "summary.md");
-    await createAlerts({ env: { ...env, GITHUB_STEP_SUMMARY: summary }, logger }).send(alert);
-    expect(await readFile(summary, "utf8")).toContain("Alert: 2 events need review");
+    await createAlerts({ env: { ...env, GITHUB_STEP_SUMMARY: summary }, logger }).send({
+      ...alert,
+      severity: "action",
+    });
+    expect(await readFile(summary, "utf8")).toContain("Action needed: 2 events need review");
     expect(process.exitCode).toBe(1);
+  });
+
+  it("D-060 addendum: without SMTP, an info alert (a digest) goes to the summary and the run stays green", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dir = await mkdtemp(join(tmpdir(), "alerts-"));
+    const summary = join(dir, "summary.md");
+    await createAlerts({ env: { ...env, GITHUB_STEP_SUMMARY: summary }, logger }).send(alert);
+    expect(await readFile(summary, "utf8")).toContain("Info: 2 events need review");
+    expect(errors.mock.calls[0]?.[0]).toMatch(/^::notice /u);
+    expect(process.exitCode).toBe(0);
   });
 
   it("off GitHub Actions and without SMTP, only logs", async () => {

@@ -259,3 +259,25 @@ describe("no tight loops, no downgrades", () => {
     expect(nextStepDelay(activeJob(after)!, new Date())).toBe(1500);
   });
 });
+
+describe("QA-F-19: a short Spotify pause on a 'running' job still reads as paused", () => {
+  const now = new Date("2026-11-21T13:09:40Z");
+  it("a running job with a resume time ahead shows the pause", () => {
+    const view = viewFromStep(
+      step({ status: "running", resumeAfter: "2026-11-21T13:10:00Z" }),
+      building,
+      200,
+      now,
+    );
+    expect(view).toMatchObject({ kind: "building", waitUntil: "2026-11-21T13:10:00Z" });
+  });
+  it("a resume time already past on a running job is just progress", () => {
+    const view = viewFromStep(
+      step({ status: "running", resumeAfter: "2026-11-21T13:09:00Z" }),
+      building,
+      200,
+      now,
+    );
+    expect(view).toMatchObject({ kind: "building", waitUntil: null });
+  });
+});

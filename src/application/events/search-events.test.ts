@@ -40,6 +40,7 @@ const kuhad: ArtistCandidate = {
   similarity: 0.9,
   isFilter: false,
   upcomingCount: 2,
+  onlyEventId: null,
 };
 
 function setup() {
@@ -187,6 +188,11 @@ describe("suggest (empty query, issue 9)", () => {
       thisWeekend: [ev("t1"), ev("w1")],
       nearYou: [ev("w1"), ev("p1")],
       popularSearches: ["lolla", "nh7"],
+      popularFallback: [],
+    };
+    search.candidatesByText = {
+      lolla: [cand("l1", { title: "Lollapalooza India" })],
+      nh7: [cand("n1", { title: "NH7 Weekender" })],
     };
     const res = await suggest(deps, SuggestParamsSchema.parse({ q: "", city: "poona" }));
     expect(
@@ -213,10 +219,47 @@ describe("suggest (empty query, issue 9)", () => {
       thisWeekend: [],
       nearYou: [],
       popularSearches: [],
+      popularFallback: [],
     };
     const res = await suggest(deps, SuggestParamsSchema.parse({}));
     expect("sections" in res && res.sections.map((s) => s.id)).toEqual(["trending"]);
     expect(search.recommendationCalls[0]!.city).toBeNull();
+  });
+});
+
+describe("popular-search chips (QA-F-6)", () => {
+  it("never shows a chip that returns nothing, and falls back to upcoming event titles", async () => {
+    const { deps, search } = setup();
+    search.recommendations = {
+      trending: [],
+      upNext: [],
+      thisWeekend: [],
+      nearYou: [],
+      popularSearches: ["coldplay", "lolla", "LOLLA "],
+      popularFallback: ["NH7 Weekender", "Ghost Show"],
+    };
+    search.candidatesByText = {
+      lolla: [cand("l1", { title: "Lollapalooza India" })],
+      "nh7 weekender": [cand("n1", { title: "NH7 Weekender" })],
+    };
+    const res = await suggest(deps, SuggestParamsSchema.parse({}));
+    const chips = "sections" in res ? res.sections.find((s) => s.id === "popular_searches") : null;
+    expect(chips && "queries" in chips && chips.queries).toEqual(["lolla", "NH7 Weekender"]);
+  });
+
+  it("has no chips section when nothing checks out", async () => {
+    const { deps, search } = setup();
+    search.recommendations = {
+      trending: [ev("t1")],
+      upNext: [],
+      thisWeekend: [],
+      nearYou: [],
+      popularSearches: ["coldplay"],
+      popularFallback: [],
+    };
+    search.candidatesByText = {};
+    const res = await suggest(deps, SuggestParamsSchema.parse({}));
+    expect("sections" in res && res.sections.map((s) => s.id)).toEqual(["trending"]);
   });
 });
 

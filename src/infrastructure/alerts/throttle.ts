@@ -1,6 +1,7 @@
 /**
  * Scheduled jobs run every 30 minutes to 3 hours, so a condition that lasts would alert on
- * every run. This sends an alert again only when its text changed or a day has passed. State
+ * every run. This sends an alert again only when its text changed or a day has passed (an
+ * `action` alert: only when a day has passed, D-060 addendum). State
  * is a small JSON file, kept between GitHub Actions runs with `actions/cache`.
  */
 import { createHash } from "node:crypto";
@@ -39,7 +40,9 @@ export class ThrottledAlerts implements Alerts {
     const last = state[alert.key];
     const hash = hashOf(alert);
     const recent = last && now.getTime() - new Date(last.sentAt).getTime() < REPEAT_AFTER_MS;
-    if (last && last.hash === hash && recent) return;
+    // An `action` alert for a lasting condition repeats at most once a day, even if its text
+    // (a count, a date) changes; an `info` alert repeats when its text changes.
+    if (last && recent && (last.hash === hash || alert.severity === "action")) return;
     await this.inner.send(alert);
     state[alert.key] = { hash, sentAt: now.toISOString() };
     await mkdir(dirname(this.statePath), { recursive: true });

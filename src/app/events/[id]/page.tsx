@@ -5,6 +5,7 @@ import { parseEventId } from "@/application/events";
 import type { EventDetail } from "@/application/ports/events";
 import { EventActions } from "@/components/EventActions";
 import { EventHeader } from "@/components/EventHeader";
+import { formatDateRange } from "@/components/event-format";
 import { EventStory } from "@/components/EventStory";
 import { EventVisit } from "@/components/EventVisit";
 import { shareText } from "@/components/lineup-copy";
@@ -102,6 +103,12 @@ export default async function EventPage({ params, searchParams }: Params) {
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
       <EventVisit eventId={event.id} highlight={Boolean(artist)} />
       <EventHeader event={event} now={now} />
+      {event.archived && (
+        // D-070: reachable by its link, clearly in the past.
+        <p role="note" className="mt-3 font-display text-lg font-bold">
+          This happened on {formatDateRange(event.startsAt, event.endsAt)}
+        </p>
+      )}
       {/* UX #5: the playlist card is the one primary action, right under the header on phones
           and in the sticky side column on desktop. */}
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">

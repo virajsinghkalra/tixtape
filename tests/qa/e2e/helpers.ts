@@ -104,18 +104,25 @@ export function groupOptions(page: Page, group: RegExp) {
 }
 
 export async function shot(page: Page, info: TestInfo, name: string, fullPage = false) {
-  await page.screenshot({
-    path: `tests/qa/e2e/screenshots/${info.project.name}-${name}.png`,
-    fullPage,
-  });
+  // evidence only: a slow full-page capture on a loaded machine must not fail the test
+  await page
+    .screenshot({
+      path: `tests/qa/e2e/screenshots/${info.project.name}-${name}.png`,
+      fullPage,
+      timeout: 20_000,
+    })
+    .catch(() => {});
 }
 
 /** Final-pass screenshots for the exploratory report. */
 export async function finalShot(page: Page, info: TestInfo, name: string, fullPage = true) {
-  await page.screenshot({
-    path: `tests/qa/e2e/screenshots/final/${info.project.name}-${name}.png`,
-    fullPage,
-  });
+  await page
+    .screenshot({
+      path: `tests/qa/e2e/screenshots/final/${info.project.name}-${name}.png`,
+      fullPage,
+      timeout: 20_000,
+    })
+    .catch(() => {});
 }
 
 /** Waits until client JS is hydrated; dev-mode HMR can keep the network busy. */

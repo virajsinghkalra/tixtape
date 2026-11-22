@@ -42,11 +42,16 @@ type Props = {
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
 export function PlaylistPanel({ eventId, actions, preview, matched, total, initialStatus }: Props) {
-  // Nothing matched yet (or a 0-song estimate): never "0 songs · 0 min", no "Make playlist".
-  const pending = previewPending(preview, matched, total);
   const [view, setView] = useState<PlaylistView>(() =>
     initialStatus ? viewFromStatus(initialStatus) : { kind: "checking" },
   );
+  // Nothing matched yet (or a 0-song estimate): never "0 songs · 0 min", no "Make playlist".
+  // QA-F-20: a ready (or building) playlist is never "Playlist soon".
+  const pending =
+    previewPending(preview, matched, total) &&
+    view.kind !== "ready" &&
+    view.kind !== "building" &&
+    view.kind !== "starting";
   const viewRef = useRef(view);
   viewRef.current = view;
   const alive = useRef(true);

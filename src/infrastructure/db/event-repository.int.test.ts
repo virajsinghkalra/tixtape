@@ -263,7 +263,8 @@ describe("PgEventRepository through the use cases", () => {
     expect((await publicList()).items[0]).not.toHaveProperty("confidence");
 
     await db.update(events).set({ visibility: "archived" }).where(eq(events.id, id));
-    await expect(getEvent(deps.events, id)).rejects.toThrow(NotFoundError);
+    // D-070: archived stays reachable by its link (QA-F-12), and is never listed.
+    expect(await getEvent(deps.events, id)).toMatchObject({ id, archived: true });
     expect((await publicList()).total).toBe(0);
     expect((await adminList()).items.map((e) => [e.id, e.visibility])).toEqual([[id, "archived"]]);
     expect((await adminList("held")).total).toBe(0);
@@ -333,6 +334,15 @@ describe("PgEventRepository through the use cases", () => {
         AdminEventPatchSchema.parse({ visibility: "held" }),
       ),
     ).rejects.toThrow(NotFoundError);
+  });
+
+  it("a NUL byte in the search text never reaches Postgres (QA-F-14)", async () => {
+    await ingestEvents(deps, adapter([tm()]), opts);
+    const page = await listAdminEvents(
+      deps.events,
+      AdminListEventsQuerySchema.parse({ q: "Lolla\u0000" }),
+    );
+    expect(page.total).toBe(1);
   });
 
   it("returns null for an unknown id", async () => {

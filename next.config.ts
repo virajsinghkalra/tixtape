@@ -1,29 +1,14 @@
 import type { NextConfig } from "next";
+import { contentSecurityPolicy } from "./src/lib/csp";
 
 const isDev = process.env.NODE_ENV !== "production";
 
 /**
- * Security headers (D-070, OWASP ASVS V14.4). The CSP allows inline scripts and styles because
- * Next.js injects inline bootstrap scripts and `motion` animates with inline styles; a nonce CSP
- * would force every page to render dynamically. Dev also needs `eval` and a websocket for HMR.
- * Images come from Spotify and event sources over https. Fonts are self-hosted by next/font.
+ * Security headers (D-070, OWASP ASVS V14.4). Pages get a per-request nonce CSP from
+ * src/middleware.ts (D-084), which replaces this static policy; API, static and image responses
+ * keep this one. Images come from Spotify and event sources over https. Fonts are self-hosted.
  */
-const csp = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self'",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
-  "frame-src 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  // Login redirects to Spotify's consent page.
-  "form-action 'self' https://accounts.spotify.com",
-  "frame-ancestors 'none'",
-  // No `upgrade-insecure-requests`: it would break `next start` on http://127.0.0.1 (perf and
-  // E2E runs). Vercel serves https only, and HSTS keeps browsers there.
-].join("; ");
+const csp = contentSecurityPolicy({ dev: isDev });
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },

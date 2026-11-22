@@ -56,6 +56,15 @@ describe("GET /api/events", () => {
     });
   });
 
+  it.each([
+    ["?q=%00", 400],
+    ["?q=nh7%00", 200],
+    ["?city=%00", 400],
+  ])("a NUL byte (%s) is never a 500 (QA-F-14)", async (qs, status) => {
+    const res = await list(new Request(`http://x/api/events${qs}`), undefined);
+    expect(res.status).toBe(status);
+  });
+
   it("400s invalid filters", async () => {
     const res = await list(new Request("http://x/api/events?type=party&pageSize=500"), undefined);
     expect(res.status).toBe(400);
@@ -87,16 +96,23 @@ describe("GET /api/events/:id", () => {
     expect(event).not.toHaveProperty("visibility");
   });
 
-  it.each(["held", "archived"] as const)(
-    "a %s event is 404 and absent from the list",
-    async (visibility) => {
-      const { items } = await useCases.listEvents(ListEventsQuerySchema.parse({}));
-      await world.events.setVisibility(items[0]!.id, visibility);
-      expect((await getOne(new Request("http://x"), ctx(items[0]!.id))).status).toBe(404);
-      const body = await (await list(new Request("http://x/api/events"), undefined)).json();
-      expect(body.total).toBe(0);
-    },
-  );
+  it("a held event is 404 and absent from the list", async () => {
+    const { items } = await useCases.listEvents(ListEventsQuerySchema.parse({}));
+    await world.events.setVisibility(items[0]!.id, "held");
+    expect((await getOne(new Request("http://x"), ctx(items[0]!.id))).status).toBe(404);
+    const body = await (await list(new Request("http://x/api/events"), undefined)).json();
+    expect(body.total).toBe(0);
+  });
+
+  it("an archived event opens by its link, marked archived, and is never listed (QA-F-12)", async () => {
+    const { items } = await useCases.listEvents(ListEventsQuerySchema.parse({}));
+    await world.events.setVisibility(items[0]!.id, "archived");
+    const res = await getOne(new Request("http://x"), ctx(items[0]!.id));
+    expect(res.status).toBe(200);
+    expect((await res.json()).event).toMatchObject({ id: items[0]!.id, archived: true });
+    const body = await (await list(new Request("http://x/api/events"), undefined)).json();
+    expect(body.total).toBe(0);
+  });
 
   it.each(["nope", "00000000-0000-4000-8000-ffffffffffff"])("404s %s", async (id) => {
     const res = await getOne(new Request("http://x"), ctx(id));

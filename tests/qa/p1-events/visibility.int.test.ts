@@ -9,7 +9,6 @@ import pino from "pino";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RawEvent, SourceAdapter } from "@/application/ports/event-source";
 import type { Database } from "@/db/client";
-import type { EventId } from "@/domain/shared/ids";
 import { createEventsModule, type EventsModule } from "@/infrastructure/events-module";
 import { createPlaylistsModule, type PlaylistsModule } from "@/infrastructure/playlists-module";
 import { ForbiddenError, UnauthorizedError, ValidationError } from "@/lib/errors";
@@ -50,8 +49,6 @@ const publicList = await import("@/app/api/events/route");
 const publicDetail = await import("@/app/api/events/[id]/route");
 const suggestRoute = await import("@/app/api/events/suggest/route");
 const searchRoute = await import("@/app/api/search/route");
-const clickRoute = await import("@/app/api/search/click/route");
-const viewRoute = await import("@/app/api/events/[id]/view/route");
 const playlistRoute = await import("@/app/api/events/[id]/playlist/route");
 const adminList = await import("@/app/api/admin/events/route");
 const adminDetail = await import("@/app/api/admin/events/[id]/route");
@@ -115,10 +112,6 @@ const suggest = (qs = "") =>
   suggestRoute.GET(new Request(u(`/api/events/suggest${qs}`)), undefined as never);
 const search = (qs: string) =>
   searchRoute.GET(new Request(u(`/api/search${qs}`)), undefined as never);
-const click = (b: unknown) =>
-  clickRoute.POST(new Request(u("/api/search/click"), send("POST", b)), undefined as never);
-const view = (id: string) =>
-  viewRoute.POST(new Request(u(`/api/events/${id}/view`), send("POST")), ctx(id));
 const playlistGet = (id: string) =>
   playlistRoute.GET(new Request(u(`/api/events/${id}/playlist`)), ctx(id));
 const playlistPost = (id: string) =>
@@ -204,13 +197,6 @@ const HIDDEN_WORDS = /Zebracorn|Wombatique|Quixotrel|Vexillon|Hidden Hall|Old Ha
 /** The response minus `filters`, which only echoes what the caller sent. */
 const served = (b: Json) => JSON.stringify({ ...b, filters: undefined });
 
-async function statsRow(id: string) {
-  const rows = (await db.execute(
-    sql`SELECT views, search_clicks, playlist_opens, trend_score FROM event_stats WHERE event_id = ${id}`,
-  )) as unknown as Json[];
-  return rows[0] ?? null;
-}
-
 // ── defaults ────────────────────────────────────────────────────────────
 
 describe("QA D-056 defaults", () => {
@@ -282,11 +268,14 @@ describe("QA D-056 public list and detail", () => {
     expect(r.status).toBe(400);
   });
 
-  it("held and archived detail is 404, identical to a missing event", async () => {
+  it("held detail is 404, identical to a missing event; archived stays reachable (D-070, QA-F-12)", async () => {
     const { held, archived } = await world();
     const ghost = await getEvent(GHOST);
     const ghostBody = await j(ghost);
-    for (const id of [held, archived]) {
+    const past = await getEvent(archived);
+    expect(past.status).toBe(200);
+    expect(((await j(past)).event as Json).archived).toBe(true);
+    for (const id of [held]) {
       const r = await getEvent(id);
       expect(r.status).toBe(404);
       const b = await j(r);
@@ -393,56 +382,19 @@ describe("QA D-056 suggest and search", () => {
 
 // ── engagement ──────────────────────────────────────────────────────────
 
-describe("QA D-056 views and clicks on hidden events count nothing", () => {
-  // BUG: view on a held/archived event returns 204 (missing event: 404), revealing hidden IDs; stats are not bumped
-  it("view: published control counts; held/archived are 404 like a missing event and count nothing", async () => {
-    const { pub, held, archived } = await world();
-    expect((await view(pub)).status).toBe(204);
-    expect(Number((await statsRow(pub))?.views)).toBe(1);
-    const ghost = (await view(GHOST)).status;
-    expect(ghost).toBe(404);
-    for (const id of [held, archived]) {
-      const before = await statsRow(id);
-      const status = (await view(id)).status;
-      expect(await statsRow(id)).toEqual(before);
-      expect(status).toBe(ghost);
-    }
-  });
-
-  // BUG: search click on a held/archived event returns 204 instead of 404 (existence oracle)
-  it("search click: held/archived are 404 and nothing is logged or counted", async () => {
-    const { pub, held, archived } = await world();
-    expect((await click({ q: "gala", eventId: pub })).status).toBe(204);
-    for (const id of [held, archived]) {
-      const before = await statsRow(id);
-      const status = (await click({ q: "zebracorn", eventId: id })).status;
-      expect(await statsRow(id)).toEqual(before);
-      const logged = (await db.execute(
-        sql`SELECT count(*)::int AS n FROM search_log WHERE clicked_event_id = ${id}`,
-      )) as unknown as Json[];
-      expect(Number(logged[0]!.n)).toBe(0);
-      expect(status).toBe(404);
-    }
-  });
-
-  it("playlist-open signal on a hidden event counts nothing", async () => {
-    const { held } = await world();
-    const mod = state.module as EventsModule;
-    const before = await statsRow(held);
-    await mod.recordPlaylistOpen(held as EventId, "qa").catch(() => undefined);
-    expect(await statsRow(held)).toEqual(before);
-  });
-});
+// D-090/QA-F-7: the view and search-click endpoints were removed; event_stats is now recomputed
+// from analytics events by the sweep, and only published events get stats (Events suites).
 
 // ── playlists ───────────────────────────────────────────────────────────
 
 describe("QA D-056 playlist status and start", () => {
-  it("held/archived: playlist start is 404 like a missing event, creates no job, calls no Spotify", async () => {
+  it("held: playlist start is 404 like a missing event; archived never builds (409); no job, no Spotify", async () => {
     const { held, archived } = await world();
     const ghost = (await playlistPost(GHOST)).status;
     expect(ghost).toBe(404);
+    expect((await playlistPost(archived)).status).toBe(409);
     for (const id of [held, archived]) {
-      expect((await playlistPost(id)).status).toBe(404);
+      if (id === held) expect((await playlistPost(id)).status).toBe(404);
       const jobs = (await db.execute(
         sql`SELECT count(*)::int AS n FROM playlist_jobs WHERE event_id = ${id}`,
       )) as unknown as Json[];

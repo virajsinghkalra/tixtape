@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { track } from "./analytics/track";
-import { logEventView } from "./search/source";
 
 /** Scrolls the highlighted lineup artist into view (D-048 C) and logs one view per visit. */
 export function EventVisit({ eventId, highlight }: { eventId: string; highlight: boolean }) {
@@ -19,9 +18,9 @@ export function EventVisit({ eventId, highlight }: { eventId: string; highlight:
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
     } catch {
-      // Storage blocked: log anyway, the server rate-limits repeats.
+      // Storage blocked: log anyway; the stats rollup counts one open per device and day.
     }
-    logEventView(eventId);
+    // QA-F-7: this one analytics event feeds `event_stats` (the nightly rollup), no extra call.
     track("event_open", { eventId });
   }, [eventId, highlight]);
   return null;

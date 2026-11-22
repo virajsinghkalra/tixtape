@@ -103,6 +103,11 @@ export type LineupArtist = {
 };
 
 export type EventDetail = EventSummary & {
+  /**
+   * D-070: the event has happened. Reachable by direct link ("This happened on …"), never
+   * listed, searched or rebuilt. Set on public reads; absent means upcoming.
+   */
+  archived?: boolean;
   lineupHash: string | null;
   lineup: LineupArtist[];
   sources: { source: EventSource; externalId: string; url: string | null; lastSeenAt: Date }[];

@@ -30,6 +30,8 @@ export type Recommendations = {
   nearYou: EventResult[];
   /** Most-clicked, then most-searched normalized queries with results. */
   popularSearches: string[];
+  /** Titles of top upcoming events: chips when too few searches qualify (QA-F-6). */
+  popularFallback: string[];
 };
 
 export interface EventSearch {

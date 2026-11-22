@@ -22,6 +22,12 @@ export const MAJOR_CITIES = [
   "Goa",
 ];
 
+/** Stores the chosen city for a year. "All India" is stored as "all" so it wins over the IP
+ * city (an empty cookie wouldn't). */
+export function setCityCookie(next: string | null): void {
+  document.cookie = `city=${encodeURIComponent(next ?? ALL_INDIA_CITY)}; Max-Age=${YEAR_S}; Path=/; SameSite=Lax`;
+}
+
 type Props = {
   /** The visitor's city (D-050), or null for "All India". */
   city: string | null;
@@ -51,8 +57,7 @@ export function CitySwitcher({ city, cities }: Props) {
   }, [open]);
 
   function choose(next: string | null) {
-    // "All India" is stored as "all" so it wins over the IP city (an empty cookie wouldn't).
-    document.cookie = `city=${encodeURIComponent(next ?? ALL_INDIA_CITY)}; Max-Age=${YEAR_S}; Path=/; SameSite=Lax`;
+    setCityCookie(next);
     setOpen(false);
     track("city_change", { city: next ?? ALL_INDIA_CITY });
     startTransition(() => router.refresh());
@@ -128,5 +133,30 @@ function CityOption({
     >
       {label}
     </button>
+  );
+}
+
+/** QA-F-18: a chosen city with nothing on: "Nothing in Chennai yet 🫠 · All India". */
+export function CityEmptyNote({ city }: { city: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  return (
+    <div className="mx-auto mt-12 max-w-6xl px-4 sm:px-6">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border-2 border-dashed border-line px-5 py-4 font-display text-xl font-extrabold">
+        Nothing in {city} yet <span aria-hidden>🫠</span>
+        <span aria-hidden>·</span>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            setCityCookie(null);
+            startTransition(() => router.refresh());
+          }}
+          className="inline-flex min-h-11 items-center rounded-chip px-2 text-accent-text underline decoration-2 underline-offset-4"
+        >
+          All India
+        </button>
+      </p>
+    </div>
   );
 }

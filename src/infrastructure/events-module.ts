@@ -11,11 +11,10 @@ import type { Logger } from "@/lib/logger";
 import { PgArtistRepository } from "./db/artist-repository";
 import { PgEventRepository } from "./db/event-repository";
 import { PgEventSearch } from "./db/event-search";
-import { PgEventStatsRepository } from "./db/event-stats-repository";
+import { PgEventStatsRollup } from "./db/event-stats-repository";
 import { PgIngestRunRepository } from "./db/ingest-run-repository";
 import { PgSearchLogRepository } from "./db/search-log-repository";
 import { PgVenueRepository } from "./db/venue-repository";
-import { InMemoryRateLimiter } from "./in-memory-rate-limiter";
 import { TicketmasterSource } from "./sources/ticketmaster";
 import { createMemoryHostLog, PoliteFetcher, type HostLog } from "./sources/polite-fetch";
 import { PollstarSource } from "./sources/pollstar";
@@ -86,11 +85,8 @@ export function createEventsModule(deps: {
     artists,
     ingestRuns: new PgIngestRunRepository(deps.db),
     search: new PgEventSearch(deps.db),
-    engagement: new PgEventStatsRepository(deps.db),
+    statsRollup: new PgEventStatsRollup(deps.db),
     searchLog: new PgSearchLogRepository(deps.db),
-    // Per client: 60 popularity signals a minute; the same event counts once per 30 minutes.
-    clientLimiter: new InMemoryRateLimiter(60, 60_000),
-    repeatLimiter: new InMemoryRateLimiter(1, 30 * 60_000),
     clock: deps.clock,
     logger: deps.logger,
   });

@@ -101,6 +101,19 @@ export class PgEventFeed implements EventFeedReader {
     `);
     return [...result].map((raw) => toFeedRow(row.parse(raw)));
   }
+
+  /**
+   * QA-F-15: which of these ids are still published. One indexed query, so a cached feed can
+   * drop events hidden or archived since (by an admin, the sweep or any script) on every request.
+   */
+  async stillPublished(ids: readonly string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const result = await this.db.execute(sql`
+      select id from events
+      where id = any(${`{${ids.join(",")}}`}::uuid[]) and visibility = 'published'
+    `);
+    return new Set([...result].map((r) => z.object({ id: z.string() }).parse(r).id));
+  }
 }
 
 function toFeedRow(r: z.infer<typeof row>): FeedRow {

@@ -151,6 +151,7 @@ export function viewFromStep(
   body: unknown,
   previous: PlaylistView,
   httpStatus = 200,
+  now: Date = new Date(),
 ): PlaylistView {
   if (httpStatus === 503) return { kind: "unavailable" };
   const parsed = stepBody.safeParse(body);
@@ -168,7 +169,12 @@ export function viewFromStep(
     return refreshing ? { ...previous, refresh: null } : { kind: "problem", message: GENERIC };
   }
   const label = stageLabel(p);
-  const waitUntil = p.status === "paused" ? (p.resumeAfter ?? null) : null;
+  // QA-F-19: a Spotify 429 is a pause whatever the job status says. Short waits (≤ 30 s) keep the
+  // job "running" with a `resumeAfter`, so any resume time still ahead reads "Paused · back at".
+  const waitUntil =
+    p.resumeAfter && (p.status === "paused" || new Date(p.resumeAfter).getTime() > now.getTime())
+      ? p.resumeAfter
+      : null;
   const before = activeJob(previous);
   const same = before !== null && before.progress === p.progress && before.label === label;
   // A Spotify pause is a known wait, not a stall.
