@@ -23,7 +23,7 @@ type Props = {
 
 /** Billing decides size, like a real festival poster. */
 const NAME_STYLE: Record<BillingTier, string> = {
-  headliner: "text-huge text-white",
+  headliner: "text-[clamp(1.875rem,7vw,4.5rem)] leading-[0.95] text-white",
   sub: "text-big text-lime",
   mid: "text-2xl text-white",
   support: "text-xl text-[#c9c9d6]",
@@ -117,7 +117,7 @@ function ArtistName({
   const name = (
     <>
       {avatar && <ArtistAvatar artist={a} size={avatar} className="border-white/80" />}
-      <span className="min-w-0">{a.name}</span>
+      <span className="min-w-0 text-balance">{a.name}</span>
     </>
   );
   if (a.spotifyId && isMatched(a.matchStatus)) {
