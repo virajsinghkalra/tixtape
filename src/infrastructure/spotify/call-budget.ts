@@ -36,13 +36,21 @@ export const CALL_WINDOW_MS = 10_000;
 export const APP_CALLS_PER_WINDOW = 8;
 export const BACKGROUND_CALLS_PER_WINDOW = 3;
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+/**
+ * App-wide volume caps on top of the per-window pace (Lead, 2026-11-22): Spotify Development Mode
+ * 429'd us with a ~24 h Retry-After after ~830 calls in about an hour even though the 10 s pace
+ * held. Every class counts toward these; builds included.
+ */
+export const APP_CALLS_PER_HOUR = 250;
+export const APP_CALLS_PER_DAY = 600;
 
 export const BACKGROUND_LIMITS: Record<BackgroundClass, { perWindow: number; perDay: number }> = {
-  match: { perWindow: 1, perDay: 800 },
-  // ≤ 1 call per 10 s (well under the "1 per 2 s" ceiling), 1,000 a day.
-  prewarm: { perWindow: 1, perDay: 500 },
-  discovery: { perWindow: 1, perDay: 250 },
-  revalidate: { perWindow: 1, perDay: 250 },
+  match: { perWindow: 1, perDay: 150 },
+  // ≤ 1 call per 10 s (well under the "1 per 2 s" ceiling).
+  prewarm: { perWindow: 1, perDay: 100 },
+  discovery: { perWindow: 1, perDay: 60 },
+  revalidate: { perWindow: 1, perDay: 60 },
 };
 
 /** Builds wait at most this long for a slot before returning progress (step budget). */
@@ -144,6 +152,8 @@ const key = {
   backgroundWindow: "spotify:w:background",
   classWindow: (c: SpotifyCallClass) => `spotify:w:${c}`,
   classDay: (c: SpotifyCallClass) => `spotify:d:${c}`,
+  appHour: "spotify:h:all",
+  appDay: "spotify:d:all",
   limitedDay: (c: SpotifyCallClass) => `spotify:d:429:${c}`,
 };
 
@@ -174,6 +184,7 @@ export class SpotifyCallBudget {
     for (;;) {
       const now = this.deps.clock.now().getTime();
       const window = this.windowStart(now, CALL_WINDOW_MS);
+      await this.assertUnderAppVolume(now);
       if (isBackground(cls)) await this.assertUnderDailyCap(cls, now);
       if (await this.tryTake(cls, window)) {
         await this.countDay(cls, now);
@@ -214,8 +225,28 @@ export class SpotifyCallBudget {
     }
   }
 
+  /** The app-wide hourly and daily volume caps (see APP_CALLS_PER_HOUR/DAY). */
+  private async assertUnderAppVolume(now: number): Promise<void> {
+    const hour = this.windowStart(now, HOUR_MS);
+    const day = this.windowStart(now, DAY_MS);
+    const [h, d] = await this.deps.store.read([
+      { key: key.appHour, windowStart: hour },
+      { key: key.appDay, windowStart: day },
+    ]);
+    if (d! >= APP_CALLS_PER_DAY) {
+      throw new SpotifyBlockedError("quota_exceeded", new Date(day.getTime() + DAY_MS));
+    }
+    if (h! >= APP_CALLS_PER_HOUR) {
+      throw new SpotifyBlockedError("quota_exceeded", new Date(hour.getTime() + HOUR_MS));
+    }
+  }
+
   private async countDay(cls: SpotifyCallClass, now: number): Promise<void> {
     const windowStart = this.windowStart(now, DAY_MS);
+    await this.deps.store.increment([
+      { key: key.appHour, windowStart: this.windowStart(now, HOUR_MS) },
+      { key: key.appDay, windowStart },
+    ]);
     const [n] = await this.deps.store.increment([{ key: key.classDay(cls), windowStart }]);
     if (n! % 100 === 0) this.deps.logger?.info?.({ class: cls, calls: n }, "spotify calls today");
   }

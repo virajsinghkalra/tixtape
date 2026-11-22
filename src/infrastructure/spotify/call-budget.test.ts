@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { SpotifyBlockedError } from "@/application/ports/spotify";
 import {
+  APP_CALLS_PER_HOUR,
   APP_CALLS_PER_WINDOW,
   BACKGROUND_CALLS_PER_WINDOW,
   BACKGROUND_LIMITS,
@@ -174,5 +175,25 @@ describe("a 429 through SpotifyHttp with the budget (D-006, D-080)", () => {
       reason: "gate_paused",
     });
     expect(fetched).toHaveLength(1);
+  });
+});
+
+describe("app-wide volume caps (2026-11-22 Dev Mode 429)", () => {
+  it("refuses every class, builds included, once the hourly cap is used", async () => {
+    const { b, clock } = budget();
+    let taken = 0;
+    for (;;) {
+      try {
+        await b.acquire("build");
+        taken++;
+      } catch (e) {
+        expect(e).toBeInstanceOf(SpotifyBlockedError);
+        expect((e as SpotifyBlockedError).reason).toBe("quota_exceeded");
+        break;
+      }
+      clock.advance(CALL_WINDOW_MS);
+      if (taken > APP_CALLS_PER_HOUR + 5) break;
+    }
+    expect(taken).toBe(APP_CALLS_PER_HOUR);
   });
 });

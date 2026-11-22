@@ -1343,3 +1343,5 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
     - A resolution saves its progress in the job checkpoint and continues after a pause or the step's time; it never restarts.
     - Only finished resolutions are cached, marked with the song budget they were made for (`resolvedFor`). Rows from before the fix have no marker, may be truncated, and are resolved again automatically.
 - **Algorithm version 3:** every playlist built before this is stale and refreshes into the same Spotify playlist when its page is opened, or by the sweep (D-085).
+
+- **D-080 addendum (2026-11-22, Lead):** Spotify Development Mode also enforces a volume quota. About 830 calls in about an hour (553 build, 278 match) triggered a 429 with a ~24 h Retry-After, even though the 8 per 10 s pace held. Added app-wide caps for every class, builds included: `APP_CALLS_PER_HOUR = 250` and `APP_CALLS_PER_DAY = 600`. Background daily caps are lowered (match 150, prewarm 100, discovery 60, revalidate 60). Bulk matching and pre-building must be spread across days.
