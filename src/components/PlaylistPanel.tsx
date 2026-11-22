@@ -236,14 +236,7 @@ function Note({ view }: { view: PlaylistView }) {
           <p className="font-semibold">
             Live on Spotify <span aria-hidden>🎉</span>
           </p>
-          {view.refresh && (
-            <div className="mt-3">
-              <p className="font-semibold">Refreshing…</p>
-              {view.refresh !== "pending" && (
-                <Bar progress={view.refresh.progress} label={view.refresh.label} />
-              )}
-            </div>
-          )}
+          {/* Refreshes run quietly in the background: the live playlist is all people see. */}
         </div>
       );
       break;
