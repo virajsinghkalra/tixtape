@@ -8,9 +8,10 @@ import type {
 import type { Database } from "@/db/client";
 import { asEventId, asVenueId } from "@/domain/shared/ids";
 import { EVENT_STATUSES, EVENT_TYPES } from "@/domain/shared/lineup";
+import { DEFAULT_EVENT_DURATION_MS } from "@/domain/events/search";
 import { aliasCols, eventEndSql } from "./event-time";
 
-const stillOn = eventEndSql(aliasCols("e"));
+const stillOn = eventEndSql(aliasCols("e"), DEFAULT_EVENT_DURATION_MS);
 
 const row = z.object({
   id: z.string(),

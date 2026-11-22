@@ -7,6 +7,7 @@
  */
 import type { EventType } from "@/domain/shared/lineup";
 import { eventEnd } from "./ist-calendar";
+import { DEFAULT_EVENT_DURATION_MS } from "./search";
 
 const DAY_MS = 86_400_000;
 
@@ -134,7 +135,12 @@ export function timing(
   now: Date,
   startsAtDateOnly = false,
 ): number | null {
-  if (eventEnd({ startsAt, endsAt, startsAtDateOnly }).getTime() < now.getTime()) return null;
+  // A show that has started but has no end time stays on for the same default length search uses.
+  if (
+    eventEnd({ startsAt, endsAt, startsAtDateOnly }, DEFAULT_EVENT_DURATION_MS).getTime() <
+    now.getTime()
+  )
+    return null;
   const days = (startsAt.getTime() - now.getTime()) / DAY_MS;
   if (days <= 7) return 1;
   if (days <= 30) return 0.9;

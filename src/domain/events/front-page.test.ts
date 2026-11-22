@@ -105,6 +105,13 @@ describe("timing", () => {
     expect(timing(inDays(-1), inDays(1), NOW)).toBe(1);
     expect(score(ev({ startsAt: inDays(-3) }), null, NOW)).toBeNull();
   });
+
+  it("a timed show with no end time stays on while it is happening (12 h default)", () => {
+    const hours = (h: number) => new Date(NOW.getTime() + h * 3_600_000);
+    expect(timing(hours(-1), null, NOW)).toBe(1);
+    expect(timing(hours(-11), null, NOW)).toBe(1);
+    expect(timing(hours(-13), null, NOW)).toBeNull();
+  });
 });
 
 describe("tours", () => {
@@ -324,8 +331,9 @@ describe("date-only shows stay on until the end of their IST day", () => {
     expect(timing(startsAt, null, now, true)).toBe(expected);
   });
 
-  it("a timed show at the same instant is over once it starts (unchanged)", () => {
-    expect(timing(startsAt, null, at00_30)).toBeNull();
+  it("a timed show with no end time stays on for 12 h after it starts, then drops off", () => {
+    expect(timing(startsAt, null, at00_30)).toBe(1);
+    expect(timing(startsAt, null, new Date(startsAt.getTime() + 13 * 3_600_000))).toBeNull();
   });
 
   it("is on the home page at 00:30 and 23:30 IST, gone the next day", () => {
