@@ -716,3 +716,26 @@ export const analyticsEvents = pgTable(
     index("analytics_events_device_at_idx").on(t.deviceId, t.at),
   ],
 );
+
+/**
+ * D-092: a person's saved shows, synced only for people who opted in with an email (D-090).
+ * Holds nothing personal beyond the person link; deleted with the person. The latest of
+ * `saved_at` / `removed_at` wins, so an unsave on one device beats an older save on another.
+ */
+export const savedShows = pgTable(
+  "saved_shows",
+  {
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.personId, t.eventId] }),
+    index("saved_shows_event_idx").on(t.eventId),
+  ],
+);

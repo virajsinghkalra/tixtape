@@ -1302,3 +1302,24 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - Lead- and Data-team (admin) lineups are kept exactly as given; parts are separate only when the source lists them separately.
   - A duo credited together ("Khan & Noor") stays one row, the D-066 review case.
   - Spotify or Wikidata exact matches count once they've made an artist or alias row; no Spotify call is made at write time.
+
+### D-092 · ♡ Save says so, syncs for opted-in people, and gets a "Your gigs" page
+
+- **Status:** Accepted (nudges deferred) · **Owner:** Analytics and Identity (owner request) · **Date:** 2026-11-22. Extends D-088 and D-090.
+- **Feedback:**
+  - A save shows "Saved to Your gigs ♡ · View" plus a one-tap "🔔 Remind me" (`RemindMe` reused, with the new `menuUp` option) and a success haptic.
+  - An unsave toasts "Removed" with a tap haptic.
+  - Fixed: the heart pop used three keyframes with a spring, so motion threw and every save crashed the page tree. It now uses a 0.3 s tween.
+- **Sync (opt-in only):**
+  - Migration **0019** (pure add) creates `saved_shows(person_id, event_id, saved_at, removed_at)`, PK `(person_id, event_id)`, with FKs that cascade on people and events. It holds no PII beyond the person link, and "Delete my data" removes it through the cascade.
+  - Only a device whose person gave an email (D-090) writes to it. Anonymous and nickname-only devices stay local-only, and no account is ever needed.
+  - Unsaves are timestamped tombstones (`tixtape.unsaved.v1`). Server times only move forward (`greatest`), and the latest save or unsave wins (`planSync`, pure).
+  - Merging happens once per session start and right after an email is saved (`SavedSync`).
+  - `GET`, `POST` and `DELETE /api/me/saved`: GET takes the device ID in the `x-tixtape-device` header; POST and DELETE take it in the body. Each call is rate-limited (120 per 10 min), `no-store`, and only ever reaches the caller's own person.
+  - Times from the client are clamped. Unknown events are skipped. A held show's details are never returned (D-058).
+  - Limit: D-090 never links a second device to an existing email, so for now sync is a server copy for this device, not cross-device.
+- **Page:** `/me/gigs`, "Your gigs", lists upcoming shows first, then "Been there ✓". Rows offer Remind me (upcoming only) and Open playlist. The empty state reads "Nothing saved yet ♡ · Find a gig". The home row links to it with "See all".
+- **Analytics:**
+  - `save` feeds the `event_stats` trend with weight 2 (`ENGAGEMENT_WEIGHTS.save`, QA-F-7 rollup).
+  - `/admin/analytics` gets a "Top saved shows ♡" list.
+- **Deferred (Lead, token budget):** the in-app nudges (playlist live, countdown, venue added), the `/api/me/saved/updates` batch API and the `nudge_*` events.

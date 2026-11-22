@@ -2,7 +2,8 @@
  * `event_stats` from the anonymous D-090 analytics (QA-F-7; D-047 §4 weights and half-life):
  * - `event_open` is a view (1), or a search click-through (3) when the same device ran a
  *   `search` in the 30 minutes before it;
- * - `playlist_make` and `playlist_open_spotify` are playlist opens (5).
+ * - `playlist_make` and `playlist_open_spotify` are playlist opens (5);
+ * - `save` (♡) is a save (2, D-092).
  * Each counts once per device, event, kind and IST day, so reloads can't inflate a score.
  * Only published events get stats (D-056). Recomputed from scratch each run: idempotent.
  */
@@ -29,12 +30,13 @@ export class PgEventStatsRollup implements EventStatsRollup {
           from analytics_events a
           where a.at >= ${at}::timestamptz - make_interval(days => ${WINDOW_DAYS})
             and a.at <= ${at}::timestamptz
-            and a.name in ('event_open', 'playlist_make', 'playlist_open_spotify')
+            and a.name in ('event_open', 'playlist_make', 'playlist_open_spotify', 'save')
             and a.props->>'eventId' ~ '^[0-9a-fA-F-]{36}$'
         ),
         kinds as (
           select acts.*,
             case
+              when acts.name = 'save' then 'save'
               when acts.name <> 'event_open' then 'playlist_open'
               when acts.device_id is not null and exists (
                 select 1 from analytics_events s
@@ -60,6 +62,7 @@ export class PgEventStatsRollup implements EventStatsRollup {
             sum(
               case o.kind when 'view' then ${w.view}::float8
                           when 'search_click' then ${w.search_click}::float8
+                          when 'save' then ${w.save}::float8
                           else ${w.playlist_open}::float8 end
               * power(0.5, greatest(0, extract(epoch from (${at}::timestamptz - o.at)))
                            / ${TREND_HALF_LIFE_MS / 1000}::float8)

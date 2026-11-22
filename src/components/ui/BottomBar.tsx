@@ -17,6 +17,7 @@ export function BottomBar({
       <div aria-hidden className="h-20 sm:hidden" />
       <nav
         aria-label={label}
+        data-bottom-bar
         aria-hidden={hidden || undefined}
         inert={hidden || undefined}
         className={cx(

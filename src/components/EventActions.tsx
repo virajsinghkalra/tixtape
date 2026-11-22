@@ -20,6 +20,7 @@ export function EventActions({ event }: { event: EventDetail }) {
         googleHref={google}
       />
       <SaveButton
+        remind={{ icsHref: `/api/events/${event.id}/calendar.ics`, googleHref: google }}
         show={{
           id: event.id,
           title: event.title,

@@ -138,13 +138,23 @@ export class PgAnalyticsDashboard implements AnalyticsReadModel {
       from analytics_events
       where name = 'event_open' and at >= ${ts(since)} and props->>'eventId' ~ ${UUID_RE}
       group by 1`;
-    const [events, artists, wanted, searches, zeroResults, cities, sources, shares] =
+    const [events, saved, artists, wanted, searches, zeroResults, cities, sources, shares] =
       await Promise.all([
         this.rows<{ eventId: string; title: string | null; opens: number }>(sql`
           with o as (${opened} order by n desc limit ${TOP})
           select o.id as "eventId", e.title, o.n as opens
           from o left join events e on e.id = o.id::uuid
           order by o.n desc, e.title`),
+        this.rows<{ eventId: string; title: string | null; opens: number }>(sql`
+          with s as (
+            select props->>'eventId' as id, count(distinct device_id)::int as n
+            from analytics_events
+            where name = 'save' and at >= ${ts(since)} and props->>'eventId' ~ ${UUID_RE}
+            group by 1 order by n desc limit ${TOP}
+          )
+          select s.id as "eventId", e.title, s.n as opens
+          from s left join events e on e.id = s.id::uuid
+          order by s.n desc, e.title`),
         this.counts(sql`
           with o as (${opened})
           select a.name as key, sum(o.n)::int as count
@@ -185,7 +195,7 @@ export class PgAnalyticsDashboard implements AnalyticsReadModel {
           where name = 'share' and at >= ${ts(since)}
           group by 1 order by 2 desc, 1`),
       ]);
-    return { events, artists, wanted, searches, zeroResults, cities, sources, shares };
+    return { events, saved, artists, wanted, searches, zeroResults, cities, sources, shares };
   }
 
   private async people(where: SQL): Promise<NamedPerson[]> {

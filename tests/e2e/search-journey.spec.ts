@@ -109,9 +109,10 @@ test.describe("B. while typing", () => {
     await stubLookup(page, 404, {});
     await page.goto("/");
     await search(page).fill("coldplay");
-    await expect(page.getByText("No coldplay shows yet", { exact: true })).toBeVisible();
+    // D-088: "Not in India yet 🫠", the query as typed, a typo chip and "Up next".
+    await expect(page.getByText("Not in India yet 🫠").first()).toBeVisible();
     await expect(page.getByRole("link", { name: /lollapalooza/i }).first()).toBeVisible();
-    await page.getByRole("button", { name: /did you mean diljit/i }).click();
+    await page.getByRole("button", { name: "diljit?" }).click();
     await expect(search(page)).toHaveValue("diljit");
   });
 
@@ -128,7 +129,9 @@ test.describe("B. while typing", () => {
     await expect(options(page).filter({ hasText: /lollapalooza/i })).toBeVisible();
   });
 
-  test("clear: × empties the box; Esc clears first, a second Esc closes", async ({ page }) => {
+  test("clear: × empties the box; Esc clears first, a second Esc closes", async ({
+    page,
+  }, testInfo) => {
     await stubSuggest(page, typed({ results: [LOLLA] }));
     await page.goto("/");
     await search(page).fill("lol");
@@ -139,7 +142,12 @@ test.describe("B. while typing", () => {
     await search(page).press("Escape");
     await expect(search(page)).toHaveValue("");
     await search(page).press("Escape");
-    await expect(search(page)).not.toBeFocused();
+    if (testInfo.project.name === "phone") {
+      // The full-screen sheet closes and focus returns to the field that opened it.
+      await expect(page.getByRole("dialog", { name: "Search" })).toHaveCount(0);
+    } else {
+      await expect(search(page)).not.toBeFocused();
+    }
   });
 
   test("keyboard: ↑↓ move through all groups; Enter with nothing highlighted opens /search", async ({
@@ -175,7 +183,7 @@ test.describe("B. live lookup when nothing matches (D-050)", () => {
     await stubLookup(page, 200, { status: "found", results: [LOLLA] }, 800);
     await page.goto("/");
     await search(page).fill("coldplay");
-    await expect(page.getByText(/looking for ‘coldplay’/i)).toBeVisible();
+    await expect(page.getByText("Checking…")).toBeVisible();
     await expect(page.getByText("Found it 🎉")).toBeVisible();
     await expect(page.getByRole("link", { name: /lollapalooza/i }).first()).toBeVisible();
   });
@@ -185,7 +193,8 @@ test.describe("B. live lookup when nothing matches (D-050)", () => {
     await stubLookup(page, 200, { status: "not_found", artist: { name: "Coldplay" } });
     await page.goto("/");
     await search(page).fill("coldplay");
-    await expect(page.getByText("Coldplay: no India dates yet")).toBeVisible();
+    await expect(page.getByText("Not in India yet 🫠").first()).toBeVisible();
+    await expect(page.getByText(/🎤 Coldplay/).first()).toBeVisible();
   });
 
   test("a partial name matching several artists asks which one; picking one searches again", async ({
@@ -209,14 +218,14 @@ test.describe("B. live lookup when nothing matches (D-050)", () => {
     await stubLookup(page, 404, { error: {} });
     await page.goto("/");
     await search(page).fill("coldplay");
-    await expect(page.getByText("No coldplay shows yet", { exact: true })).toBeVisible();
+    await expect(page.getByText("Not in India yet 🫠").first()).toBeVisible();
   });
 });
 
 test.describe("C. after clicking", () => {
   test("an event opens its page (shell first), and Back restores the query and results", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto("/");
     await search(page).fill("lol");
     await expect(options(page).filter({ hasText: /lollapalooza/i })).toBeVisible(NAVIGATION);
@@ -229,6 +238,8 @@ test.describe("C. after clicking", () => {
     await page.goBack();
     await expect(page).toHaveURL(/\?q=lol/, NAVIGATION);
     await expect(search(page)).toHaveValue("lol");
+    // Phones: the results live in the full-screen sheet, which opens on tap (never on load).
+    if (testInfo.project.name === "phone") await search(page).tap();
     await expect(options(page).filter({ hasText: /lollapalooza/i })).toBeVisible(NAVIGATION);
   });
 

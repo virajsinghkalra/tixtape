@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownLabel, pickNextUp, shortTitle } from "./hero-copy";
+import { countdownLabel, pickNextUp, shortTitle, slideAt } from "./hero-copy";
 
 describe("shortTitle", () => {
   it.each([
@@ -63,5 +63,26 @@ describe("pickNextUp (UX #6)", () => {
   it("only looks at the soonest shows", () => {
     const rows = [...Array.from({ length: 12 }, (_, i) => ev(`n${i}`, null)), ev("late", "ready")];
     expect(pickNextUp(rows).map((r) => r.id)).toEqual(["n0", "n1", "n2"]);
+  });
+});
+
+describe("slideAt: one slide object per index (no picture/title desync)", () => {
+  const items = [
+    { id: "shreya", title: "Shreya Ghoshal · Bengaluru", poster: "s.jpg" },
+    { id: "anyma", title: "Anyma Presents Aeden · Mumbai", poster: "a.jpg" },
+    { id: "bhuwin", title: "Bhuwin · Mumbai", poster: "b.jpg" },
+  ];
+  it("the picture and the title always come from the same show", () => {
+    for (let i = -4; i < 10; i++) {
+      const s = slideAt(items, i)!;
+      expect(s.slide).toBe(items[s.index]);
+      expect(s.slide.poster[0]).toBe(s.slide.id[0]);
+    }
+  });
+  it("wraps forwards and backwards, and survives the list shrinking", () => {
+    expect(slideAt(items, 3)?.slide.id).toBe("shreya");
+    expect(slideAt(items, -1)?.slide.id).toBe("bhuwin");
+    expect(slideAt(items.slice(0, 1), 2)?.slide.id).toBe("shreya");
+    expect(slideAt([], 0)).toBeNull();
   });
 });

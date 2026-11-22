@@ -13,7 +13,7 @@ import {
 } from "./device-lists";
 
 /** Same-tab updates; the `storage` event covers other tabs. */
-const CHANGE_EVENT = "tixtape:device-list";
+export const CHANGE_EVENT = "tixtape:device-list";
 
 function storage(): DeviceStorage | undefined {
   try {

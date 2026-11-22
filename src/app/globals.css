@@ -185,7 +185,10 @@ body {
 
 /* Staggered entrance: set --i on each item. */
 .pop-in {
-  animation: pop-in var(--duration-slow) var(--ease-spring) both;
+  /* `backwards`, not `both`: a transform animation that keeps filling after it ends makes the
+     element a containing block and stacking context, so a `position: fixed` search sheet or a
+     dropdown inside it was clipped to the tile and sat under the next tile (mobile search P0). */
+  animation: pop-in var(--duration-slow) var(--ease-spring) backwards;
   animation-delay: calc(var(--i, 0) * 60ms);
 }
 
@@ -288,4 +291,9 @@ img[data-broken] {
     animation-name: fade-in;
     animation-duration: 120ms;
   }
+}
+
+/* Shared "search is open" signal (src/components/ui/search-open.ts): the sticky bar steps aside. */
+body[data-search-open] [data-bottom-bar] {
+  display: none;
 }

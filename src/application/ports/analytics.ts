@@ -54,6 +54,8 @@ export type FunnelStep = { step: string; devices: number };
 
 export type TopLists = {
   events: { eventId: string; title: string | null; opens: number }[];
+  /** D-092: shows saved (♡) by the most devices. */
+  saved: { eventId: string; title: string | null; opens: number }[];
   artists: Count[];
   wanted: Count[];
   searches: { query: string; count: number; results: number }[];
@@ -90,4 +92,26 @@ export type AnalyticsDashboard = {
 export interface AnalyticsReadModel {
   dashboard(now: Date): Promise<AnalyticsDashboard>;
   person(id: string): Promise<{ person: NamedPerson; timeline: TimelineEntry[] } | null>;
+}
+
+// ── Saved shows sync (D-092) ───────────────────────────────────────────────
+
+export type SyncedShow = {
+  eventId: string;
+  savedAt: string | null;
+  removedAt: string | null;
+  /** Null when the show is no longer listed (held); the device keeps what it has. */
+  show: { title: string; startsAt: string; city: string | null } | null;
+};
+
+export type SavedChanges = {
+  saves: { eventId: string; at: Date }[];
+  removes: { eventId: string; at: Date }[];
+};
+
+export interface SavedShowsStore {
+  /** The device's person's saved shows; `synced` is false unless that person gave an email. */
+  list(deviceId: string): Promise<{ synced: boolean; shows: SyncedShow[] }>;
+  /** Applies saves/unsaves (latest wins) for an emailed person; false (a no-op) otherwise. */
+  apply(deviceId: string, changes: SavedChanges): Promise<boolean>;
 }

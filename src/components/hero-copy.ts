@@ -6,6 +6,21 @@ import { istDayNumber, istParts } from "./event-format";
 const MAX_TITLE = 32;
 
 /**
+ * The hero carousel's one source of truth: the slide at `index` (wrapping, and safe when the
+ * list shrinks after a refresh). The picture, title, badge, countdown and link are all drawn
+ * from this one object and keyed by its `id`, so the photo can never show one show while the
+ * title shows another.
+ */
+export function slideAt<T extends { id: string }>(
+  items: readonly T[],
+  index: number,
+): { slide: T; index: number } | null {
+  if (items.length === 0) return null;
+  const i = ((Math.trunc(index) % items.length) + items.length) % items.length;
+  return { slide: items[i]!, index: i };
+}
+
+/**
  * UX #6: the hero's next shows. Among the soonest `window` upcoming shows, ready playlists come
  * first, then ones being made, then the rest; soonest first within each. Stable.
  */

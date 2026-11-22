@@ -13,6 +13,7 @@ import {
 } from "react";
 import { CONSENT_TEXT, type ContactSource } from "@/domain/analytics/identity";
 import { deviceId } from "../analytics/device-id";
+import { EMAIL_SAVED_EVENT } from "../saved/saved-sync";
 import { Button } from "../ui/Button";
 import { cx } from "../ui/cx";
 import { haptic } from "../ui/feedback";
@@ -280,6 +281,7 @@ function EmailSheet({ source, onDone }: { source: ContactSource; onDone: () => v
     if (name.trim()) body.name = name.trim();
     if (await postIdentity(body)) {
       update((s) => ({ ...s, emailSaved: true }));
+      window.dispatchEvent(new Event(EMAIL_SAVED_EVENT)); // D-092: upload local saves
       haptic("success");
       toast.show(ID_COPY.saved);
       onDone();

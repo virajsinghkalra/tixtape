@@ -12,13 +12,19 @@ import {
   saveNickname,
   type ContactInput,
 } from "@/application/analytics";
-import type { AnalyticsDashboard, AnalyticsReadModel } from "@/application/ports/analytics";
+import type {
+  AnalyticsDashboard,
+  AnalyticsReadModel,
+  SavedChanges,
+  SyncedShow,
+} from "@/application/ports/analytics";
 import type { RateLimiter } from "@/application/ports/engagement";
 import type { Beacon } from "@/domain/analytics/beacon";
 import { demandCity } from "@/domain/gigs/demand";
 import { PgAnalyticsDashboard } from "@/infrastructure/db/analytics-dashboard";
 import { PgAnalyticsStore } from "@/infrastructure/db/analytics-store";
 import { PgRateLimiter } from "@/infrastructure/db/pg-rate-limiter";
+import { PgSavedShowsStore } from "@/infrastructure/db/saved-shows-store";
 import { InMemoryRateLimiter } from "@/infrastructure/in-memory-rate-limiter";
 import { env } from "@/lib/env";
 import { RateLimitedError } from "@/lib/errors";
@@ -31,12 +37,16 @@ import { CITY_COOKIE, visitorCity } from "@/server/location";
 const BEACON_LIMIT = { limit: 120, windowMs: 60_000 };
 /** Nickname, email and delete: people do these once; this blunts scripted abuse. */
 const IDENTITY_LIMIT = { limit: 10, windowMs: 60 * 60_000 };
+/** D-092: saves, unsaves and one sync per session. */
+const SAVED_LIMIT = { limit: 120, windowMs: 10 * 60_000 };
 
 type Analytics = {
   store: PgAnalyticsStore;
   dashboard: AnalyticsReadModel;
   beaconLimiter: RateLimiter;
   identityLimiter: RateLimiter;
+  saved: PgSavedShowsStore;
+  savedLimiter: RateLimiter;
 };
 
 function limiter(name: string, cfg: { limit: number; windowMs: number }): RateLimiter {
@@ -54,6 +64,8 @@ function build(): Analytics {
     dashboard: new PgAnalyticsDashboard(db),
     beaconLimiter: limiter("analytics:beacon", BEACON_LIMIT),
     identityLimiter: limiter("analytics:identity", IDENTITY_LIMIT),
+    saved: new PgSavedShowsStore(db),
+    savedLimiter: limiter("analytics:saved", SAVED_LIMIT),
   };
 }
 
@@ -150,4 +162,28 @@ export function analyticsDashboard(): Promise<AnalyticsDashboard> {
 
 export function analyticsPerson(id: string) {
   return analytics().dashboard.person(id);
+}
+
+async function guardSaved(req: Request): Promise<void> {
+  if (!(await analytics().savedLimiter.take(clientKey(req), container().clock.now()))) {
+    throw new RateLimitedError("Too many tries. Try again later.", 600);
+  }
+}
+
+/** D-092: this device's person's saved shows (empty and `synced: false` unless emailed). */
+export async function savedShowsOf(
+  req: Request,
+  deviceId: string,
+): Promise<{ synced: boolean; shows: SyncedShow[] }> {
+  await guardSaved(req);
+  return analytics().saved.list(deviceId);
+}
+
+export async function applySavedChanges(
+  req: Request,
+  deviceId: string,
+  changes: SavedChanges,
+): Promise<boolean> {
+  await guardSaved(req);
+  return analytics().saved.apply(deviceId, changes);
 }

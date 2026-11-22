@@ -1,11 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
+import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
-import { countdownLabel } from "./hero-copy";
+import { countdownLabel, slideAt } from "./hero-copy";
 import { cx } from "./ui/cx";
 import { Sticker } from "./ui/Sticker";
 
@@ -39,7 +39,8 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
   const [held, setHeld] = useState(false);
   const swipe = useRef<{ x: number; moved: boolean } | null>(null);
   const count = items.length;
-  const item = items[index % count]!;
+  // One slide object drives the picture, title, badge and link (never out of sync).
+  const { slide: item, index: current } = slideAt(items, index)!;
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), TICK_MS);
@@ -78,21 +79,23 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
           }
         }}
       >
-        <AnimatePresence initial={false}>
-          <motion.div
-            key={item.id}
-            className="absolute inset-0 -z-10"
-            initial={{ opacity: 0, scale: 1.08 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-          >
-            <EventVisual poster={item.poster} artists={item.artists} label={item.label} />
-            <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92),rgb(11_11_15/0.35)_55%,rgb(11_11_15/0.15))]" />
-          </motion.div>
-        </AnimatePresence>
+        {/* Keyed by the slide's id with no exit animation: the old picture unmounts at once, so
+            a stalled exit (background tab, slow device) can never leave it over a new title. */}
+        <motion.div
+          key={`picture-${item.id}`}
+          data-slide={item.id}
+          className="absolute inset-0 -z-10 bg-night"
+          initial={{ opacity: 0, scale: 1.08 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        >
+          <EventVisual poster={item.poster} artists={item.artists} label={item.label} />
+          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92),rgb(11_11_15/0.35)_55%,rgb(11_11_15/0.15))]" />
+        </motion.div>
 
         <Link
+          key={`link-${item.id}`}
+          data-slide={item.id}
           href={`/events/${item.id}`}
           draggable={false}
           onClick={(e) => {
@@ -135,7 +138,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
                 key={it.id}
                 type="button"
                 aria-label={`Show ${i + 1}: ${it.title}`}
-                aria-current={i === index || undefined}
+                aria-current={i === current || undefined}
                 onClick={() => setIndex(i)}
                 // QA-F-17: a 44px hit area around a small dot.
                 className="grid size-11 place-items-center"
@@ -143,7 +146,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
                 <span
                   className={cx(
                     "block h-2 rounded-full bg-white transition-[width,opacity] duration-300",
-                    i === index ? "w-5 opacity-100" : "w-2 opacity-50",
+                    i === current ? "w-5 opacity-100" : "w-2 opacity-50",
                   )}
                 />
               </button>

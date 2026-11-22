@@ -15,6 +15,7 @@ import {
   type LandedShow,
 } from "./device/device-lists";
 import { useDeviceList } from "./device/use-device-list";
+import { SAVE_COPY } from "./saved/save-copy";
 import { ShowRow } from "./ShowRow";
 import { SPRING_SOFT } from "./ui/motion";
 import { COPY, justLanded } from "./ux-copy";
@@ -133,6 +134,14 @@ export function YourGigs() {
       <ShowRow
         title={COPY.yourGigs}
         emoji="♥"
+        aside={
+          <Link
+            href="/me/gigs"
+            className="text-sm font-semibold underline-offset-4 hover:underline"
+          >
+            {SAVE_COPY.seeAll} <span aria-hidden>→</span>
+          </Link>
+        }
         items={upcoming.map((s) => ({
           id: s.id,
           title: s.title,

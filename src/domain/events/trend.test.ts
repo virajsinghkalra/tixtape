@@ -16,7 +16,7 @@ describe("trend score", () => {
   });
 
   it("weights: view 1, search click 3, playlist open 5", () => {
-    expect(ENGAGEMENT_WEIGHTS).toEqual({ view: 1, search_click: 3, playlist_open: 5 });
+    expect(ENGAGEMENT_WEIGHTS).toEqual({ view: 1, search_click: 3, playlist_open: 5, save: 2 });
   });
 
   it.each([

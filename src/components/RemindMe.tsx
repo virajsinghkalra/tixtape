@@ -19,6 +19,8 @@ type Props = {
   googleHref: string;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Open the desktop menu upwards (inside a card pinned to the bottom, D-092). */
+  menuUp?: boolean;
 };
 
 /**
@@ -33,6 +35,7 @@ export function RemindMe({
   googleHref,
   variant = "secondary",
   size = "md",
+  menuUp = false,
 }: Props) {
   const reminded = useDeviceList(REMINDED);
   const done = reminded.ready && reminded.has(eventId);
@@ -95,6 +98,7 @@ export function RemindMe({
           id={menuId}
           icsHref={icsHref}
           googleHref={googleHref}
+          up={menuUp}
           onPick={() => {
             setMenu(false);
             mark();
@@ -114,12 +118,14 @@ function CalendarMenu({
   id,
   icsHref,
   googleHref,
+  up,
   onPick,
   onClose,
 }: {
   id: string;
   icsHref: string;
   googleHref: string;
+  up: boolean;
   onPick: () => void;
   onClose: () => void;
 }) {
@@ -149,7 +155,7 @@ function CalendarMenu({
       id={id}
       role="dialog"
       aria-label="Add to calendar"
-      className="pop-in absolute top-full left-0 z-40 mt-2 w-56 rounded-card border-2 border-night bg-surface p-2 shadow-[4px_5px_0_0_var(--color-night)]"
+      className={`pop-in absolute left-0 z-40 w-56 ${up ? "bottom-full mb-2" : "top-full mt-2"} rounded-card border-2 border-night bg-surface p-2 shadow-[4px_5px_0_0_var(--color-night)]`}
     >
       <a href={icsHref} onClick={onPick} className={item}>
         <span aria-hidden>🍎</span> {COPY.calendarApple}

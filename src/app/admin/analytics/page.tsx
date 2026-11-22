@@ -63,6 +63,16 @@ export default async function AnalyticsPage() {
             }))}
           />
         </Panel>
+        <Panel title="Top saved shows ♡">
+          <BarList
+            rows={top.saved.map((e) => ({
+              key: e.eventId,
+              label: e.title ?? "Removed event",
+              value: e.opens,
+            }))}
+            tone="bg-pink"
+          />
+        </Panel>
         <Panel title="Top artists">
           <BarList rows={top.artists.map((a) => ({ key: a.key, label: a.key, value: a.count }))} />
         </Panel>

@@ -4,7 +4,8 @@
  */
 export const TREND_HALF_LIFE_MS = 7 * 86_400_000;
 
-export const ENGAGEMENT_WEIGHTS = { view: 1, search_click: 3, playlist_open: 5 } as const;
+/** D-092: a save (♡) weighs 2. */
+export const ENGAGEMENT_WEIGHTS = { view: 1, search_click: 3, playlist_open: 5, save: 2 } as const;
 export type EngagementKind = keyof typeof ENGAGEMENT_WEIGHTS;
 
 /** The score as of `now`; a timestamp in the future counts as no time passed. */

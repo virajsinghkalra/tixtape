@@ -211,6 +211,7 @@ describe("PgAnalyticsDashboard (D-090)", () => {
         { n: "playlist_make", p: { eventId } },
         { n: "share", p: { channel: "native", eventId } },
         { n: "ping_me", p: { artist: "Coldplay" } },
+        { n: "save", p: { eventId } },
       ],
       NOW,
       { source: "whatsapp", city: "Mumbai" },
@@ -247,6 +248,7 @@ describe("PgAnalyticsDashboard (D-090)", () => {
     ]);
     expect(d.top.events).toEqual([{ eventId, title: "Coldplay Live", opens: 2 }]);
     expect(d.top.artists).toEqual([{ key: "Coldplay", count: 2 }]);
+    expect(d.top.saved).toEqual([{ eventId, title: "Coldplay Live", opens: 1 }]);
     expect(d.top.searches).toEqual([{ query: "coldplay", count: 2, results: 0 }]);
     expect(d.top.zeroResults).toEqual([{ key: "coldplay", count: 2 }]);
     expect(d.top.wanted).toEqual([{ key: "Coldplay", count: 1 }]);
