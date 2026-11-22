@@ -97,6 +97,8 @@ export function viewFromStatus(body: unknown): PlaylistView {
   const parsed = statusBody.safeParse(body);
   if (!parsed.success || parsed.data.status === "none") return { kind: "idle" };
   const d = parsed.data;
+  // A refresh of an existing playlist never hides it: the old one plays until the new one lands.
+  if (d.status === "building" && d.url) return ready(d.url, { builtAt: null, refresh: "pending" });
   if (d.status === "building") {
     const joining: PlaylistView = {
       kind: "building",

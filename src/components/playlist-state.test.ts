@@ -292,3 +292,14 @@ describe("isVisiblePause (our own pacing is not a pause)", () => {
     expect(isVisiblePause("2026-11-22T18:00:00Z", now)).toBe(true);
   });
 });
+
+describe("viewFromStatus: refresh of an existing playlist", () => {
+  it("shows the existing playlist as ready while a refresh is building", () => {
+    const v = viewFromStatus({
+      status: "building",
+      jobId: "j",
+      url: "https://open.spotify.com/playlist/x",
+    });
+    expect(v.kind).toBe("ready");
+  });
+});
