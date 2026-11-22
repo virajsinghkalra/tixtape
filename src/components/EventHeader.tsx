@@ -79,14 +79,14 @@ export function EventHeader({ event, now }: Props) {
           >
             {event.title}
           </h1>
-          <p className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-lg font-semibold">
-            <span>
-              <span aria-hidden>📅 </span>
+          <p className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-lg font-semibold">
+            <span className="flex items-baseline gap-2">
+              <span aria-hidden>📅</span>
               <time dateTime={event.startsAt.toISOString()}>{when}</time>
             </span>
-            <span>
-              <span aria-hidden>📍 </span>
-              {where}
+            <span className="flex items-baseline gap-2">
+              <span aria-hidden>📍</span>
+              <span>{where}</span>
             </span>
           </p>
         </div>
