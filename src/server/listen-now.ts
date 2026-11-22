@@ -2,7 +2,9 @@
 import { readListenNow } from "@/infrastructure/db/listen-now-reader";
 import { PgSpotifyGateStore } from "@/infrastructure/db/spotify-gate-store";
 import type { ListenNow } from "@/domain/events/listen-now";
+import type { EventId } from "@/domain/shared/ids";
 import { container } from "./container";
+import { playlists } from "./playlists";
 
 /** `paused`: Spotify is on a cool-down, so "Make playlist" would only stall. */
 export async function listenNow(
@@ -15,4 +17,15 @@ export async function listenNow(
     new PgSpotifyGateStore(db).readPausedUntil(),
   ]);
   return data && { ...data, paused: until !== null && until > now };
+}
+
+/**
+ * One tour, one playlist: an event with no playlist of its own reports its tour sibling's as
+ * ready, so the page uses the same proven "Open in Spotify" path as any ready playlist.
+ */
+export async function sharedOrTourStatus(eventId: EventId): Promise<unknown> {
+  const own = await playlists().getSharedStatus(eventId);
+  if (own.status !== "none") return own;
+  const data = await readListenNow(container().db, eventId, new Date());
+  return data?.sibling ? { status: "ready", url: data.sibling.url } : own;
 }

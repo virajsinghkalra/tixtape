@@ -20,6 +20,7 @@ import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { ButtonLink } from "@/components/ui/Button";
 import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
+import { sharedOrTourStatus } from "@/server/listen-now";
 import { playlists } from "@/server/playlists";
 
 export const dynamic = "force-dynamic";
@@ -61,14 +62,16 @@ export default async function EventPage({ params, searchParams }: Params) {
   const initialPlaylistStatus: unknown = await playlists()
     .getSharedStatus(event.id)
     .then(async (s) =>
-      s.status === "building"
-        ? {
-            ...s,
-            progress: await playlists()
-              .getProgress(s.jobId)
-              .catch(() => undefined),
-          }
-        : s,
+      s.status === "none"
+        ? sharedOrTourStatus(event.id)
+        : s.status === "building"
+          ? {
+              ...s,
+              progress: await playlists()
+                .getProgress(s.jobId)
+                .catch(() => undefined),
+            }
+          : s,
     )
     .then((s) => JSON.parse(JSON.stringify(s)) as unknown)
     .catch(() => null);

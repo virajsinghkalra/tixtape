@@ -2,6 +2,7 @@ import { parseEventId } from "@/application/events";
 import { PlaylistUnavailableError } from "@/application/playlists";
 import { RateLimitedError } from "@/lib/errors";
 import { json, route, type ErrorBody } from "@/server/http";
+import { sharedOrTourStatus } from "@/server/listen-now";
 import { clientKey, playlists, requireEmptyBody } from "@/server/playlists";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -32,6 +33,6 @@ export const POST = route(async (req: Request, ctx: Ctx) => {
 
 /** GET /api/events/:id/playlist: `{status:"none"|"building"|"ready", url?, builtAt?, stale?, jobId?}`. */
 export const GET = route(async (_req: Request, ctx: Ctx) => {
-  const status = await playlists().getSharedStatus(parseEventId((await ctx.params).id));
+  const status = await sharedOrTourStatus(parseEventId((await ctx.params).id));
   return json(status, 200, { "Cache-Control": "no-store" });
 });
