@@ -1,6 +1,7 @@
 import type { EventDetail } from "@/application/ports/events";
 import { calendarEventOf, googleCalendarUrl } from "@/domain/events/calendar";
 import { env } from "@/lib/env";
+import { hasEnded } from "./event-format";
 import { RemindMe } from "./RemindMe";
 import { SaveButton } from "./SaveButton";
 
@@ -9,16 +10,19 @@ import { SaveButton } from "./SaveButton";
  * event header's button row: "Remind me 🔔" and "♡ Save". Server-rendered links, so the .ics
  * link works before any script loads.
  */
-export function EventActions({ event }: { event: EventDetail }) {
+export function EventActions({ event, now }: { event: EventDetail; now: Date }) {
   const origin = new URL(env().APP_URL).origin;
   const google = googleCalendarUrl(calendarEventOf(event, origin));
   return (
     <>
-      <RemindMe
-        eventId={event.id}
-        icsHref={`/api/events/${event.id}/calendar.ics`}
-        googleHref={google}
-      />
+      {/* No reminder for a show that is over. */}
+      {!hasEnded(event.startsAt, event.endsAt, now) && (
+        <RemindMe
+          eventId={event.id}
+          icsHref={`/api/events/${event.id}/calendar.ics`}
+          googleHref={google}
+        />
+      )}
       <SaveButton
         remind={{ icsHref: `/api/events/${event.id}/calendar.ics`, googleHref: google }}
         show={{

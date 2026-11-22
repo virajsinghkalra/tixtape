@@ -3,6 +3,7 @@ import {
   countdownBadge,
   formatDateRange,
   formatStartTime,
+  hasEnded,
   istDayCount,
   istParts,
   shortDate,
@@ -80,6 +81,18 @@ describe("countdownBadge", () => {
     ["over", "2026-11-19T12:00:00+05:30", "2026-11-19T23:00:00+05:30", "🎬", "Ended"],
   ])("%s", (_name, start, end, emoji, label) => {
     expect(countdownBadge(d(start), end ? d(end) : null, now)).toMatchObject({ emoji, label });
+  });
+});
+
+describe("hasEnded", () => {
+  const now = new Date("2026-11-23T12:00:00Z");
+  it("is true the day after a show, false while it is on or ahead", () => {
+    expect(hasEnded(new Date("2026-11-22T10:00:00Z"), null, now)).toBe(true);
+    expect(hasEnded(new Date("2026-11-22T10:00:00Z"), new Date("2026-11-23T18:00:00Z"), now)).toBe(
+      false,
+    );
+    expect(hasEnded(new Date("2026-11-23T14:00:00Z"), null, now)).toBe(false);
+    expect(hasEnded(new Date("2026-12-01T14:00:00Z"), null, now)).toBe(false);
   });
 });
 

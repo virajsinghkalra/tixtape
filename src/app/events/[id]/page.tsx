@@ -97,7 +97,7 @@ export default async function EventPage({ params, searchParams }: Params) {
   const actions = (
     <>
       <ShareButton title={event.title} text={shareText(event.title, names)} />
-      <EventActions event={event} />
+      <EventActions event={event} now={now} />
       {outbound && (
         <ButtonLink
           href={outbound.url}

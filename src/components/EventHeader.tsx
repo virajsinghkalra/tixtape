@@ -2,7 +2,7 @@ import type { EventDetail } from "@/application/ports/events";
 import { eventTone } from "./event-color";
 import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
-import { formatDateRange, formatStartTime } from "./event-format";
+import { formatDateRange, formatStartTime, hasEnded } from "./event-format";
 import { titleSize, type TitleSize } from "./lineup-copy";
 import { cx } from "./ui/cx";
 import { ButtonLink } from "./ui/Button";
@@ -75,9 +75,12 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
             >
               {event.type === "festival" ? "Festival" : "Concert"}
             </Sticker>
-            <Sticker tone="surface" tilt={-2} size="md" emoji={status.emoji}>
-              {status.label}
-            </Sticker>
+            {/* An ended show's "Announced" / "Lineup dropping" is stale: only "Cancelled" stays. */}
+            {(event.status === "cancelled" || !hasEnded(event.startsAt, event.endsAt, now)) && (
+              <Sticker tone="surface" tilt={-2} size="md" emoji={status.emoji}>
+                {status.label}
+              </Sticker>
+            )}
           </div>
           <h1
             className={cx(

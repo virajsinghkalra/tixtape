@@ -102,6 +102,12 @@ export function countdownBadge(startsAt: Date, endsAt: Date | null, now: Date): 
   return { emoji: "📅", label: `In ${Math.round(days / 30)} months`, tone: "sky", live: false };
 }
 
+/** True once the show's last IST day is over (the same rule as the "Ended" sticker). */
+export function hasEnded(startsAt: Date, endsAt: Date | null, now: Date): boolean {
+  const b = countdownBadge(startsAt, endsAt, now);
+  return b.label === "Ended";
+}
+
 /** How many IST calendar days a show spans (1 for a single night). */
 export function istDayCount(startsAt: Date, endsAt: Date | null): number {
   if (!endsAt) return 1;
