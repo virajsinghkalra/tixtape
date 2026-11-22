@@ -206,10 +206,15 @@ export function EventCard({
         </details>
       )}
       {/* Sell the playlist: one tap to Spotify, tickets a quiet link beside it. */}
-      <div className="flex items-center gap-3 px-4 pb-4">
+      <div className="flex items-center gap-2 px-4 pb-4">
         {playlistUrl ? (
-          <SpotifyOpenLink href={playlistUrl} size="md" className="flex-1" eventId={event.id}>
-            <span aria-hidden>🎧</span> Play the playlist <span aria-hidden>↗</span>
+          <SpotifyOpenLink
+            href={playlistUrl}
+            size="md"
+            className="min-w-0 flex-1 px-3 whitespace-nowrap"
+            eventId={event.id}
+          >
+            <span aria-hidden>🎧</span> Play the playlist
           </SpotifyOpenLink>
         ) : (
           <ButtonLink href={`/events/${event.id}#playlist`} variant="secondary" className="flex-1">
@@ -223,9 +228,9 @@ export function EventCard({
             rel="noopener noreferrer"
             data-track={outbound.kind === "tickets" ? "ticket_click" : undefined}
             data-track-event={outbound.kind === "tickets" ? event.id : undefined}
-            className="shrink-0 text-sm font-semibold text-muted underline-offset-4 hover:underline"
+            className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-semibold text-muted underline-offset-4 hover:underline"
           >
-            {outbound.kind === "tickets" ? "Tickets" : "Info"} <span aria-hidden>↗</span>
+            {outbound.kind === "tickets" ? "Tickets" : "Info"}
           </a>
         )}
       </div>
