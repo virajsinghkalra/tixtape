@@ -81,7 +81,7 @@ export default async function Home({ searchParams }: Props) {
   const empty = rows.length === 0;
   const next = rows[0];
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
-  const hero = pickNextUp(rows);
+  const hero = pickNextUp(rows, now);
   const heroIds = new Set(hero.map((e) => e.id));
   const trending = pickTrending(
     rows,

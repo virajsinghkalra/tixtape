@@ -49,7 +49,13 @@ describe("countdownLabel", () => {
 });
 
 describe("pickNextUp (UX #6)", () => {
-  const ev = (id: string, playlistStatus: "ready" | "building" | null) => ({ id, playlistStatus });
+  const NOW = new Date("2026-11-23T12:00:00Z");
+  const ev = (
+    id: string,
+    playlistStatus: "ready" | "building" | null,
+    startsAt = new Date("2026-12-01T14:00:00Z"),
+    endsAt: Date | null = null,
+  ) => ({ id, playlistStatus, startsAt, endsAt });
   it("ready playlists first, then cooking, then soonest", () => {
     const rows = [
       ev("a", null),
@@ -58,11 +64,19 @@ describe("pickNextUp (UX #6)", () => {
       ev("d", null),
       ev("e", "ready"),
     ];
-    expect(pickNextUp(rows).map((r) => r.id)).toEqual(["c", "e", "b"]);
+    expect(pickNextUp(rows, NOW).map((r) => r.id)).toEqual(["c", "e", "b"]);
+  });
+  it("skips shows that already ended", () => {
+    const rows = [
+      ev("gone", "ready", new Date("2026-11-23T05:00:00Z"), new Date("2026-11-23T08:00:00Z")),
+      ev("live", null, new Date("2026-11-23T10:00:00Z"), new Date("2026-11-23T16:00:00Z")),
+      ev("soon", null),
+    ];
+    expect(pickNextUp(rows, NOW).map((r) => r.id)).toEqual(["live", "soon"]);
   });
   it("only looks at the soonest shows", () => {
     const rows = [...Array.from({ length: 12 }, (_, i) => ev(`n${i}`, null)), ev("late", "ready")];
-    expect(pickNextUp(rows).map((r) => r.id)).toEqual(["n0", "n1", "n2"]);
+    expect(pickNextUp(rows, NOW).map((r) => r.id)).toEqual(["n0", "n1", "n2"]);
   });
 });
 

@@ -24,14 +24,22 @@ export function slideAt<T extends { id: string }>(
  * UX #6: the hero's next shows. Among the soonest `window` upcoming shows, ready playlists come
  * first, then ones being made, then the rest; soonest first within each. Stable.
  */
-export function pickNextUp<T extends { playlistStatus: "ready" | "building" | null }>(
-  soonest: readonly T[],
-  n = 3,
-  window = 12,
-): T[] {
+export function pickNextUp<
+  T extends {
+    playlistStatus: "ready" | "building" | null;
+    startsAt: Date;
+    endsAt?: Date | null;
+    startsAtDateOnly?: boolean | null;
+  },
+>(soonest: readonly T[], now: Date, n = 3, window = 12): T[] {
   const rank = (t: T) =>
     t.playlistStatus === "ready" ? 0 : t.playlistStatus === "building" ? 1 : 2;
-  return soonest
+  // Shows that already ended never headline "Next up" (they stay visible elsewhere for 12 h).
+  const upcoming = soonest.filter(
+    (t) =>
+      countdownLabel(t.startsAt, t.endsAt ?? null, now, t.startsAtDateOnly ?? false) !== "Ended",
+  );
+  return upcoming
     .slice(0, window)
     .map((t, i) => ({ t, i }))
     .sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
