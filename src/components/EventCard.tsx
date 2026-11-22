@@ -5,6 +5,8 @@ import { eventTone } from "./event-color";
 import { ticketLink } from "./links";
 import { hasPhoto, type VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
+import { HeartButton } from "./HeartButton";
+import { toSavedShowInput } from "./saved/save-show";
 import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts, yearTag } from "./event-format";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
@@ -73,13 +75,15 @@ export function EventCard({
       data-testid="event-card"
       style={{ "--i": index } as CSSProperties}
       className={cx(
-        "pop-in group flex h-full flex-col overflow-hidden rounded-card border-2 border-night bg-surface",
+        "pop-in group relative flex h-full flex-col overflow-hidden rounded-card border-2 border-night bg-surface",
         "shadow-[4px_5px_0_0_var(--color-night)] transition-[translate,box-shadow] duration-(--duration-base) ease-spring",
         "hover:-translate-y-1 hover:shadow-[6px_8px_0_0_var(--color-night)] active:translate-y-0",
         "dark:border-line dark:shadow-[4px_5px_0_0_var(--color-violet)] dark:hover:shadow-[6px_8px_0_0_var(--color-violet)]",
         "has-[a:focus-visible]:outline-[3px] has-[a:focus-visible]:outline-offset-4 has-[a:focus-visible]:outline-focus",
       )}
     >
+      {/* A sibling of the link, not inside it: no nested interactive elements. */}
+      <HeartButton show={toSavedShowInput(event)} className="absolute top-2 right-2 z-10" />
       <Link
         href={`/events/${event.id}`}
         aria-label={badge === "🎧 Live" ? `${event.title}, playlist live` : undefined}
@@ -103,7 +107,8 @@ export function EventCard({
               <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.9),rgb(11_11_15/0.25)_65%,rgb(11_11_15/0.1))]" />
             </div>
           )}
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          {/* pr-9: keeps the stickers clear of the heart (top-right). */}
+          <div className="flex flex-wrap items-start justify-between gap-2 pr-9">
             <Countdown
               startsAt={event.startsAt.toISOString()}
               endsAt={event.endsAt?.toISOString() ?? null}
