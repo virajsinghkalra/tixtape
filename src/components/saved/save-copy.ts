@@ -11,5 +11,5 @@ export const SAVE_COPY = {
   beenThere: "Been there ✓",
   empty: "Nothing saved yet ♡",
   findGigs: "Find a gig",
-  openPlaylist: "Open playlist",
+  openPlaylist: "Listen now",
 } as const;
