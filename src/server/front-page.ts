@@ -9,6 +9,7 @@ import type { EventFeedReader, FeedRow } from "@/application/ports/event-feed";
 import { PgArtistPopularityStore, PgEventFeed } from "@/infrastructure/db/event-feed";
 import { LastfmPopularity } from "@/infrastructure/music-signals/lastfm";
 import { env } from "@/lib/env";
+import { hasEnded } from "@/components/event-format";
 import { container } from "./container";
 
 const TTL_MS = 5 * 60_000;
@@ -19,6 +20,10 @@ let cached: { at: number; rows: FeedRow[] } | undefined;
 function feed(): EventFeedReader {
   if (reader) return reader;
   const db = new PgEventFeed(container().db);
+  // Lists (home, /ready, /week, /upcoming) never show a show that already ended: it lives on
+  // /past. Its event page stays reachable for 12 h through search and links.
+  const notEnded = (rows: FeedRow[]) =>
+    rows.filter((r) => !hasEnded(r.startsAt, r.endsAt, new Date()));
   reader = {
     async upcoming(opts) {
       const now = Date.now();
@@ -26,11 +31,11 @@ function feed(): EventFeedReader {
         // QA-F-15: never serve a card for an event hidden or archived since it was cached (that
         // page would 404). Works across instances and for changes made by scripts.
         const live = await db.stillPublished(cached.rows.map((r) => r.id));
-        return cached.rows.filter((r) => live.has(r.id));
+        return notEnded(cached.rows.filter((r) => live.has(r.id)));
       }
       const rows = await db.upcoming(opts);
       cached = { at: now, rows };
-      return rows;
+      return notEnded(rows);
     },
   };
   return reader;
