@@ -2,15 +2,10 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useState } from "react";
-import { track } from "./analytics/track";
-import { SAVED, type SavedShow } from "./device/device-lists";
-import { useDeviceList } from "./device/use-device-list";
+import type { SavedShow } from "./device/device-lists";
 import { buttonClass, type ButtonSize, type ButtonVariant } from "./ui/Button";
-import { haptic } from "./ui/feedback";
-import { useToast } from "./ui/Toast";
-import { SAVE_COPY } from "./saved/save-copy";
 import { SaveFeedback } from "./saved/SaveFeedback";
-import { noteSave, noteUnsave } from "./saved/saved-sync";
+import { useSaveToggle } from "./saved/useSaveToggle";
 import { COPY } from "./ux-copy";
 
 type Props = {
@@ -27,29 +22,11 @@ type Props = {
  * to the server for a person who opted in with an email.
  */
 export function SaveButton({ show, variant = "secondary", size = "md", remind }: Props) {
-  const saved = useDeviceList(SAVED);
-  const on = saved.ready && saved.has(show.id);
   const reduceMotion = useReducedMotion();
-  const toast = useToast();
   const [feedback, setFeedback] = useState(false);
   const close = useCallback(() => setFeedback(false), []);
-
-  function toggle() {
-    const at = new Date().toISOString();
-    if (on) {
-      saved.remove(show.id);
-      noteUnsave(show.id, at);
-      setFeedback(false);
-      haptic("tap");
-      toast.show(SAVE_COPY.removed);
-      return;
-    }
-    saved.add({ ...show, savedAt: at });
-    noteSave(show.id, at);
-    track("save", { eventId: show.id });
-    haptic("success");
-    setFeedback(true);
-  }
+  const onSaved = useCallback(() => setFeedback(true), []);
+  const { on, toggle } = useSaveToggle(show, { onSaved, onRemoved: close });
 
   return (
     <>
