@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArtistAvatar } from "./ArtistAvatar";
-import { istParts } from "./event-format";
+import { shortDate } from "./event-format";
 import { EASE_OUT_EXPO } from "./ui/motion";
 
 export type ShowRowItem = {
@@ -20,7 +20,7 @@ export type ShowRowItem = {
 /** "22 Nov · Mumbai". */
 export function shortWhen(startsAt: string, city: string | null): string {
   const d = new Date(startsAt);
-  const when = Number.isNaN(d.getTime()) ? "" : `${istParts(d).day} ${istParts(d).month}`;
+  const when = Number.isNaN(d.getTime()) ? "" : shortDate(d);
   return [when, city].filter(Boolean).join(" · ");
 }
 

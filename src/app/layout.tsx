@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
 import { Analytics } from "@/components/analytics/Analytics";
@@ -14,6 +14,7 @@ import { WebVitals } from "@/components/pwa/WebVitals";
 import { ImageGuard } from "@/components/ui/ImageGuard";
 import { MotionProvider } from "@/components/ui/MotionProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { SITE_URL } from "@/lib/site";
 import { withTimeout } from "@/lib/timeout";
 import { SESSION_COOKIE } from "@/server/auth/cookies";
@@ -69,6 +70,9 @@ async function headerUser(): Promise<HeaderUser | null> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await headerUser();
+  const city =
+    visitorCity({ headers: await headers(), cookie: (await cookies()).get(CITY_COOKIE)?.value })
+      ?.city ?? null;
   return (
     <html lang="en-IN" className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable}`}>
       <body className="flex min-h-dvh flex-col antialiased">
@@ -81,7 +85,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             >
               Skip to content
             </a>
-            <SiteHeader user={user} />
+            <SiteHeader user={user} city={city} />
             <main id="main" tabIndex={-1} className="flex-1 outline-none">
               {children}
             </main>

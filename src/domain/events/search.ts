@@ -16,7 +16,7 @@ import {
 import { jaroWinkler } from "./similarity";
 import { foldText } from "./text";
 import { decayedTrend } from "./trend";
-import { normalizeCity, normalizeVenueName } from "./venue";
+import { canonicalCity, normalizeCity, normalizeVenueName } from "./venue";
 
 export type { SearchFilters } from "./query-parse";
 
@@ -560,4 +560,19 @@ function closestTitleWord(title: string, q: SearchQuery): string {
     }
   }
   return best.word;
+}
+
+/** True when the event is in the visitor's own city. */
+export function inHomeCity(eventCity: string | null, homeCity: string): boolean {
+  return eventCity !== null && canonicalCity(eventCity) === canonicalCity(homeCity);
+}
+
+/** City-first: the visitor's city matches first, the rest after, each keeping its rank order. */
+export function cityFirst<T extends { city: string | null }>(
+  ranked: readonly T[],
+  homeCity: string,
+): { items: T[]; inCity: number } {
+  const here = ranked.filter((r) => inHomeCity(r.city, homeCity));
+  const rest = ranked.filter((r) => !inHomeCity(r.city, homeCity));
+  return { items: [...here, ...rest], inCity: here.length };
 }

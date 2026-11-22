@@ -49,6 +49,8 @@ export type SuggestResponse = {
   artists: ArtistEntity[];
   cities: CityEntity[];
   filters: SearchFilters;
+  /** City-first grouping: the visitor's city and how many results are in it. */
+  homeCity?: { city: string; inCity: number };
   fallback: EventResult[];
   didYouMean?: string;
 };

@@ -40,6 +40,18 @@ export function istParts(date: Date): DateParts {
   };
 }
 
+/** "'27" when the event's IST year differs from the current IST year, else "". */
+export function yearTag(date: Date, now: Date = new Date()): string {
+  const year = istParts(date).year;
+  return year === istParts(now).year ? "" : `'${year.slice(-2)}`;
+}
+
+/** "20 Mar" or "20 Mar '27" (another year). */
+export function shortDate(date: Date, now: Date = new Date()): string {
+  const { day, month } = istParts(date);
+  return [day, month, yearTag(date, now)].filter(Boolean).join(" ");
+}
+
 export function istDayNumber(date: Date): number {
   return Math.floor((date.getTime() + IST_OFFSET_MS) / DAY_MS);
 }

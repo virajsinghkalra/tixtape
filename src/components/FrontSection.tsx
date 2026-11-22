@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { FeedRow } from "@/application/ports/event-feed";
 import { metroOf, type FrontItem, type Tour } from "@/domain/events/front-page";
 import { EventCard, type TourInfo } from "./EventCard";
-import { istParts } from "./event-format";
+import { shortDate } from "./event-format";
 import { plural } from "./lineup-copy";
 import { Section } from "./Section";
 import { cx } from "./ui/cx";
@@ -85,11 +85,6 @@ export function FrontSection({
     </Section>
   );
 }
-
-const shortDate = (d: Date) => {
-  const { day, month } = istParts(d);
-  return `${day} ${month}`;
-};
 
 /** "10 cities · nearest: Mumbai · 21 Mar", with every stop listed. */
 export function tourInfo(tour: Tour<FeedRow>, visitorCity: string | null): TourInfo {

@@ -4,6 +4,7 @@ import { ListEventsQuerySchema, SearchPageParamsSchema } from "@/application/eve
 import type { EventDetail } from "@/application/ports/events";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { inHomeCity } from "@/domain/events/search";
 import { groupByTier } from "@/components/lineup-view";
 import { ticketLink } from "@/components/links";
 import { TrackSearch } from "@/components/analytics/TrackSearch";
@@ -50,6 +51,7 @@ type PageData = {
   cities: { city: string; upcomingCount: number }[];
   fallback: Row[];
   didYouMean?: string;
+  homeCity?: { city: string; inCity: number };
   total: number;
 };
 
@@ -60,9 +62,10 @@ type PageData = {
  */
 export default async function SearchPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
+  const homeCity = await chosenCity();
   const page = Math.max(1, Number(params.page) || 1);
   const now = new Date();
-  const data = await load(params, page, now);
+  const data = await load(params, page, now, homeCity);
   // UX #7: a text or artist search with nothing found becomes discovery, not a dead end.
   const lookedFor = data.rows.length === 0 ? (params.artist ?? params.q)?.trim() : undefined;
   const near = lookedFor ? await nearYou(now) : null;
@@ -160,7 +163,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           )}
         </div>
       ) : (
-        <ResultGrid rows={data.rows} details={details} now={now} />
+        <CityFirstGrid rows={data.rows} home={data.homeCity} details={details} now={now} />
       )}
 
       <Pager params={params} page={page} total={data.total} />
@@ -194,6 +197,26 @@ async function nearYou(now: Date): Promise<{ title: string; items: ShowRowItem[]
     console.error("Search page: near-you row unavailable", err);
     return { title: COPY.upNext, items: [] };
   }
+}
+
+/** City-first results: "In {City}" first, then "Explore more 🇮🇳"; a tiny note when none are local. */
+function CityFirstGrid(props: {
+  rows: Row[];
+  home?: { city: string; inCity: number };
+  details: Map<string, EventDetail>;
+  now: Date;
+}) {
+  const { home, rows, ...rest } = props;
+  if (!home) return <ResultGrid rows={rows} {...rest} />;
+  const here = rows.filter((r) => inHomeCity(r.city, home.city));
+  const other = rows.filter((r) => !inHomeCity(r.city, home.city));
+  return (
+    <>
+      {here.length > 0 && <ResultGrid title={inCity(home.city)} rows={here} {...rest} />}
+      {home.inCity === 0 && <p className="mt-8 text-muted">Nothing in {home.city} yet 😕</p>}
+      {other.length > 0 && <ResultGrid title="Explore more 🇮🇳" rows={other} {...rest} />}
+    </>
+  );
 }
 
 function ResultGrid(props: {
@@ -262,11 +285,23 @@ function Pager({ params, page, total }: { params: Params; page: number; total: n
   );
 }
 
-async function load(params: Params, page: number, now: Date): Promise<PageData> {
+/** The city picked in the header; null for All India or nothing chosen (never the IP guess). */
+async function chosenCity(): Promise<string | null> {
+  const value = (await cookies()).get(CITY_COOKIE)?.value;
+  return value && value !== "all" ? value : null;
+}
+
+async function load(
+  params: Params,
+  page: number,
+  now: Date,
+  homeCity: string | null,
+): Promise<PageData> {
   const from = params.from ?? now.toISOString();
   try {
     const parsed = SearchPageParamsSchema.safeParse({
       ...clean(params),
+      ...(homeCity ? { homeCity } : {}),
       from,
       page: String(page),
       pageSize: String(PAGE_SIZE),
@@ -279,6 +314,7 @@ async function load(params: Params, page: number, now: Date): Promise<PageData> 
       cities: r.cities,
       fallback: (r.fallback ?? []).map((e) => ({ ...e, matchReason: "title", matchedText: "" })),
       didYouMean: r.didYouMean,
+      homeCity: r.homeCity,
       total: r.total,
     };
   } catch (err) {

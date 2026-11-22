@@ -312,3 +312,31 @@ describe("searchPage (D-048)", () => {
     expect(logger.warn).toHaveBeenCalledOnce();
   });
 });
+
+describe("city-first (homeCity)", () => {
+  const events = () => [
+    cand("p1", { title: "Arena A", city: "Pune", startsAt: new Date(Date.UTC(2026, 11, 5)) }),
+    cand("d1", { title: "Arena B", city: "Delhi", startsAt: new Date(Date.UTC(2026, 11, 1)) }),
+  ];
+  it("leads with the user's city on the search page", async () => {
+    const { deps, search } = setup();
+    search.candidates.events = events();
+    const res = await searchPage(
+      deps,
+      SearchPageParamsSchema.parse({ q: "arena", homeCity: "Pune" }),
+    );
+    expect(res.results.map((r) => r.id)).toEqual(["p1", "d1"]);
+    expect(res.homeCity).toEqual({ city: "Pune", inCity: 1 });
+  });
+  it("reports none local, and ignores homeCity for an explicit city", async () => {
+    const { deps, search } = setup();
+    search.candidates.events = events();
+    const none = await suggest(deps, { q: "arena", city: "Chennai" });
+    expect(none).toMatchObject({ homeCity: { city: "Chennai", inCity: 0 } });
+    const explicit = await searchPage(
+      deps,
+      SearchPageParamsSchema.parse({ q: "arena", city: "Delhi", homeCity: "Pune" }),
+    );
+    expect(explicit.homeCity).toBeUndefined();
+  });
+});

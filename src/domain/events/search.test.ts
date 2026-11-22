@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cityFirst,
   asListing,
   buildSearchQuery,
   classifyMatch,
@@ -517,5 +518,20 @@ describe("titleSpan", () => {
     ["Sunburn", "zzz", null],
   ])("%j / %j → %j", (title, needle, span) => {
     expect(titleSpan(title, needle)).toBe(span);
+  });
+});
+
+describe("cityFirst", () => {
+  const ev = (id: string, city: string | null) => ({ id, city });
+  it("puts the home city first, keeping rank order inside each group", () => {
+    const r = cityFirst(
+      [ev("a", "Delhi"), ev("b", "Pune"), ev("c", null), ev("d", "pune")],
+      "Pune",
+    );
+    expect(r.items.map((e) => e.id)).toEqual(["b", "d", "a", "c"]);
+    expect(r.inCity).toBe(2);
+  });
+  it("reports zero when nothing is local", () => {
+    expect(cityFirst([ev("a", "Delhi")], "Pune")).toEqual({ items: [ev("a", "Delhi")], inCity: 0 });
   });
 });

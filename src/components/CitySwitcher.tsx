@@ -77,10 +77,10 @@ export function CitySwitcher({ city, cities }: Props) {
         aria-controls={menuId}
         aria-label={`City: ${city ?? "All India"}. Change city`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-chip border-2 border-night bg-surface px-4 text-sm font-bold text-ink shadow-[2px_3px_0_0_var(--color-night)] transition-transform duration-(--duration-fast) ease-spring active:scale-95"
+        className="inline-flex min-h-11 max-w-[11rem] items-center gap-1 rounded-chip border-2 border-night bg-surface px-3 text-sm font-bold text-ink shadow-[2px_3px_0_0_var(--color-night)] transition-transform duration-(--duration-fast) ease-spring active:scale-95"
       >
         <span aria-hidden>📍</span>
-        {city ?? "All India"}
+        <span className="truncate">{city ?? "All India"}</span>
         <span aria-hidden className={cx("transition-transform", open && "rotate-180")}>
           ▾
         </span>
@@ -95,7 +95,7 @@ export function CitySwitcher({ city, cities }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={SPRING}
-            className="absolute top-full left-0 mt-2 grid w-64 grid-cols-2 gap-1 rounded-card border-2 border-night bg-surface p-2 text-ink shadow-[4px_6px_0_0_var(--color-night)]"
+            className="absolute top-full right-0 mt-2 grid w-64 max-w-[calc(100vw-2rem)] grid-cols-2 gap-1 rounded-card border-2 border-night bg-surface p-2 text-ink shadow-[4px_6px_0_0_var(--color-night)]"
           >
             <li className="col-span-2">
               <CityOption label="All India" selected={city === null} onClick={() => choose(null)} />

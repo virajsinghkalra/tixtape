@@ -57,6 +57,7 @@ const suggestResponse = z.object({
       genre: z.string().optional(),
     })
     .default({}),
+  homeCity: z.object({ city: z.string(), inCity: z.number().int().min(0) }).optional(),
   fallback: z.array(eventResult).default([]),
   didYouMean: z.string().optional(),
 });
@@ -78,11 +79,21 @@ async function getJson(url: string, signal: AbortSignal, fetchFn: typeof fetch):
   return res.json();
 }
 
+/** The city picked in the header (cookie `city`), or null for All India / none. */
+function chosenCity(): string | null {
+  if (typeof document === "undefined") return null;
+  const raw = /(?:^|;\s*)city=([^;]*)/.exec(document.cookie)?.[1];
+  if (!raw) return null;
+  const value = decodeURIComponent(raw);
+  return value === "all" ? null : value;
+}
+
 /** Typed search: fuzzy, alias, artist, venue and city matches, ranked by the server. */
 export function suggestSource(fetchFn: typeof fetch = fetch): SearchSource {
   return async ({ query, city }, signal) => {
     const params = new URLSearchParams({ q: query });
-    if (city) params.set("city", city);
+    const own = city ?? chosenCity();
+    if (own) params.set("city", own);
     const body = suggestResponse.parse(
       await getJson(`/api/events/suggest?${params}`, signal, fetchFn),
     );

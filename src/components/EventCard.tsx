@@ -6,7 +6,7 @@ import { ticketLink } from "./links";
 import { hasPhoto, type VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { lineupTeaser, playlistBadge } from "./lineup-copy";
-import { formatStartTime, istParts } from "./event-format";
+import { formatStartTime, istParts, yearTag } from "./event-format";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
@@ -130,7 +130,10 @@ export function EventCard({
           </div>
           <p className="font-display leading-none font-extrabold uppercase">
             <span className={compact ? "text-5xl" : "text-6xl"}>{day}</span>{" "}
-            <span className="text-2xl">{month}</span>
+            <span className="text-2xl">
+              {month}
+              {yearTag(event.startsAt) && ` ${yearTag(event.startsAt)}`}
+            </span>
             <span className="mt-1 block text-sm font-bold tracking-wide normal-case">
               {weekday} · {formatStartTime(event.startsAt)}
             </span>

@@ -3,9 +3,9 @@ import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
 import type { Tour } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
-import { CityEmptyNote, CitySwitcher } from "@/components/CitySwitcher";
+import { CityEmptyNote } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
-import { countdownBadge, formatDateRange, istParts } from "@/components/event-format";
+import { countdownBadge, formatDateRange, istParts, yearTag } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
 import { HeroBoard } from "@/components/HeroBoard";
@@ -76,7 +76,6 @@ export default async function Home({ searchParams }: Props) {
   ]);
   const empty = rows.length === 0;
   const next = rows[0];
-  const cities = new Set(rows.flatMap((e) => (e.city ? [e.city] : [])));
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
   const hero = pickNextUp(rows);
   const heroIds = new Set(hero.map((e) => e.id));
@@ -127,7 +126,6 @@ export default async function Home({ searchParams }: Props) {
               <Sticker tone="night" emoji="🎧" tilt={-4}>
                 Concert playlists · India
               </Sticker>
-              <CitySwitcher city={city} cities={[...cities]} />
             </div>
             <h1
               id="hero-title"
@@ -282,7 +280,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
     id: e.id,
     title: e.title,
     day,
-    month,
+    month: [month, yearTag(e.startsAt, now)].filter(Boolean).join(" "),
     tone: toneSequence(e.id, 1)[0]!,
     image: ringImage(e),
     live: e.playlistStatus === "ready",

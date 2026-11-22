@@ -30,13 +30,27 @@ export function buildGroups(r: SuggestResponse): OptionGroup[] {
       label: "Cities",
       options: r.cities.map((c) => ({ kind: "city", key: `c:${c.city}`, city: c })),
     },
-    {
-      id: "events",
-      label: "Events",
-      options: r.results.map((e) => ({ kind: "event", key: `e:${e.id}`, event: e })),
-    },
+    ...eventGroups(r),
   ];
   return groups.filter((g) => g.options.length > 0);
+}
+
+/** Events, split into "In {City}" and "Explore more 🇮🇳" when the server grouped them city-first. */
+function eventGroups(r: SuggestResponse): OptionGroup[] {
+  const option = (e: EventResult): SearchOption => ({ kind: "event", key: `e:${e.id}`, event: e });
+  const home = r.homeCity;
+  if (!home) return [{ id: "events", label: "Events", options: r.results.map(option) }];
+  const here = r.results.slice(0, home.inCity);
+  const rest = r.results.slice(home.inCity);
+  return [
+    { id: "events-home", label: `In ${home.city}`, options: here.map(option) },
+    {
+      id: "events",
+      label:
+        home.inCity === 0 ? `Nothing in ${home.city} yet 😕 · Explore more 🇮🇳` : "Explore more 🇮🇳",
+      options: rest.map(option),
+    },
+  ];
 }
 
 /** Instant results before the server answers: recent searches and cached picks by prefix. */

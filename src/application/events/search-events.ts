@@ -8,6 +8,7 @@ import type { EventSearch } from "@/application/ports/event-search";
 import { weekendWindow } from "@/domain/events/ist-calendar";
 import {
   asListing,
+  cityFirst,
   buildSearchQuery,
   cleanQueryText,
   didYouMean,
@@ -80,6 +81,8 @@ export const SearchPageParamsSchema = z
     from: dateOrDateTime.optional(),
     to: dateOrDateTime.optional(),
     type: z.enum(EVENT_TYPES).optional(),
+    /** The visitor's chosen city: its matches lead when the search names no city. */
+    homeCity: cityParam.optional(),
     page: z.coerce.number().int().min(1).max(1000).default(1),
     pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
   })
@@ -97,6 +100,8 @@ export type SearchGroups = {
   cities: CityEntity[];
   /** The filters understood from the text and parameters (shown as chips). */
   filters: SearchFilters;
+  /** Set when results were grouped city-first; `inCity` counts the matches in that city. */
+  homeCity?: { city: string; inCity: number };
   /** Present when nothing matched: never a dead end (D-047). */
   fallback?: Suggestion[];
   didYouMean?: string;
@@ -108,7 +113,13 @@ export type SearchPageResponse = SearchGroups & { total: number; page: number; p
 // ── Engine ────────────────────────────────────────────────────────────────
 
 /** `fallback: false` skips the "nothing matched" extras (fallback, hint): checks only. */
-type Window = { offset: number; limit: number; candidates: number; fallback?: boolean };
+type Window = {
+  homeCity?: string;
+  offset: number;
+  limit: number;
+  candidates: number;
+  fallback?: boolean;
+};
 
 async function runSearch(
   deps: SearchDeps,
@@ -124,9 +135,13 @@ async function runSearch(
   const found = nothing
     ? { events: [], artists: [], cities: [] }
     : await deps.search.findCandidates(plan, now, window.candidates);
-  const ranked = rankSuggestions(query, found.events, now);
+  const byRank = rankSuggestions(query, found.events, now);
+  const home = window.homeCity && !query.filters.city ? canonicalCity(window.homeCity) : null;
+  const grouped = home ? cityFirst(byRank, home) : null;
+  const ranked = grouped?.items ?? byRank;
   const groups: SearchGroups & { total: number } = {
     results: ranked.slice(window.offset, window.offset + window.limit),
+    ...(home && grouped ? { homeCity: { city: home, inCity: grouped.inCity } } : {}),
     artists: rankArtists(query, found.artists),
     cities: rankCities(query, found.cities),
     filters: query.filters,
@@ -164,6 +179,7 @@ export async function suggest(deps: SearchDeps, params: SuggestParams): Promise<
     q,
     {},
     {
+      ...(params.city ? { homeCity: params.city } : {}),
       offset: 0,
       limit: SUGGEST_LIMIT,
       candidates: SUGGEST_CANDIDATES,
@@ -251,6 +267,7 @@ export async function searchPage(
     ...(params.type ? { type: params.type } : {}),
   };
   const groups = await runSearch(deps, params.q ?? "", explicit, {
+    ...(params.homeCity && !params.city ? { homeCity: params.homeCity } : {}),
     offset: (params.page - 1) * params.pageSize,
     limit: params.pageSize,
     candidates: PAGE_CANDIDATES,
