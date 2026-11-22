@@ -303,3 +303,14 @@ describe("viewFromStatus: refresh of an existing playlist", () => {
     expect(v.kind).toBe("ready");
   });
 });
+
+describe("readyUrl", () => {
+  it("returns the url only for a ready playlist", async () => {
+    const { readyUrl } = await import("./playlist-state");
+    expect(readyUrl({ status: "ready", url: "https://open.spotify.com/playlist/x" })).toBe(
+      "https://open.spotify.com/playlist/x",
+    );
+    expect(readyUrl({ status: "none" })).toBeNull();
+    expect(readyUrl(null)).toBeNull();
+  });
+});

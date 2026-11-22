@@ -9,6 +9,7 @@ import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
 import { Sticker } from "./ui/Sticker";
 import { Tile } from "./ui/Tile";
+import { PlayCta } from "./PlayCta";
 
 const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = {
   announced: { emoji: "📣", label: "Announced" },
@@ -17,16 +18,21 @@ const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = 
   cancelled: { emoji: "🚫", label: "Cancelled" },
 };
 
-type Props = { event: EventDetail; now: Date };
+type Props = {
+  event: EventDetail;
+  now: Date;
+  /** A ready playlist (own or tour's): the primary button plays it. */
+  playUrl?: string | null;
+};
 
 /** Long titles step down a size so they never stack into four giant lines. */
 const H1: Record<TitleSize, string> = { xl: "text-mega", lg: "text-huge", md: "text-big" };
 
 /**
  * Event page header (UX #5): back link, the picture, stickers, the title and one facts row.
- * No buttons here: the playlist card right below holds the one primary action.
+ * Desktop gets the one Play button here; phones get it in the sticky bottom bar.
  */
-export function EventHeader({ event, now }: Props) {
+export function EventHeader({ event, now, playUrl = null }: Props) {
   const status = STATUS[event.status];
   const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
@@ -91,6 +97,7 @@ export function EventHeader({ event, now }: Props) {
               <span>{where}</span>
             </span>
           </p>
+          <PlayCta eventId={event.id} playUrl={playUrl} className="mt-5 max-w-xs max-sm:hidden" />
         </div>
       </Tile>
     </header>

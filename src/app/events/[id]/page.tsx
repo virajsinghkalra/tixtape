@@ -4,6 +4,8 @@ import { cache } from "react";
 import { parseEventId } from "@/application/events";
 import type { EventDetail } from "@/application/ports/events";
 import { EventActions } from "@/components/EventActions";
+import { PlayCta } from "@/components/PlayCta";
+import { readyUrl } from "@/components/playlist-state";
 import { EventHeader } from "@/components/EventHeader";
 import { formatDateRange } from "@/components/event-format";
 import { EventStory } from "@/components/EventStory";
@@ -82,6 +84,7 @@ export default async function EventPage({ params, searchParams }: Params) {
     .then((p) => parsePreview(JSON.parse(JSON.stringify(p)) as unknown))
     .catch(() => null);
 
+  const playUrl = readyUrl(initialPlaylistStatus);
   const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
   const outbound = ticketLink(event.sources.map((s) => s.url));
   // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
@@ -105,7 +108,7 @@ export default async function EventPage({ params, searchParams }: Params) {
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
       <EventVisit eventId={event.id} highlight={Boolean(artist)} />
-      <EventHeader event={event} now={now} />
+      <EventHeader event={event} now={now} playUrl={playUrl} />
       {event.archived && (
         // D-070: reachable by its link, clearly in the past.
         <p role="note" className="mt-3 font-display text-lg font-bold">
@@ -146,9 +149,7 @@ export default async function EventPage({ params, searchParams }: Params) {
         </div>
       )}
       <EventBottomBar>
-        <ButtonLink href="#playlist" size="lg" className="flex-1">
-          <span aria-hidden>🎧</span> Playlist
-        </ButtonLink>
+        <PlayCta eventId={event.id} playUrl={playUrl} className="flex-1" />
         <ShareButton title={event.title} text={shareText(event.title, names)} size="lg" />
       </EventBottomBar>
     </div>

@@ -275,3 +275,9 @@ export function afterFailedStep(view: PlaylistView): PlaylistView {
   }
   return { ...view };
 }
+
+/** The playable Spotify URL in a status body (own or tour's playlist), else null. */
+export function readyUrl(body: unknown): string | null {
+  const v = viewFromStatus(body);
+  return v.kind === "ready" ? v.url : null;
+}
