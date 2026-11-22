@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emailAsked,
   FRESH,
+  nicknameWaitMs,
   noteLoad,
   parsePromptState,
   shouldAskEmail,
@@ -17,44 +18,32 @@ const T0 = Date.parse("2026-11-22T06:30:00Z");
 const visits = (...loads: [number, boolean][]): PromptState =>
   loads.reduce((s, [t, fresh]) => noteLoad(s, t, fresh), FRESH);
 
-describe("nickname prompt timing (D-090)", () => {
-  it("never on the first visit, however many pages it has", () => {
-    const s = visits([T0, true], [T0 + 5 * MIN, false], [T0 + 25 * MIN, false]);
-    expect(shouldAskNickname(s)).toBe(false);
+describe("nickname prompt timing (D-090, 2 minutes)", () => {
+  it("not in the first 2 minutes on the app", () => {
+    const s = visits([T0, true], [T0 + 1 * MIN, false]);
+    expect(shouldAskNickname(s, T0 + 119_000)).toBe(false);
+    expect(nicknameWaitMs(s, T0 + 30_000)).toBe(90_000);
   });
 
-  it("not on a second tab within 30 minutes of the first visit, same day", () => {
-    expect(shouldAskNickname(visits([T0, true], [T0 + 10 * MIN, true]))).toBe(false);
+  it("on the first visit once 2 minutes are up", () => {
+    const s = visits([T0, true]);
+    expect(shouldAskNickname(s, T0 + 2 * MIN)).toBe(true);
+    expect(nicknameWaitMs(s, T0 + 5 * MIN)).toBe(0);
   });
 
-  it("on a new session more than 30 minutes after the first visit", () => {
-    expect(shouldAskNickname(visits([T0, true], [T0 + 31 * MIN, true]))).toBe(true);
-  });
-
-  it("on a new session on a different IST day, even minutes later", () => {
-    // 23:55 IST, then 00:05 IST the next day.
-    const late = Date.parse("2026-11-22T18:25:00Z");
-    expect(shouldAskNickname(visits([late, true], [late + 10 * MIN, true]))).toBe(true);
-  });
-
-  it("when the same tab comes back after 30 idle minutes", () => {
-    const s = visits([T0, true], [T0 + 20 * MIN, false], [T0 + 60 * MIN, false]);
-    expect(shouldAskNickname(s)).toBe(true);
-  });
-
-  it("not within one long session that never goes idle", () => {
-    const s = visits([T0, true], [T0 + 20 * MIN, false], [T0 + 40 * MIN, false]);
-    expect(shouldAskNickname(s)).toBe(false);
+  it("on a later visit straight away", () => {
+    const s = visits([T0, true], [T0 + DAY, true]);
+    expect(shouldAskNickname(s, T0 + DAY)).toBe(true);
   });
 
   it.each(["shown", "saved", "skipped"] as const)("at most once: never after %s", (n) => {
-    const s = { ...visits([T0, true], [T0 + DAY, true]), nickname: n };
-    expect(shouldAskNickname(s)).toBe(false);
+    const s = { ...visits([T0, true]), nickname: n };
+    expect(shouldAskNickname(s, T0 + DAY)).toBe(false);
   });
 
   it("not once an email (with a name) is saved", () => {
-    const s = { ...visits([T0, true], [T0 + DAY, true]), emailSaved: true };
-    expect(shouldAskNickname(s)).toBe(false);
+    const s = { ...visits([T0, true]), emailSaved: true };
+    expect(shouldAskNickname(s, T0 + DAY)).toBe(false);
   });
 });
 

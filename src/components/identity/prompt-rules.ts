@@ -1,9 +1,9 @@
 /**
  * D-090: when the identity prompts may show. Pure, so the rules are tested without a browser.
  *
- * - **Never on the first visit.** The nickname sheet shows at most once, on a later visit: a
- *   new visit (a new tab session, or back after 30 min idle) that starts on a different IST day
- *   or more than 30 min after the first one. Skip dismisses it forever.
+ * - **After 2 minutes on the app.** The nickname sheet shows at most once, once the visitor has
+ *   been around for 2 minutes since their first visit (owner's call, 2026-11-22). Skip dismisses
+ *   it forever; saving a nickname offers the email sheet straight after.
  * - **"Email me too? ✉️"** only right after a moment of value (Ping me, Follow, Remind me, a
  *   playlist landing), never once an email is saved, at most twice ever and 7 days apart.
  */
@@ -13,6 +13,8 @@ export const PROMPT_STATE_KEY = "tixtape.id.v1";
 const MIN = 60_000;
 const DAY = 86_400_000;
 export const VISIT_GAP_MS = 30 * MIN;
+/** Time on the app before the nickname sheet may show. */
+export const NICKNAME_AFTER_MS = 2 * MIN;
 export const EMAIL_COOLDOWN_MS = 7 * DAY;
 export const EMAIL_MAX_ASKS = 2;
 
@@ -61,8 +63,20 @@ export function noteLoad(state: PromptState, now: number, newSession: boolean): 
   return { ...state, lastSeenAt: now, returning: state.returning || (newVisit && later) };
 }
 
-export function shouldAskNickname(state: PromptState): boolean {
-  return state.returning && state.nickname === null && !state.emailSaved;
+export function shouldAskNickname(state: PromptState, now: number): boolean {
+  return (
+    state.firstVisitAt !== null &&
+    now - state.firstVisitAt >= NICKNAME_AFTER_MS &&
+    state.nickname === null &&
+    !state.emailSaved
+  );
+}
+
+/** How long to wait from now before the nickname sheet may show (0 once 2 minutes are up). */
+export function nicknameWaitMs(state: PromptState, now: number): number {
+  return state.firstVisitAt === null
+    ? NICKNAME_AFTER_MS
+    : Math.max(0, state.firstVisitAt + NICKNAME_AFTER_MS - now);
 }
 
 export function shouldAskEmail(state: PromptState, now: number): boolean {

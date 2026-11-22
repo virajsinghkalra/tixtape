@@ -660,7 +660,7 @@ export const people = pgTable(
     consentAt: timestamp("consent_at", { withTimezone: true }),
     /** The consent wording's version (`CONSENT_VERSION`). */
     consentVersion: text("consent_version"),
-    /** Where the email ask was shown: ping_me, follow, remind or playlist. */
+    /** Where the email ask was shown: ping_me, follow, remind, playlist or welcome. */
     consentSource: text("consent_source"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

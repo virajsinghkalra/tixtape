@@ -26,6 +26,7 @@ import {
   parsePromptState,
   PROMPT_STATE_KEY,
   shouldAskEmail,
+  nicknameWaitMs,
   shouldAskNickname,
   type PromptState,
 } from "./prompt-rules";
@@ -104,7 +105,7 @@ async function syncFromServer(): Promise<void> {
 type Open = { kind: "nickname" } | { kind: "email"; source: ContactSource } | null;
 
 /**
- * D-090: the two opt-in identity sheets, mounted once in the layout. Never on the first visit,
+ * D-090: the two opt-in identity sheets, mounted once in the layout. Not before 2 minutes,
  * never modal and never blocking: a small card at the bottom that the page keeps working
  * behind. See `prompt-rules.ts` for exactly when each may show.
  */
@@ -117,7 +118,7 @@ export function IdentityPrompts() {
   const quietRef = useRef(quiet);
   quietRef.current = quiet;
 
-  // A page load: count the visit; on a later visit, offer the nickname once, after a dwell.
+  // A page load: count the visit; once 2 minutes on the app are up, offer the nickname once.
   useEffect(() => {
     let newSession = false;
     try {
@@ -128,12 +129,15 @@ export function IdentityPrompts() {
     }
     const state = update((s) => noteLoad(s, Date.now(), newSession));
     if (newSession) void syncFromServer();
-    if (!shouldAskNickname(state)) return;
-    const timer = setTimeout(() => {
-      if (openRef.current || quietRef.current || !shouldAskNickname(read())) return;
-      update((s) => ({ ...s, nickname: "shown" }));
-      setOpen({ kind: "nickname" });
-    }, NICKNAME_DWELL_MS);
+    if (state.nickname !== null || state.emailSaved) return;
+    const timer = setTimeout(
+      () => {
+        if (openRef.current || quietRef.current || !shouldAskNickname(read(), Date.now())) return;
+        update((s) => ({ ...s, nickname: "shown" }));
+        setOpen({ kind: "nickname" });
+      },
+      Math.max(NICKNAME_DWELL_MS, nicknameWaitMs(state, Date.now())),
+    );
     return () => clearTimeout(timer);
   }, []);
 
@@ -158,10 +162,18 @@ export function IdentityPrompts() {
   }, []);
 
   const close = useCallback(() => setOpen(null), []);
+  // A saved nickname is a warm moment: offer the email straight after.
+  const afterNickname = useCallback(() => {
+    const s = read();
+    if (s.nickname === "saved" && shouldAskEmail(s, Date.now())) {
+      update((st) => emailAsked(st, Date.now()));
+      setOpen({ kind: "email", source: "welcome" });
+    } else setOpen(null);
+  }, []);
 
   return (
     <AnimatePresence>
-      {open?.kind === "nickname" && <NicknameSheet key="nickname" onDone={close} />}
+      {open?.kind === "nickname" && <NicknameSheet key="nickname" onDone={afterNickname} />}
       {open?.kind === "email" && <EmailSheet key="email" source={open.source} onDone={close} />}
     </AnimatePresence>
   );
