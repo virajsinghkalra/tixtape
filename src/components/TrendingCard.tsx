@@ -30,7 +30,7 @@ export function TrendingCard({ item }: { item: TrendingItem }) {
           <span aria-hidden>🔥</span> Trending now
         </p>
         <p className="line-clamp-2 font-display text-base leading-tight font-extrabold [overflow-wrap:anywhere]">
-          {item.title.replace(" · ", " · ")}
+          {item.title}
         </p>
         <Link
           href={`/events/${item.id}`}
