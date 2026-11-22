@@ -65,7 +65,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
   return (
     <MotionConfig reducedMotion="user">
       <div
-        className="pop-in relative isolate flex min-h-64 flex-col overflow-hidden rounded-tile border-2 border-night bg-violet text-white shadow-[5px_6px_0_0_var(--color-night)] [--i:1] dark:border-line lg:min-h-0"
+        className="pop-in relative isolate flex min-h-52 flex-col sm:min-h-64 overflow-hidden rounded-tile border-2 border-night bg-violet text-white shadow-[5px_6px_0_0_var(--color-night)] [--i:1] dark:border-line lg:min-h-0"
         onPointerEnter={() => setHeld(true)}
         onPointerLeave={() => setHeld(false)}
         onFocus={() => setHeld(true)}

@@ -31,7 +31,9 @@ import { cookies, headers } from "next/headers";
 import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
-import { frontPage } from "@/server/front-page";
+import { frontPage, recentSpotifyOpens } from "@/server/front-page";
+import { pickTrending } from "@/domain/events/trending";
+import { TrendingCard } from "@/components/TrendingCard";
 import { YourGigs } from "@/components/YourGigs";
 
 export const dynamic = "force-dynamic";
@@ -71,15 +73,21 @@ export default async function Home({ searchParams }: Props) {
   // D-081: a per-city, per-day count of where people look (no personal data), after the response.
   await noteVisitorDemand("view");
   // D-079: one feed read, ranked by size × proximity × timing (pure, in the domain).
-  const [{ rows, page: front }, popular] = await Promise.all([
+  const [{ rows, page: front }, popular, opens] = await Promise.all([
     frontPage({ now, city }),
     popularSearches(),
+    recentSpotifyOpens(now),
   ]);
   const empty = rows.length === 0;
   const next = rows[0];
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
   const hero = pickNextUp(rows);
   const heroIds = new Set(hero.map((e) => e.id));
+  const trending = pickTrending(
+    rows,
+    opens,
+    front.bigOnes.map((i) => (i.kind === "event" ? i.event : i.tour.featured)),
+  );
   const thisWeek = readyFirst(
     rows.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS && !heroIds.has(e.id)),
   );
@@ -129,6 +137,20 @@ export default async function Home({ searchParams }: Props) {
         aria-labelledby="hero-title"
         className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-10"
       >
+        {trending?.playlistUrl && (
+          <div className="mb-4">
+            <TrendingCard
+              item={{
+                id: trending.id,
+                title: shortTitle(trending.title, trending.headliners[0]),
+                poster: trending.posterUrl ?? null,
+                artists: trending.headlinerArtists,
+                label: trending.headliners[0] ?? trending.title,
+                playlistUrl: trending.playlistUrl,
+              }}
+            />
+          </div>
+        )}
         <div className="grid gap-4 lg:grid-cols-3">
           <Tile tone="lime" className="pop-in z-20 overflow-visible lg:col-span-2 lg:row-span-2">
             <div className="flex flex-wrap items-center gap-3">
@@ -138,17 +160,17 @@ export default async function Home({ searchParams }: Props) {
             </div>
             <h1
               id="hero-title"
-              className="mt-5 font-display text-mega font-extrabold tracking-tight text-balance"
+              className="mt-4 sm:mt-5 font-display text-mega font-extrabold tracking-tight text-balance"
             >
               Every gig. Its playlist.
             </h1>
-            <p className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-night bg-night px-4 py-2 text-base leading-none font-bold text-lime shadow-[3px_3px_0_0_var(--color-violet)] sm:text-lg">
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full max-sm:hidden border-2 border-night bg-night px-4 py-2 text-base leading-none font-bold text-lime shadow-[3px_3px_0_0_var(--color-violet)] sm:text-lg">
               <span aria-hidden className="text-xl leading-none">
                 🎧
               </span>
               tap a show, vibe to its setlist
             </p>
-            <div className="mt-7 max-w-2xl">
+            <div className="mt-5 max-w-2xl sm:mt-7">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
             </div>
           </Tile>

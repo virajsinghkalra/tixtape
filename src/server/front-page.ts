@@ -77,3 +77,16 @@ export function pastRows(now: Date): Promise<FeedRow[]> {
   const from = new Date(now.getTime() - PAST_DAYS * 86_400_000);
   return new PgEventFeed(container().db).past({ from, to: now, limit: FEED_LIMIT });
 }
+
+const OPENS_DAYS = 7;
+let opensCache: { at: number; opens: Map<string, number> } | undefined;
+
+/** Spotify-open taps per event over the last 7 days, cached 5 minutes. Empty if unreadable. */
+export async function recentSpotifyOpens(now: Date): Promise<Map<string, number>> {
+  if (opensCache && now.getTime() - opensCache.at < TTL_MS) return opensCache.opens;
+  const since = new Date(now.getTime() - OPENS_DAYS * 86_400_000);
+  const opens = await new PgEventFeed(container().db).spotifyOpensSince(since).catch(() => null);
+  if (!opens) return opensCache?.opens ?? new Map();
+  opensCache = { at: now.getTime(), opens };
+  return opens;
+}

@@ -128,6 +128,23 @@ export class PgEventFeed implements EventFeedReader {
     return [...result].map((raw) => toFeedRow(row.parse(raw)));
   }
 
+  /** Read-only: "Open in Spotify" taps per event since `since` (analytics, no Spotify calls). */
+  async spotifyOpensSince(since: Date): Promise<Map<string, number>> {
+    const result = await this.db.execute(sql`
+      select props->>'eventId' as event_id, count(*) as n
+      from analytics_events
+      where name = 'playlist_open_spotify' and at >= ${since.toISOString()}::timestamptz
+        and props->>'eventId' is not null
+      group by 1
+    `);
+    const out = new Map<string, number>();
+    for (const r of result) {
+      const p = z.object({ event_id: z.string(), n: z.coerce.number() }).parse(r);
+      out.set(p.event_id, p.n);
+    }
+    return out;
+  }
+
   /**
    * QA-F-15: which of these ids are still published. One indexed query, so a cached feed can
    * drop events hidden or archived since (by an admin, the sweep or any script) on every request.
