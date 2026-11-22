@@ -30,7 +30,7 @@ async function event(key: string, title: string, artistIds: string[], visibility
 }
 
 describe("readListenNow", () => {
-  it("returns the sibling's playlist, else artists with an id, and 404s unpublished", async () => {
+  it("returns the sibling's playlist, else every top artist (page or search), and 404s unpublished", async () => {
     const rows = await db
       .insert(artists)
       .values([
@@ -43,7 +43,13 @@ describe("readListenNow", () => {
     const hidden = await event("h", "Hidden", [a], "held");
 
     const before = await readListenNow(db, mine, new Date());
-    expect(before).toEqual({ artists: [{ name: "A", spotifyId: "sa" }] });
+    // An artist without a Spotify id still gets a playable search link (never an empty list).
+    expect(before).toEqual({
+      artists: [
+        { name: "A", spotifyId: "sa", url: "https://open.spotify.com/artist/sa" },
+        { name: "B", spotifyId: null, url: "https://open.spotify.com/search/B" },
+      ],
+    });
     expect(await readListenNow(db, hidden, new Date())).toBeNull();
 
     const sib = await event("s", "Tour – Delhi", [b, a]);
