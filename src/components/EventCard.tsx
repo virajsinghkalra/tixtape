@@ -164,7 +164,20 @@ export function EventCard({
           </p>
         </div>
       </Link>
-      {tour && (
+      {/* In a side-scrolling row an expanding list would stretch every card in the row (big
+          empty gaps next to it): link to all the artist's dates instead. */}
+      {tour && compact && (
+        <Link
+          href={`/search?artist=${encodeURIComponent(headliners[0] ?? event.title)}`}
+          className="flex min-h-11 items-center justify-between gap-2 border-t border-dashed border-line px-4 py-2 text-sm font-semibold"
+        >
+          <span className="min-w-0 truncate">{tour.featuredLine}</span>
+          <span className="shrink-0 text-accent-text">
+            All {tour.count} <span aria-hidden>→</span>
+          </span>
+        </Link>
+      )}
+      {tour && !compact && (
         <details className="group/tour border-t border-dashed border-line px-4 py-2 text-sm">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 font-semibold">
             <span>{tour.featuredLine}</span>
