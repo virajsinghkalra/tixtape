@@ -193,12 +193,19 @@ async function recommendations(deps: SearchDeps, city: string | undefined) {
 }
 
 const MAX_CHIP_CHECKS = 8;
+/** A chip's "returns something" verdict is reused for this long (keeps zero-query p95 low). */
+const CHIP_VERDICT_TTL_MS = 10 * 60_000;
+/** Per search engine instance, so separate modules (and tests) never share verdicts. */
+const chipVerdicts = new WeakMap<object, Map<string, { ok: boolean; at: number }>>();
 
 /**
  * QA-F-6: chips are what people searched and found, then upcoming event titles, and each is
  * checked with the real engine: a chip that returns nothing is never shown.
  */
 async function popularChips(deps: SearchDeps, candidates: readonly string[]): Promise<string[]> {
+  let verdicts = chipVerdicts.get(deps.search);
+  if (!verdicts) chipVerdicts.set(deps.search, (verdicts = new Map()));
+  const nowMs = deps.clock.now().getTime();
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const raw of candidates) {
@@ -210,6 +217,9 @@ async function popularChips(deps: SearchDeps, candidates: readonly string[]): Pr
   }
   const checked = await Promise.all(
     unique.slice(0, MAX_CHIP_CHECKS).map(async (q) => {
+      const key = foldText(q);
+      const cached = verdicts.get(key);
+      if (cached && nowMs - cached.at < CHIP_VERDICT_TTL_MS) return cached.ok ? q : null;
       try {
         const found = await runSearch(
           deps,
@@ -217,6 +227,7 @@ async function popularChips(deps: SearchDeps, candidates: readonly string[]): Pr
           {},
           { offset: 0, limit: 1, candidates: 20, fallback: false },
         );
+        verdicts.set(key, { ok: found.total > 0, at: nowMs });
         return found.total > 0 ? q : null;
       } catch (e) {
         deps.logger.warn({ err: e }, "search: popular chip check failed");

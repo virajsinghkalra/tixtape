@@ -20,7 +20,11 @@
  */
 import "dotenv/config";
 import { AdminListEventsQuerySchema, ListEventsQuerySchema } from "@/application/events";
-import { PLAYLIST_ALGORITHM_VERSION, type BuildProgress } from "@/application/playlists";
+import {
+  PLAYLIST_ALGORITHM_VERSION,
+  PlaylistUnavailableError,
+  type BuildProgress,
+} from "@/application/playlists";
 import { ACTIVE_JOB_STATUSES } from "@/application/ports/playlists";
 import type { PlaylistJobId } from "@/domain/shared/ids";
 import { ThrottledAlerts } from "@/infrastructure/alerts";
@@ -209,6 +213,10 @@ async function refreshStalePlaylists(): Promise<string> {
       const r = await playlists().startSharedBuild(id, "sweep");
       if (r.status === "building") started++;
     } catch (e) {
+      // No publisher connected (or it needs reauth): nothing can be rebuilt yet. The publisher
+      // task alerts about that once a day; this task must not fail every hourly run.
+      if (e instanceof PlaylistUnavailableError)
+        return `${ids.length} stale, skipped: no publisher`;
       if (e instanceof NotFoundError || (e instanceof AppError && e.httpStatus < 500)) continue;
       throw e;
     }
