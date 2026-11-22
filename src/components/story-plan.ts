@@ -42,6 +42,8 @@ export type StoryInput = {
   eventHref: string | null;
   /** Artists matched on Spotify; none means "Playlist soon ⏳". Unknown counts as all. */
   matched?: number;
+  /** False when the show has no playlist (ready or cooking): the button says "Listen now". */
+  playable?: boolean;
 };
 
 type Common = { id: string; label: string };
@@ -195,7 +197,10 @@ function playlistSlide(
     kind: "playlist",
     headline: pending ? PLAYLIST_SOON : solo ? `${solo.name}, all night.` : STORY_CTA.headline,
     face: solo,
-    cta: { href: input.playlistHref, text: STORY_CTA.playlist },
+    cta: {
+      href: input.playlistHref,
+      text: pending || input.playable === false ? STORY_CTA.listen : STORY_CTA.playlist,
+    },
     secondary: input.eventHref ? { href: input.eventHref, text: STORY_CTA.event } : null,
   };
 }

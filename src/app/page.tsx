@@ -334,6 +334,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       poster: e.posterUrl,
       playlistHref: `/events/${e.id}#playlist`,
       eventHref: `/events/${e.id}`,
+      playable: Boolean(e.playlistUrl) || e.playlistStatus === "building",
     }),
   };
 }

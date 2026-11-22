@@ -118,5 +118,7 @@ export const PLAYLIST_COOKING = "Playlist's cooking 🍳 till then 👇";
 export const STORY_CTA = {
   headline: "Every act. One playlist.",
   playlist: "Open playlist",
+  /** No playlist yet: the link goes to the artist on Spotify. */
+  listen: "Listen now",
   event: "See event",
 } as const;

@@ -42,7 +42,8 @@ export function ListenNow({
       </SpotifyOpenLink>
     );
   }
-  if (data.artists.length === 0 && !data.paused) return null;
+  // Nothing to play: no heading line that points at an empty space.
+  if (data.artists.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
       {data.paused && <p className="text-lg font-semibold">{PLAYLIST_COOKING}</p>}

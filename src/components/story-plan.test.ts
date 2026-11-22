@@ -171,6 +171,12 @@ describe("minimal copy (D-082)", () => {
     const plan = planStory(input([artist("Shreya Ghoshal", "headliner", 1)], { matched: 0 }));
     expect(plan.slides.at(-1)).toMatchObject({ kind: "playlist", headline: "Playlist soon ⏳" });
     expect(words(plan.slides)).not.toMatch(/\b0 (songs|min)\b/);
+    expect(plan.slides.at(-1)).toMatchObject({ cta: { text: "Listen now" } });
+  });
+
+  it("no playlist at all: the button never promises one", () => {
+    const plan = planStory(input([artist("Sartaaj", "headliner", 1)], { playable: false }));
+    expect(plan.slides.at(-1)).toMatchObject({ cta: { text: "Listen now" } });
   });
 });
 
