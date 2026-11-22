@@ -94,8 +94,8 @@ describe("istDayCount", () => {
 
 describe("yearTag / shortDate", () => {
   const now = d("2026-11-22T12:00:00+05:30");
-  it("tags only other IST years", () => {
-    expect(shortDate(d("2026-12-20T20:00:00+05:30"), now)).toBe("20 Dec");
+  it("always tags the IST year", () => {
+    expect(shortDate(d("2026-12-20T20:00:00+05:30"), now)).toBe("20 Dec '26");
     expect(shortDate(d("2027-03-20T20:00:00+05:30"), now)).toBe("20 Mar '27");
     expect(yearTag(d("2026-12-31T20:00:00Z"), now)).toBe("'27"); // 1 Jan IST
   });

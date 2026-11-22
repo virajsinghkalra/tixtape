@@ -40,13 +40,12 @@ export function istParts(date: Date): DateParts {
   };
 }
 
-/** "'27" when the event's IST year differs from the current IST year, else "". */
-export function yearTag(date: Date, now: Date = new Date()): string {
-  const year = istParts(date).year;
-  return year === istParts(now).year ? "" : `'${year.slice(-2)}`;
+/** "'26": always shown, so nobody guesses which year a show is in (user feedback, 2026-11-22). */
+export function yearTag(date: Date, _now: Date = new Date()): string {
+  return `'${istParts(date).year.slice(-2)}`;
 }
 
-/** "20 Mar" or "20 Mar '27" (another year). */
+/** "20 Mar '27". */
 export function shortDate(date: Date, now: Date = new Date()): string {
   const { day, month } = istParts(date);
   return [day, month, yearTag(date, now)].filter(Boolean).join(" ");
