@@ -22,6 +22,11 @@ import { DAY_MS, TtlCache } from "./ttl-cache";
 export const SETLISTFM_ATTRIBUTION = "Live setlists: setlist.fm";
 export const SETLISTFM_BASE_URL = "https://api.setlist.fm/rest/1.0";
 const UPSTREAM = "setlistfm";
+/** Each show back counts half as much every this many shows: the latest tour leg dominates. */
+const RECENCY_HALF_LIFE_SHOWS = 6;
+/** Artists who barely change the setlist between shows: lean harder on the latest ones. */
+const STABLE_SETLIST_JACCARD = 0.7;
+const STABLE_HALF_LIFE_SHOWS = 3;
 const MIN_REQUEST_INTERVAL_MS = 1_000;
 export const SETLISTFM_DAILY_CAP = 1_000;
 
@@ -74,12 +79,17 @@ export class SetlistfmScores implements SongScoreProvider {
     if (setlists.length === 0) return UNKNOWN;
     const currentTour = setlists[0]?.tour?.name ?? null;
     const plays = new Map<string, { title: string; count: number; onTour: boolean }>();
-    for (const s of setlists) {
+    const sim = meanConsecutiveJaccard(setlists.map((s) => songsOf(s).map(normalizeTrackTitle)));
+    const hl = sim >= STABLE_SETLIST_JACCARD ? STABLE_HALF_LIFE_SHOWS : RECENCY_HALF_LIFE_SHOWS;
+    let total = 0;
+    for (const [i, s] of setlists.entries()) {
+      const weight = 0.5 ** (i / hl);
+      total += weight;
       const onTour = currentTour !== null && s.tour?.name === currentTour;
       for (const title of new Set(songsOf(s))) {
         const key = normalizeTrackTitle(title);
         const entry = plays.get(key) ?? { title, count: 0, onTour: false };
-        entry.count++;
+        entry.count += weight;
         entry.onTour ||= onTour;
         plays.set(key, entry);
       }
@@ -88,7 +98,7 @@ export class SetlistfmScores implements SongScoreProvider {
       known: true,
       songs: [...plays.values()].map((p) => ({
         title: p.title,
-        score: setlistScore(p.count, setlists.length, p.onTour),
+        score: setlistScore(p.count, total, p.onTour),
       })),
     };
   }
@@ -141,3 +151,15 @@ const songsOf = (s: z.infer<typeof SetlistSchema>) =>
   s.sets.set.flatMap((set) =>
     set.song.filter((g) => !g.tape && g.name.trim() !== "").map((g) => g.name),
   );
+
+function meanConsecutiveJaccard(lists: string[][]): number {
+  let sum = 0;
+  for (let i = 0; i + 1 < lists.length; i++) {
+    const a = new Set(lists[i]);
+    const b = new Set(lists[i + 1]);
+    const inter = [...a].filter((x) => b.has(x)).length;
+    const union = a.size + b.size - inter;
+    sum += union === 0 ? 0 : inter / union;
+  }
+  return lists.length > 1 ? sum / (lists.length - 1) : 0;
+}

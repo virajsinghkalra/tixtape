@@ -60,3 +60,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /.vitest/
+
+# backtest cache
+/.cache/

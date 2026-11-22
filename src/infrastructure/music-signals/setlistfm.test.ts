@@ -32,12 +32,13 @@ describe("SetlistfmScores (D-085)", () => {
     expect(known).toBe(true);
     const score = Object.fromEntries(songs.map((s) => [s.title, Number(s.score.toFixed(3))]));
     // 3 non-empty setlists of his own (the tribute band and the empty upcoming one don't count).
+    // Values changed: recent setlists now weigh more (recency half-life), so scores aren't plain shares.
     expect(score).toEqual({
       Attention: 1,
-      "Light Switch": 0.917,
-      "We Don't Talk Anymore": 0.583,
-      "How Long": 0.583,
-      "See You Again": 0.333,
+      "Light Switch": 0.954,
+      "We Don't Talk Anymore": 0.622,
+      "How Long": 0.582,
+      "See You Again": 0.296,
     });
     const url = new URL(seen[0]!.url);
     expect(Object.fromEntries(url.searchParams)).toEqual({ artistName: "Charlie Puth", p: "1" });
