@@ -400,7 +400,7 @@ export function EventSearch({
           spellCheck={false}
           enterKeyHint="search"
           maxLength={MAX_CHARS}
-          placeholder="Search gigs, artists, cities"
+          placeholder="Artists, gigs, cities"
           value={value}
           tabIndex={!inSheet && sheetOpen ? -1 : undefined}
           onChange={(e) => update(e.target.value)}
