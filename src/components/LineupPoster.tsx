@@ -23,10 +23,15 @@ type Props = {
 
 /** Billing decides size, like a real festival poster. */
 const NAME_STYLE: Record<BillingTier, string> = {
-  headliner: "text-[clamp(1.875rem,7vw,4.5rem)] leading-[0.95] text-white",
+  headliner: "text-[clamp(1.5rem,6.4vw,4.5rem)] leading-[0.95] tracking-tight text-white",
   sub: "text-big text-lime",
   mid: "text-2xl text-white",
   support: "text-xl text-[#c9c9d6]",
+};
+/** Big lineups: mid-card and support become compact chips (small avatar + name), not poster type. */
+const DENSE_NAME: Partial<Record<BillingTier, string>> = {
+  mid: "text-base text-white",
+  support: "text-sm text-[#c9c9d6]",
 };
 const TIER_TONE: Record<BillingTier, Tone> = {
   headliner: "pink",
@@ -41,6 +46,7 @@ export function LineupPoster({ lineup, highlight }: Props) {
   const groups = groupByTier(lineup);
   const solo = lineup.length === 1 ? lineup[0]! : null;
   const layout = lineupLayout(lineup.length);
+  const bigLineup = layout.bucket === "medium" || layout.bucket === "large";
   // D-083: CC photos need attribution; credits come from data, never hardcoded.
   const credits = [
     ...new Set(
@@ -77,7 +83,7 @@ export function LineupPoster({ lineup, highlight }: Props) {
               />
             )}
             <ul
-              className={`mt-4 flex flex-wrap justify-center gap-x-4 gap-y-3 ${g.tier === "headliner" ? "flex-col items-center" : ""}`}
+              className={`mt-4 flex flex-wrap justify-center ${dense(g.tier, bigLineup) ? "gap-2" : "gap-x-4 gap-y-3"} ${g.tier === "headliner" ? "flex-col items-center" : ""}`}
             >
               {(solo ? g.artists : orderForVisuals(g.artists)).map((a, i) => (
                 <li
@@ -86,9 +92,14 @@ export function LineupPoster({ lineup, highlight }: Props) {
                   id={spotlight === a.name.toLowerCase() ? "highlighted-artist" : undefined}
                   data-highlighted={spotlight === a.name.toLowerCase() || undefined}
                   style={{ "--i": i } as CSSProperties}
-                  className="pop-in max-w-full scroll-mt-28 rounded-chip px-1 font-display font-extrabold uppercase [overflow-wrap:anywhere] data-highlighted:bg-violet data-highlighted:shadow-[0_0_0_3px_var(--color-lime),0_0_40px_8px_var(--color-violet)] data-highlighted:motion-safe:animate-pulse"
+                  className="pop-in max-w-full scroll-mt-28 rounded-chip px-1 font-display font-extrabold uppercase [overflow-wrap:break-word] data-highlighted:bg-violet data-highlighted:shadow-[0_0_0_3px_var(--color-lime),0_0_40px_8px_var(--color-violet)] data-highlighted:motion-safe:animate-pulse"
                 >
-                  <ArtistName artist={a} tier={g.tier} avatar={solo ? null : layout.size[g.tier]} />
+                  <ArtistName
+                    artist={a}
+                    tier={g.tier}
+                    avatar={solo ? null : layout.size[g.tier]}
+                    dense={dense(g.tier, bigLineup)}
+                  />
                 </li>
               ))}
             </ul>
@@ -102,18 +113,26 @@ export function LineupPoster({ lineup, highlight }: Props) {
   );
 }
 
+function dense(tier: BillingTier, bigLineup: boolean): boolean {
+  return bigLineup && DENSE_NAME[tier] !== undefined;
+}
+
 /** Avatar + name (D-083); a matched artist links to Spotify. The name carries the tier size. */
 function ArtistName({
   artist: a,
   tier,
   avatar,
+  dense = false,
 }: {
   artist: LineupArtist;
   tier: BillingTier;
   avatar: AvatarSize | null;
+  dense?: boolean;
 }) {
   // Big avatars sit above the name, so huge headliner type keeps the full width.
-  const stack = avatar === "xl" ? "flex-col gap-2 text-center" : "gap-3 text-left";
+  const look = dense
+    ? `${DENSE_NAME[tier]} gap-2 text-left rounded-chip border border-white/25 py-0.5 pr-3 pl-0.5 leading-tight`
+    : `${NAME_STYLE[tier]} ${avatar === "xl" ? "flex-col gap-2 text-center" : "gap-3 text-left"}`;
   const name = (
     <>
       {avatar && <ArtistAvatar artist={a} size={avatar} className="border-white/80" />}
@@ -127,15 +146,11 @@ function ArtistName({
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`${a.name} on Spotify (opens in new tab)`}
-        className={`${NAME_STYLE[tier]} ${stack} inline-flex min-h-11 max-w-full items-center decoration-lime decoration-4 underline-offset-4 hover:underline`}
+        className={`${look} inline-flex ${dense ? "min-h-9" : "min-h-11"} max-w-full items-center decoration-lime decoration-4 underline-offset-4 hover:underline`}
       >
         {name}
       </a>
     );
   }
-  return (
-    <span className={`${NAME_STYLE[tier]} ${stack} inline-flex max-w-full items-center`}>
-      {name}
-    </span>
-  );
+  return <span className={`${look} inline-flex max-w-full items-center`}>{name}</span>;
 }
