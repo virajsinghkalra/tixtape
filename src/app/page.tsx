@@ -5,7 +5,13 @@ import type { FrontItem, Tour } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CityEmptyNote } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
-import { countdownBadge, formatDateRange, istParts, yearTag } from "@/components/event-format";
+import {
+  countdownBadge,
+  formatDateRange,
+  hasEnded,
+  istParts,
+  yearTag,
+} from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
 import { HeroBoard } from "@/components/HeroBoard";
@@ -89,7 +95,12 @@ export default async function Home({ searchParams }: Props) {
     front.bigOnes.map((i) => (i.kind === "event" ? i.event : i.tour.featured)),
   );
   const thisWeek = readyFirst(
-    rows.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS && !heroIds.has(e.id)),
+    rows.filter(
+      (e) =>
+        e.startsAt.getTime() - now.getTime() < WEEK_MS &&
+        !heroIds.has(e.id) &&
+        !hasEnded(e.startsAt, e.endsAt, now),
+    ),
   );
   // Playable shows lead each section; the far-off ones follow (stable within each group).
   const playable = (i: FrontItem<FeedRow>) => ({
