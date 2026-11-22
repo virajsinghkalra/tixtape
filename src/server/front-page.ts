@@ -69,3 +69,11 @@ export async function refreshPopularity(limit: number) {
 export function upcomingRows(now: Date): Promise<FeedRow[]> {
   return feed().upcoming({ from: now, limit: FEED_LIMIT });
 }
+
+const PAST_DAYS = 60;
+
+/** Shows that ended in the last 60 days, most recent first, for /past (read-only, uncached). */
+export function pastRows(now: Date): Promise<FeedRow[]> {
+  const from = new Date(now.getTime() - PAST_DAYS * 86_400_000);
+  return new PgEventFeed(container().db).past({ from, to: now, limit: FEED_LIMIT });
+}

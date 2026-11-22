@@ -31,7 +31,18 @@ type Props = {
   className?: string;
 } & (
   | { variant?: "inline" }
-  | { variant: "modal"; open: boolean; onClose: () => void; autoAdvanceMs?: number }
+  | {
+      variant: "modal";
+      open: boolean;
+      onClose: () => void;
+      autoAdvanceMs?: number;
+      /** Past the last slide: go to the next story (omit to close). */
+      onNext?: () => void;
+      /** Back on the first slide: go to the previous story's last slide. */
+      onPrev?: () => void;
+      /** Open on the last slide (coming back from the next story). */
+      startAtEnd?: boolean;
+    }
 );
 
 /**
@@ -51,7 +62,7 @@ export function StoryViewer(props: Props) {
 }
 
 function ModalStory(props: Extract<Props, { variant: "modal" }>) {
-  const { open, onClose, slides, title, autoAdvanceMs = 5000 } = props;
+  const { open, onClose, slides, title, autoAdvanceMs = 5000, onNext, onPrev, startAtEnd } = props;
   const reduceMotion = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -88,10 +99,13 @@ function ModalStory(props: Extract<Props, { variant: "modal" }>) {
             transition={SPRING_SOFT}
           >
             <StoryTrack
+              key={title}
               slides={slides}
+              initialIndex={startAtEnd ? slides.length - 1 : 0}
+              onBack={onPrev}
               title={title}
               autoAdvanceMs={reduceMotion ? undefined : autoAdvanceMs}
-              onEnd={onClose}
+              onEnd={onNext ?? onClose}
               tapZones
               className="h-full sm:rounded-tile"
             />
@@ -117,13 +131,25 @@ type TrackProps = {
   className?: string;
   autoAdvanceMs?: number;
   onEnd?: () => void;
+  /** On the first slide, "previous" calls this instead of doing nothing. */
+  onBack?: () => void;
+  initialIndex?: number;
   tapZones?: boolean;
 };
 
-function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }: TrackProps) {
+function StoryTrack({
+  slides,
+  title,
+  className,
+  autoAdvanceMs,
+  onEnd,
+  onBack,
+  initialIndex = 0,
+  tapZones,
+}: TrackProps) {
   const reduceMotion = useReducedMotion();
   const trackRef = useRef<HTMLOListElement>(null);
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState(initialIndex);
   const [paused, setPaused] = useState(false);
   const last = slides.length - 1;
 
@@ -142,6 +168,20 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
   );
 
   useEffect(() => {
+    const track = trackRef.current;
+    if (track && initialIndex > 0) track.scrollTo({ left: initialIndex * track.clientWidth });
+  }, [initialIndex]);
+
+  const back = useCallback(
+    () => (current === 0 && onBack ? onBack() : goTo(current - 1)),
+    [current, onBack, goTo],
+  );
+  const forward = useCallback(
+    () => (current >= last && onEnd ? onEnd() : goTo(current + 1)),
+    [current, last, onEnd, goTo],
+  );
+
+  useEffect(() => {
     if (!autoAdvanceMs || paused) return;
     const timer = setTimeout(() => (current < last ? goTo(current + 1) : onEnd?.()), autoAdvanceMs);
     return () => clearTimeout(timer);
@@ -153,8 +193,8 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLElement>) {
-    if (e.key === "ArrowRight") goTo(current + 1);
-    else if (e.key === "ArrowLeft") goTo(current - 1);
+    if (e.key === "ArrowRight") forward();
+    else if (e.key === "ArrowLeft") back();
     else return;
     e.preventDefault();
   }
@@ -163,9 +203,8 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
     if ((e.target as Element).closest("a, button, input, select, textarea")) return;
     const box = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - box.left) / Math.max(box.width, 1);
-    if (x < 1 / 3) goTo(current - 1);
-    else if (x > 2 / 3 && current < last) goTo(current + 1);
-    else if (x > 2 / 3) onEnd?.();
+    if (x < 1 / 3) back();
+    else if (x > 2 / 3) forward();
   }
 
   const slide = slides[current];
@@ -223,18 +262,10 @@ function StoryTrack({ slides, title, className, autoAdvanceMs, onEnd, tapZones }
       </ol>
 
       <div className="absolute right-4 bottom-4 z-10 flex gap-2">
-        <ArrowButton
-          label="Previous slide"
-          disabled={current === 0}
-          onClick={() => goTo(current - 1)}
-        >
+        <ArrowButton label="Previous slide" disabled={current === 0 && !onBack} onClick={back}>
           ←
         </ArrowButton>
-        <ArrowButton
-          label="Next slide"
-          disabled={current === last}
-          onClick={() => goTo(current + 1)}
-        >
+        <ArrowButton label="Next slide" disabled={current === last && !onEnd} onClick={forward}>
           →
         </ArrowButton>
       </div>

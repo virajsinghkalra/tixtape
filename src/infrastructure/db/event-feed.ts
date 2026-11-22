@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type {
   ArtistPopularityStore,
@@ -59,6 +59,19 @@ export class PgEventFeed implements EventFeedReader {
   constructor(private readonly db: Database) {}
 
   async upcoming({ from, limit }: { from: Date; limit: number }): Promise<FeedRow[]> {
+    return this.select(sql`${stillOn} >= ${from.toISOString()}::timestamptz`, sql`asc`, limit);
+  }
+
+  /** Published events that ended in [from, to), most recent first (the /past page). */
+  async past({ from, to, limit }: { from: Date; to: Date; limit: number }): Promise<FeedRow[]> {
+    return this.select(
+      sql`${stillOn} >= ${from.toISOString()}::timestamptz and ${stillOn} < ${to.toISOString()}::timestamptz`,
+      sql`desc`,
+      limit,
+    );
+  }
+
+  private async select(when: SQL, direction: SQL, limit: number): Promise<FeedRow[]> {
     const result = await this.db.execute(sql`
       select
         e.id, e.title, e.type, e.status, e.starts_at, e.starts_at_date_only, e.ends_at, e.genre, e.image_url, e.poster_url, e.created_at,
@@ -108,8 +121,8 @@ export class PgEventFeed implements EventFeedReader {
           select ea2.tier from event_artists ea2 where ea2.event_id = e.id
           order by ea2.billing_rank limit 1)
       ) top on true
-      where e.visibility = 'published' and ${stillOn} >= ${from.toISOString()}::timestamptz
-      order by e.starts_at asc, e.id asc
+      where e.visibility = 'published' and ${when}
+      order by e.starts_at ${direction}, e.id ${direction}
       limit ${limit}
     `);
     return [...result].map((raw) => toFeedRow(row.parse(raw)));

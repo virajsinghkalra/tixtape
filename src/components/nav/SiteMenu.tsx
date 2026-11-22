@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/ready", label: "🎧 Ready to play" },
   { href: "/week", label: "📅 This week" },
   { href: "/upcoming", label: "🔮 Upcoming" },
+  { href: "/past", label: "🕰️ Past gigs" },
   { href: "/me/gigs", label: "♡ Saved" },
   { href: "/search", label: "🔍 Search" },
 ];

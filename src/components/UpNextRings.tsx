@@ -4,6 +4,7 @@ import { useState } from "react";
 import { track } from "./analytics/track";
 import type { StoryPlan } from "./story-plan";
 import { renderStory } from "./StorySlides";
+import { adjacentShow } from "./story-nav";
 import { StoryRing } from "./ui/StoryRing";
 import { StoryViewer } from "./ui/StoryViewer";
 import type { BlockTone } from "./ui/tone";
@@ -25,8 +26,20 @@ export type RingEvent = {
 /** Instagram-style rings for this week's events; tapping one plays its story. */
 export function UpNextRings({ events }: { events: RingEvent[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [fromNext, setFromNext] = useState(true);
   const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
   const open = events.find((e) => e.id === openId);
+
+  const ids = events.map((e) => e.id);
+
+  /** Plays another show's story (Instagram-style); `null` closes. Same analytics as a ring tap. */
+  function play(id: string | null, atEnd: boolean) {
+    setOpenId(id);
+    if (!id) return;
+    setFromNext(!atEnd);
+    setSeen((s) => new Set(s).add(id));
+    track("story_open", { eventId: id });
+  }
 
   return (
     <>
@@ -43,9 +56,7 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
               seen={seen.has(e.id)}
               aria-label={`${e.day} ${e.month} ${e.title}: story${e.live ? ", playlist live" : ""}`}
               onClick={() => {
-                setOpenId(e.id);
-                setSeen((s) => new Set(s).add(e.id));
-                track("story_open", { eventId: e.id });
+                play(e.id, false);
               }}
             />
           </li>
@@ -56,6 +67,13 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
           variant="modal"
           open
           onClose={() => setOpenId(null)}
+          onNext={() => play(adjacentShow(ids, open.id, 1), false)}
+          onPrev={
+            adjacentShow(ids, open.id, -1)
+              ? () => play(adjacentShow(ids, open.id, -1), true)
+              : undefined
+          }
+          startAtEnd={!fromNext}
           title={`${open.title}: ${open.story.heading}`}
           slides={renderStory(open.id, open.story)}
         />
