@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CitySwitcher } from "./CitySwitcher";
 import { LogoutButton } from "./LogoutButton";
+import { SavedLink } from "./nav/SavedLink";
+import { SiteMenu } from "./nav/SiteMenu";
 import { Wordmark } from "./Wordmark";
 
 export type HeaderUser = { name: string };
@@ -21,8 +23,9 @@ export function SiteHeader({ user, city }: { user: HeaderUser | null; city: stri
         >
           <Wordmark />
         </Link>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           <CitySwitcher city={city} cities={city ? [city] : []} />
+          <SavedLink />
           {user ? (
             <div className="flex items-center gap-2">
               <span
@@ -38,6 +41,7 @@ export function SiteHeader({ user, city }: { user: HeaderUser | null; city: stri
               <LogoutButton />
             </div>
           ) : null}
+          <SiteMenu />
         </div>
       </div>
     </header>

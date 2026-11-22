@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
-import type { Tour } from "@/domain/events/front-page";
+import type { FrontItem, Tour } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CityEmptyNote } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
@@ -9,6 +9,7 @@ import { countdownBadge, formatDateRange, istParts, yearTag } from "@/components
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
 import { HeroBoard } from "@/components/HeroBoard";
+import { readyFirst } from "@/components/nav/browse";
 import { pickNextUp, shortTitle } from "@/components/hero-copy";
 import { playlistBadge } from "@/components/lineup-copy";
 import { SectionBoundary } from "@/components/ui/SectionBoundary";
@@ -22,6 +23,7 @@ import { SearchLauncher } from "@/components/SearchLauncher";
 import { Section } from "@/components/Section";
 import { planStory } from "@/components/story-plan";
 import { UpNextRings, type RingEvent } from "@/components/UpNextRings";
+import { buttonClass } from "@/components/ui/Button";
 import { BottomBar } from "@/components/ui/BottomBar";
 import { Marquee } from "@/components/ui/Marquee";
 import { Sticker } from "@/components/ui/Sticker";
@@ -79,10 +81,18 @@ export default async function Home({ searchParams }: Props) {
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
   const hero = pickNextUp(rows);
   const heroIds = new Set(hero.map((e) => e.id));
-  const thisWeek = rows.filter(
-    (e) => e.startsAt.getTime() - now.getTime() < WEEK_MS && !heroIds.has(e.id),
+  const thisWeek = readyFirst(
+    rows.filter((e) => e.startsAt.getTime() - now.getTime() < WEEK_MS && !heroIds.has(e.id)),
   );
-  const nearYou = front.nearYou.filter((i) => i.kind !== "event" || !heroIds.has(i.event.id));
+  // Playable shows lead each section; the far-off ones follow (stable within each group).
+  const playable = (i: FrontItem<FeedRow>) => ({
+    playlistUrl: (i.kind === "event" ? i.event : i.tour.featured).playlistUrl,
+  });
+  const readyLead = (items: FrontItem<FeedRow>[]) =>
+    readyFirst(items.map((item) => ({ ...playable(item), item }))).map((x) => x.item);
+  const nearYou = readyLead(
+    front.nearYou.filter((i) => i.kind !== "event" || !heroIds.has(i.event.id)),
+  );
   const nearRows = front.nearYou.map((i) => (i.kind === "event" ? i.event : i.tour.featured));
   const nearIds = new Set(nearRows.map((e) => e.id));
   const popularSection: RecommendationSection = {
@@ -197,11 +207,17 @@ export default async function Home({ searchParams }: Props) {
         blurb={
           city && nearYou.length === 0 && !empty ? `Quiet in ${city} · All India` : "All India"
         }
-        items={front.bigOnes}
+        items={readyLead(front.bigOnes)}
         now={now}
         city={city}
         seeAll={`/search?from=${today}`}
       />
+
+      <div className="mx-auto mt-10 flex max-w-6xl justify-center px-4 sm:px-6">
+        <Link href="/upcoming" className={buttonClass("secondary")}>
+          <span aria-hidden>🔮</span> Upcoming <span aria-hidden>→</span>
+        </Link>
+      </div>
 
       {marquee.length > 0 && (
         <Marquee label="Artists coming up" items={marquee} tone="violet" className="mt-12" />
@@ -211,7 +227,7 @@ export default async function Home({ searchParams }: Props) {
         id="this-week"
         emoji="⚡"
         title="This week"
-        items={front.thisWeek}
+        items={readyLead(front.thisWeek)}
         now={now}
         city={city}
         seeAll={`/search?from=${today}&to=${weekEnd}`}

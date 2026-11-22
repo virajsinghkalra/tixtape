@@ -16,7 +16,7 @@ type Props = {
   items: FrontItem<FeedRow>[];
   now: Date;
   /** Where "See all" goes, so nothing on the home page is a dead end (D-079). */
-  seeAll: string;
+  seeAll?: string;
   city: string | null;
   layout?: "grid" | "row";
 };
@@ -42,12 +42,14 @@ export function FrontSection({
       title={title}
       blurb={blurb}
       aside={
-        <Link
-          href={seeAll}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-chip px-3 text-sm font-semibold text-accent-text hover:underline"
-        >
-          See all <span aria-hidden>→</span>
-        </Link>
+        seeAll ? (
+          <Link
+            href={seeAll}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-chip px-3 text-sm font-semibold text-accent-text hover:underline"
+          >
+            See all <span aria-hidden>→</span>
+          </Link>
+        ) : undefined
       }
     >
       <SectionBoundary label={title}>

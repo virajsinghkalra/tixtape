@@ -3,7 +3,7 @@
  * so it renders per request; the feed rows are cached here for 5 minutes per server instance,
  * and only the cheap, pure ranking runs per request.
  */
-import { loadFrontPage } from "@/application/events/front-page";
+import { FEED_LIMIT, loadFrontPage } from "@/application/events/front-page";
 import { refreshArtistPopularity } from "@/application/events/refresh-popularity";
 import type { EventFeedReader, FeedRow } from "@/application/ports/event-feed";
 import { PgArtistPopularityStore, PgEventFeed } from "@/infrastructure/db/event-feed";
@@ -63,4 +63,9 @@ export async function refreshPopularity(limit: number) {
     { store: new PgArtistPopularityStore(c.db), source, clock: c.clock },
     limit,
   );
+}
+
+/** Every upcoming show (same 5-minute cache as the home page) for the browse pages. */
+export function upcomingRows(now: Date): Promise<FeedRow[]> {
+  return feed().upcoming({ from: now, limit: FEED_LIMIT });
 }
