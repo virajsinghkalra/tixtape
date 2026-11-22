@@ -96,4 +96,7 @@ describe("spotifyOpenPlan", () => {
     const odd = "https://open.spotify.com/user/x";
     expect(spotifyOpenPlan(odd, { os: "ios", inApp: null })).toEqual({ kind: "web", web: odd });
   });
+  it("iOS Safari uses the universal https link (no scheme error without the app)", () => {
+    expect(spotifyOpenPlan(WEB, { os: "ios", inApp: null })).toEqual({ kind: "web", web: WEB });
+  });
 });

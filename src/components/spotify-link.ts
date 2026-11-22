@@ -35,6 +35,9 @@ export const IOS_FALLBACK_MS = 1200;
 export function spotifyOpenPlan(webUrl: string, platform: Platform): SpotifyOpenPlan {
   const ref = parseSpotifyUrl(webUrl);
   if (!ref || platform.os === "other") return { kind: "web", web: webUrl };
+  // iOS Safari: the https link is a universal link: the app opens if installed, else the web
+  // page with the tracklist. The bare `spotify:` scheme errors out when the app is missing.
+  if (platform.os === "ios" && platform.inApp === null) return { kind: "web", web: webUrl };
   if (platform.os === "android") {
     const href =
       `intent://${ref.kind}/${ref.id}#Intent;scheme=spotify;package=com.spotify.music;` +
