@@ -201,14 +201,12 @@ export async function renderBrandCard(): Promise<Response> {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", width: "64%" }}>
-        <div style={{ fontSize: 96, lineHeight: 0.98, letterSpacing: "-0.03em" }}>
-          Every lineup.
-        </div>
+        <div style={{ fontSize: 96, lineHeight: 0.98, letterSpacing: "-0.03em" }}>Every gig.</div>
         <div style={{ fontSize: 96, lineHeight: 0.98, color: LIME, letterSpacing: "-0.03em" }}>
-          One playlist.
+          Its playlist.
         </div>
         <div style={{ marginTop: 28, fontSize: 34, fontFamily: "Inter", color: "#c9c9d6" }}>
-          Gigs & festivals across India
+          Concert setlists on Spotify
         </div>
       </div>
       {logoUrl && (

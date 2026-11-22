@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     default: "Tixtape · Every ticket gets a mixtape",
     template: "%s · Tixtape",
   },
-  description: "Every lineup. One playlist. Concerts and festivals across India.",
+  description: "Every gig, its playlist. Tap a show → hear its setlist on Spotify 🎧",
   metadataBase: new URL(SITE_URL),
   applicationName: "Tixtape",
   openGraph: { siteName: "Tixtape", type: "website", locale: "en_IN" },

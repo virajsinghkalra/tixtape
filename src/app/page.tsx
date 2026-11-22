@@ -124,8 +124,8 @@ export default async function Home({ searchParams }: Props) {
         <div className="grid gap-4 lg:grid-cols-3">
           <Tile tone="lime" className="pop-in z-20 overflow-visible lg:col-span-2 lg:row-span-2">
             <div className="flex flex-wrap items-center gap-3">
-              <Sticker tone="night" emoji="🇮🇳" tilt={-4}>
-                Gigs &amp; festivals across India
+              <Sticker tone="night" emoji="🎧" tilt={-4}>
+                Concert playlists · India
               </Sticker>
               <CitySwitcher city={city} cities={[...cities]} />
             </div>
@@ -133,8 +133,11 @@ export default async function Home({ searchParams }: Props) {
               id="hero-title"
               className="mt-5 font-display text-mega font-extrabold tracking-tight text-balance"
             >
-              Every lineup. One playlist.
+              Every gig. Its playlist.
             </h1>
+            <p className="mt-3 text-lg font-semibold">
+              Tap a show → hear its setlist on Spotify 🎧
+            </p>
             <div className="mt-7 max-w-2xl">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
             </div>
