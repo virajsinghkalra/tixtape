@@ -31,10 +31,10 @@ export type SpotifyCallClass = (typeof SPOTIFY_CALL_CLASSES)[number];
 export type BackgroundClass = Exclude<SpotifyCallClass, "build">;
 
 export const CALL_WINDOW_MS = 10_000;
-// Tightened after the 2026-11-21 429 (Lead, 2026-11-22): 5 app-wide per 10 s (≤ 30 per rolling
-// 30 s at the worst edge), background at most 2 of them so builds keep ≥ 3.
-export const APP_CALLS_PER_WINDOW = 5;
-export const BACKGROUND_CALLS_PER_WINDOW = 2;
+// 8 app-wide per 10 s with background ≤ 3, so a build always keeps ≥ 5: a headliner needs up to
+// 5 searches in one step (D-080). 5/10 s (tried 2026-11-22) starved builds into a retry loop.
+export const APP_CALLS_PER_WINDOW = 8;
+export const BACKGROUND_CALLS_PER_WINDOW = 3;
 const DAY_MS = 86_400_000;
 
 export const BACKGROUND_LIMITS: Record<BackgroundClass, { perWindow: number; perDay: number }> = {
