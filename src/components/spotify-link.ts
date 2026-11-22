@@ -39,9 +39,13 @@ export function spotifyOpenPlan(webUrl: string, platform: Platform): SpotifyOpen
   // page with the tracklist. The bare `spotify:` scheme errors out when the app is missing.
   if (platform.os === "ios" && platform.inApp === null) return { kind: "web", web: webUrl };
   if (platform.os === "android") {
+    // Chrome: the https link is an App Link, so Spotify opens it itself (or the web page).
+    if (platform.inApp === null) return { kind: "web", web: webUrl };
+    // In-app webviews: hand the SAME https link to the Spotify app; `spotify://playlist/…`
+    // isn't a form the app reliably accepts (opened to nothing for users, 2026-11-22).
     const href =
-      `intent://${ref.kind}/${ref.id}#Intent;scheme=spotify;package=com.spotify.music;` +
-      `S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
+      `intent://open.spotify.com/${ref.kind}/${ref.id}#Intent;scheme=https;` +
+      `package=com.spotify.music;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
     return { kind: "intent", href, web: webUrl };
   }
   return {

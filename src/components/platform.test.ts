@@ -71,15 +71,19 @@ describe("parseSpotifyUrl", () => {
 });
 
 describe("spotifyOpenPlan", () => {
-  it("Android: an intent with the https fallback", () => {
+  it("Android in-app webview: an intent handing the https link to the Spotify app", () => {
     const plan = spotifyOpenPlan(WEB, { os: "android", inApp: "whatsapp" });
     expect(plan).toEqual({
       kind: "intent",
       web: WEB,
       href:
-        "intent://playlist/37i9dQZF1DXcBWIGoYBM5M#Intent;scheme=spotify;package=com.spotify.music;" +
-        `S.browser_fallback_url=${encodeURIComponent(WEB)};end`,
+        "intent://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M#Intent;scheme=https;" +
+        `package=com.spotify.music;S.browser_fallback_url=${encodeURIComponent(WEB)};end`,
     });
+  });
+
+  it("Android Chrome: the plain https App Link", () => {
+    expect(spotifyOpenPlan(WEB, { os: "android", inApp: null })).toEqual({ kind: "web", web: WEB });
   });
 
   it("iOS: the spotify: scheme with a timed web fallback", () => {
