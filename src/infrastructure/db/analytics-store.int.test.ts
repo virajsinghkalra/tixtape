@@ -46,6 +46,17 @@ beforeEach(() => truncateAll(db));
 afterAll(() => db.$close());
 
 describe("PgAnalyticsStore (D-090)", () => {
+  it("identityStatus says what a device already gave, as booleans only", async () => {
+    const did = randomUUID();
+    expect(await store.identityStatus(did)).toEqual({ hasNickname: false, hasEmail: false });
+    await record(did, [{ n: "page_view", p: { path: "home" } }]);
+    expect(await store.identityStatus(did)).toEqual({ hasNickname: false, hasEmail: false });
+    await store.setNickname(did, "Vee", NOW);
+    expect(await store.identityStatus(did)).toEqual({ hasNickname: true, hasEmail: false });
+    await store.saveContact(did, contact("vee@example.com", "Viraj"), NOW);
+    expect(await store.identityStatus(did)).toEqual({ hasNickname: true, hasEmail: true });
+  });
+
   it("creates a device once, keeps its first source and moves last_seen forward only", async () => {
     const did = randomUUID();
     await record(did, [{ n: "page_view", p: { path: "home" } }], at(2), { source: "whatsapp" });

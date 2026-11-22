@@ -29,6 +29,8 @@ export interface AnalyticsStore {
    * Returns how many events were anonymised.
    */
   deleteDeviceData(deviceId: string): Promise<{ person: boolean; events: number }>;
+  /** Whether the device's person already gave a nickname / an email. Never the values. */
+  identityStatus(deviceId: string): Promise<{ hasNickname: boolean; hasEmail: boolean }>;
   /** Retention: deletes events before `before`, and idle anonymous devices. */
   prune(before: Date): Promise<{ events: number; devices: number }>;
 }

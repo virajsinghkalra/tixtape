@@ -5,7 +5,7 @@ import {
   NicknameSchema,
   PersonNameSchema,
 } from "@/domain/analytics/identity";
-import { rememberContact, rememberNickname } from "@/server/analytics";
+import { deviceIdentityStatus, rememberContact, rememberNickname } from "@/server/analytics";
 import { parseBody, route } from "@/server/http";
 
 /**
@@ -34,4 +34,12 @@ export const POST = route(async (req: Request) => {
       source: body.source,
     });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+});
+
+/** Booleans only (never the nickname or email): lets the prompts skip a device that already answered. */
+export const GET = route(async (req: Request) => {
+  const did = z.uuid().safeParse(new URL(req.url).searchParams.get("did"));
+  if (!did.success) return Response.json({ hasNickname: false, hasEmail: false }, { status: 400 });
+  const status = await deviceIdentityStatus(req, did.data);
+  return Response.json(status, { headers: { "Cache-Control": "no-store" } });
 });

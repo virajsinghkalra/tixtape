@@ -106,6 +106,17 @@ export class PgAnalyticsStore implements AnalyticsStore {
     });
   }
 
+  async identityStatus(deviceId: string): Promise<{ hasNickname: boolean; hasEmail: boolean }> {
+    const rows = await this.db
+      .select({ nickname: people.nickname, email: people.email })
+      .from(devices)
+      .innerJoin(people, eq(people.id, devices.personId))
+      .where(eq(devices.id, deviceId))
+      .limit(1);
+    const p = rows[0];
+    return { hasNickname: Boolean(p?.nickname), hasEmail: Boolean(p?.email) };
+  }
+
   async deleteDeviceData(deviceId: string): Promise<{ person: boolean; events: number }> {
     return this.db.transaction(async (tx) => {
       const personId = await this.personOf(tx, deviceId);

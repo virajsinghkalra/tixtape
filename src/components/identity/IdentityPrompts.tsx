@@ -75,6 +75,31 @@ async function postIdentity(body: Record<string, unknown>): Promise<boolean> {
   }
 }
 
+/**
+ * The server is the source of truth for "already answered": local state can be cleared or
+ * reset (new browser, cleared storage), so once per tab session ask the server (booleans only)
+ * and mark what this device already gave. Failures are ignored.
+ */
+async function syncFromServer(): Promise<void> {
+  const did = deviceId();
+  if (!did) return;
+  try {
+    const res = await fetch(`/api/me/identity?did=${encodeURIComponent(did)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+    const s = (await res.json()) as { hasNickname?: boolean; hasEmail?: boolean };
+    if (s.hasEmail || s.hasNickname)
+      update((st) => ({
+        ...st,
+        emailSaved: st.emailSaved || Boolean(s.hasEmail),
+        nickname: s.hasNickname ? "saved" : st.nickname,
+      }));
+  } catch {
+    // Offline or blocked: keep the local state.
+  }
+}
+
 type Open = { kind: "nickname" } | { kind: "email"; source: ContactSource } | null;
 
 /**
@@ -101,6 +126,7 @@ export function IdentityPrompts() {
       return;
     }
     const state = update((s) => noteLoad(s, Date.now(), newSession));
+    if (newSession) void syncFromServer();
     if (!shouldAskNickname(state)) return;
     const timer = setTimeout(() => {
       if (openRef.current || quietRef.current || !shouldAskNickname(read())) return;

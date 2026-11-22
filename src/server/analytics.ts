@@ -129,6 +129,15 @@ export async function rememberContact(
   await saveContact(analytics().store, deviceId, input, container().clock.now());
 }
 
+/** What this device already told us (booleans only), so prompts never ask twice (D-090). */
+export async function deviceIdentityStatus(
+  req: Request,
+  deviceId: string,
+): Promise<{ hasNickname: boolean; hasEmail: boolean }> {
+  await guardIdentity(req);
+  return analytics().store.identityStatus(deviceId);
+}
+
 export async function forgetDevice(req: Request, deviceId: string): Promise<void> {
   await guardIdentity(req);
   await analytics().store.deleteDeviceData(deviceId);
