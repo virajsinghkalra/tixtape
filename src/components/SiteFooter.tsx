@@ -8,9 +8,12 @@ export function SiteFooter() {
     <footer className="mt-24 border-t border-line">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 pt-10 pb-28 text-sm text-muted sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:pb-10">
         <Wordmark />
-        <div className="flex flex-col gap-2 sm:items-end">
+        <div className="flex flex-col sm:items-end">
           <p className="font-semibold text-ink">every ticket gets a mixtape ✦</p>
-          <Link href="/privacy" className="text-xs text-muted underline-offset-4 hover:underline">
+          <Link
+            href="/privacy"
+            className="inline-flex min-h-11 items-center self-start text-xs text-muted underline-offset-4 hover:underline sm:self-auto"
+          >
             {ID_COPY.privacy}
           </Link>
         </div>
