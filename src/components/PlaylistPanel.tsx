@@ -19,6 +19,7 @@ import {
   type PlaylistView,
 } from "./playlist-state";
 import { PLAYLIST_SOON } from "./lineup-copy";
+import { ListenNow } from "./ListenNow";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { Button } from "./ui/Button";
 import { Confetti } from "./ui/Confetti";
@@ -43,6 +44,7 @@ type Props = {
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
 export function PlaylistPanel({ eventId, actions, preview, matched, total, initialStatus }: Props) {
+  const [tour, setTour] = useState(false);
   const [view, setView] = useState<PlaylistView>(() =>
     initialStatus ? viewFromStatus(initialStatus) : { kind: "checking" },
   );
@@ -148,12 +150,18 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
       {pending && <p className="mt-2 text-lg font-semibold">{PLAYLIST_SOON}</p>}
 
       <div className="relative mt-6">
-        <Actions view={view} onStart={start} pending={pending} />
+        {(view.kind === "idle" || view.kind === "building") && (
+          <ListenNow eventId={eventId} onTour={setTour} />
+        )}
+        {/* One tour, one playlist: a sibling's playlist is this event's, so nothing to make. */}
+        {!(tour && (view.kind === "idle" || view.kind === "building")) && (
+          <Actions view={view} onStart={start} pending={pending} />
+        )}
         {view.kind === "ready" && view.justMade && <Confetti key={view.url} />}
       </div>
 
       <div role="status" aria-live="polite">
-        <Note view={view} />
+        {!(tour && (view.kind === "idle" || view.kind === "building")) && <Note view={view} />}
       </div>
 
       {/* UX #5: the secondary row (Share · Remind me · Tickets/Info), passed in by the page. */}
