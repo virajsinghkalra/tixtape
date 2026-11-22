@@ -196,6 +196,7 @@ export default async function Home({ searchParams }: Props) {
           items={nearYou}
           now={now}
           city={city}
+          layout="row"
           seeAll={`/search?city=${encodeURIComponent(city)}`}
         />
       )}
@@ -210,6 +211,7 @@ export default async function Home({ searchParams }: Props) {
         items={readyLead(front.bigOnes)}
         now={now}
         city={city}
+        layout="row"
         seeAll={`/search?from=${today}`}
       />
 
@@ -230,6 +232,7 @@ export default async function Home({ searchParams }: Props) {
         items={readyLead(front.thisWeek)}
         now={now}
         city={city}
+        layout="row"
         seeAll={`/search?from=${today}&to=${weekEnd}`}
       />
 
