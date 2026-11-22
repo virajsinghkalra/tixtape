@@ -78,7 +78,7 @@ export function StoryRing({
           </span>
         )}
       </span>
-      <span className="line-clamp-2 w-full text-xs leading-tight font-semibold text-ink">
+      <span className="line-clamp-2 w-full text-xs leading-tight font-semibold text-balance text-ink">
         {label}
       </span>
     </button>

@@ -291,6 +291,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
   return {
     id: e.id,
     title: e.title,
+    label: e.headliners[0] ?? e.title.split(/\s[–—-]\s/u)[0]?.trim(),
     day,
     month: [month, yearTag(e.startsAt, now)].filter(Boolean).join(" "),
     tone: toneSequence(e.id, 1)[0]!,

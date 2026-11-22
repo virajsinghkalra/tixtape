@@ -12,6 +12,8 @@ import type { BlockTone } from "./ui/tone";
 export type RingEvent = {
   id: string;
   title: string;
+  /** Short rail label: the headliner, else the title's first part. */
+  label?: string;
   day: string;
   month: string;
   tone: BlockTone;
@@ -47,7 +49,7 @@ export function UpNextRings({ events }: { events: RingEvent[] }) {
         {events.map((e) => (
           <li key={e.id}>
             <StoryRing
-              label={e.title}
+              label={e.label ?? e.title}
               face={e.day}
               subface={e.month}
               tone={e.tone}
