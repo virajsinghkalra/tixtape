@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { PickedTrack } from "@/domain/playlists/selection";
 import type { EventDetail } from "./events";
 import {
+  asSpotifyArtistId,
   asSpotifyPlaylistId,
   asSpotifyTrackId,
   type ArtistId,
@@ -52,6 +53,30 @@ export const JobCheckpointSchema = z.object({
   /** Set just before a chunk is sent; still set on resume means the step died mid-chunk. */
   chunkInFlight: z.number().int().min(0).nullable(),
   snapshotId: z.string().nullable(),
+  /** The artist being resolved and how far it got (8-song fix): the next step continues it. */
+  resolving: z
+    .object({
+      artistIndex: z.number().int().min(0),
+      state: z.object({
+        pages: z.number().int().min(0),
+        lastPageNew: z.number().int(),
+        exhausted: z.boolean(),
+        calls: z.number().int().min(0),
+        found: z.array(
+          z.object({
+            id: trackId,
+            name: z.string(),
+            artistIds: z.array(z.string().transform(asSpotifyArtistId)),
+            isrc: z.string().nullable(),
+            durationMs: z.number().int().min(0),
+            releaseDate: z.string().nullable(),
+          }),
+        ),
+        albumIds: z.array(z.string()).nullable(),
+        targeted: z.array(z.string()),
+      }),
+    })
+    .optional(),
   /** Older checkpoints (before D-080) carried these; they're ignored now. */
   popularity: z.unknown().optional(),
   pool: z.unknown().optional(),
@@ -203,6 +228,11 @@ export type ArtistSongs = {
   pages: number;
   /** Spotify had no more results for the artist. */
   exhausted: boolean;
+  /**
+   * The song budget this pool was resolved for (8-song fix). Missing on entries written before
+   * it, which may be truncated and are resolved again.
+   */
+  resolvedFor?: number;
   fetchedAt: Date;
 };
 

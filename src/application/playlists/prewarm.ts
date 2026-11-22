@@ -3,7 +3,11 @@
  * time, so "Make playlist" only has to write. Callers run this as the `prewarm` Spotify class
  * (≤ 1 call per 10 s, daily cap), so it never competes with a user's build.
  */
-import type { ArtistSongsCache, EventLineupReader } from "@/application/ports/playlists";
+import type {
+  ArtistSongs,
+  ArtistSongsCache,
+  EventLineupReader,
+} from "@/application/ports/playlists";
 import { SpotifyBlockedError } from "@/application/ports/spotify";
 import type { Clock } from "@/application/ports/clock";
 import type { EventId } from "@/domain/shared/ids";
@@ -90,14 +94,24 @@ export async function prewarmEvent(
   for (const { artist, targetSongs, entry } of missing) {
     if (deps.clock.now() >= opts.deadline) break;
     try {
-      const songs = entry
-        ? await enrichArtistSongs(deps, entry, artist.name)
-        : await resolveArtistSongs(deps, {
-            artist,
-            market: plan.market,
-            targetSongs,
-            now: deps.clock.now(),
-          });
+      let songs: ArtistSongs;
+      if (entry) {
+        songs = await enrichArtistSongs(deps, entry, artist.name);
+      } else {
+        const outcome = await resolveArtistSongs(deps, {
+          artist,
+          market: plan.market,
+          targetSongs,
+          now: deps.clock.now(),
+          keepGoing: () => deps.clock.now() < opts.deadline,
+        });
+        if (!outcome.done) {
+          if (outcome.blocked) throw outcome.blocked;
+          // Out of time mid-artist: nothing is cached (never a truncated pool); next run redoes it.
+          break;
+        }
+        songs = outcome.songs;
+      }
       await deps.songsCache.put(artist.artistId, plan.market, songs);
       resolved++;
     } catch (e) {

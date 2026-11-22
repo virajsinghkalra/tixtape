@@ -23,7 +23,8 @@ import {
   type PlaylistWriter,
 } from "@/application/ports/spotify";
 import { playlistDescription, playlistName } from "@/domain/playlists/naming";
-import { orderPlaylist, pickedTrack } from "@/domain/playlists/selection";
+import { AVG_SONG_MS } from "@/domain/playlists/budget";
+import { orderPlaylist, pickedTrack, type TrackCandidate } from "@/domain/playlists/selection";
 import type { PickedTrack } from "@/domain/playlists/selection";
 import type { ArtistId, PlaylistJobId, SpotifyTrackId } from "@/domain/shared/ids";
 import { NotFoundError, UpstreamError } from "@/lib/errors";
@@ -45,9 +46,10 @@ import { getPublisher, type PublisherDeps, type PublisherProblem } from "./publi
  * D-085: the song-selection algorithm version, stored with every built playlist. A playlist
  * built by an older version is stale, exactly like a lineup change, and is rebuilt into the
  * same Spotify playlist. 1 = fixed per-tier counts (D-038); 2 = show-length budgets (D-065),
- * cached songs (D-080) and live setlists (D-085). Bump it when picking changes for everyone.
+ * cached songs (D-080) and live setlists (D-085); 3 = tier minutes (D-093) and album top-up.
+ * Bump it when picking changes for everyone.
  */
-export const PLAYLIST_ALGORITHM_VERSION = 2;
+export const PLAYLIST_ALGORITHM_VERSION = 3; // 3: D-093 tier minutes + the 8-song fix
 
 export const STEP_BUDGET_MS = 8_000;
 /**
@@ -214,19 +216,38 @@ class BuildRun {
     const artist = plan.artists[index];
     if (!artist) return this.finishSelection(plan, cp, cache);
     const entry = entryFor(cache, artist);
-    // D-085: an entry cached before a provider existed only needs that provider (no Spotify).
-    const songs =
-      entry && isUsable(entry, targets[index]?.songs ?? 1, now)
-        ? await enrichArtistSongs(this.deps, entry, artist.name)
-        : await resolveArtistSongs(this.deps, {
-            artist,
-            market: plan.market,
-            targetSongs: targets[index]?.songs ?? 1,
-            now,
-          });
+    const targetSongs = targets[index]?.songs ?? 1;
+    let songs: ArtistSongs;
+    if (entry && isUsable(entry, targetSongs, now)) {
+      // D-085: an entry cached before a provider existed only needs that provider (no Spotify).
+      songs = await enrichArtistSongs(this.deps, entry, artist.name);
+    } else {
+      // Continue this artist's resolution where the last step left it (after a pause or the
+      // step's time), never from scratch: starting over could loop forever on a busy budget.
+      const resume = cp.resolving?.artistIndex === index ? cp.resolving.state : undefined;
+      const outcome = await resolveArtistSongs(this.deps, {
+        artist,
+        market: plan.market,
+        targetSongs,
+        now,
+        state: resume,
+        keepGoing: () => this.inTime(),
+      });
+      if (!outcome.done) {
+        await this.advance({
+          ...cp,
+          artistIndex: index,
+          resolving: { artistIndex: index, state: outcome.state },
+        });
+        if (outcome.blocked) throw outcome.blocked;
+        return;
+      }
+      songs = outcome.songs;
+    }
+    // Only a finished resolution reaches the cache: never a truncated pool.
     await this.deps.songsCache.put(artist.artistId, plan.market, songs);
     this.cache?.set(artist.artistId, songs);
-    await this.advance({ ...cp, artistIndex: index + 1 });
+    await this.advance({ ...cp, artistIndex: index + 1, resolving: undefined });
   }
 
   private cache: Map<ArtistId, ArtistSongs> | undefined;
@@ -251,22 +272,29 @@ class BuildRun {
       plan.artists.map((a) => entryFor(cache, a)?.listeners ?? null),
     );
     const chart = await this.loadChart(plan.market);
-    const picks: PickedTrack[][] = [];
-    const unresolved = [...plan.unmatched];
-    for (const [i, artist] of plan.artists.entries()) {
-      const budget = budgets[i];
-      const tracks = pickFromSongs({
+    const pick = (i: number, budgetMs: number, alreadyPicked: readonly PickedTrack[]) => {
+      const artist = plan.artists[i]!;
+      return pickFromSongs({
         artist,
         songs: entryFor(cache, artist)?.songs ?? [],
         providers: entryFor(cache, artist)?.providers,
         chart,
-        budgetMs: (budget?.minutes ?? 0) * 60_000,
-        minSongs: Math.min(2, budget?.songs ?? 1),
-        alreadyPicked: picks.flat(),
+        budgetMs,
+        minSongs: Math.min(2, budgets[i]?.songs ?? 1),
+        alreadyPicked,
       });
-      picks.push(tracks.map(pickedTrack));
-      if (tracks.length === 0) unresolved.push(artist.name);
+    };
+    const budgetMs = budgets.map((b) => (b?.minutes ?? 0) * 60_000);
+    const chosen: TrackCandidate[][] = [];
+    for (const i of plan.artists.keys()) {
+      chosen.push(pick(i, budgetMs[i]!, chosen.flat().map(pickedTrack)));
     }
+    this.giveShortfallToHeadliners(plan, budgetMs, chosen, pick);
+    const picks = chosen.map((tracks) => tracks.map(pickedTrack));
+    const unresolved = [
+      ...plan.unmatched,
+      ...plan.artists.filter((_, i) => (chosen[i] ?? []).length === 0).map((a) => a.name),
+    ];
     const pickedTrackIds = orderPlaylist(
       plan.artists.map((a, i) => ({
         tier: a.tier,
@@ -287,6 +315,33 @@ class BuildRun {
       stage: "create",
       pickedTrackIds,
     });
+  }
+
+  /**
+   * D-093: time an artist's songs can't fill (a tiny pool) goes to the headliners, so the
+   * playlist still reaches its length. Headliners are re-picked with the extra time, never
+   * taking a song another artist already has.
+   */
+  private giveShortfallToHeadliners(
+    plan: BuildPlan,
+    budgetMs: number[],
+    chosen: TrackCandidate[][],
+    pick: (i: number, budgetMs: number, alreadyPicked: readonly PickedTrack[]) => TrackCandidate[],
+  ): void {
+    const length = (tracks: readonly TrackCandidate[]) =>
+      tracks.reduce((sum, t) => sum + (t.durationMs ?? AVG_SONG_MS), 0);
+    const shortfall = plan.artists.reduce(
+      (sum, _, i) => sum + Math.max(0, budgetMs[i]! - length(chosen[i] ?? [])),
+      0,
+    );
+    const headliners = plan.artists.flatMap((a, i) =>
+      a.tier === plan.artists[0]!.tier ? [i] : [],
+    );
+    if (shortfall < AVG_SONG_MS || headliners.length === 0) return;
+    for (const i of headliners) {
+      const others = chosen.flatMap((tracks, j) => (j === i ? [] : tracks)).map(pickedTrack);
+      chosen[i] = pick(i, budgetMs[i]! + shortfall / headliners.length, others);
+    }
   }
 
   /** D-036: one playlist per event, saved before any item is added; a rebuild reuses it. */

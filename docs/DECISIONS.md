@@ -1323,3 +1323,23 @@ Format: newest at the bottom. IDs never change. To reverse a decision, add a new
   - `save` feeds the `event_stats` trend with weight 2 (`ENGAGEMENT_WEIGHTS.save`, QA-F-7 rollup).
   - `/admin/analytics` gets a "Top saved shows ♡" list.
 - **Deferred (Lead, token budget):** the in-app nudges (playlist live, countdown, venue added), the `/api/me/saved/updates` batch API and the `nudge_*` events.
+
+### D-093 · Playlist length by billing tier; the 8-song fix
+
+- **Status:** Accepted · **Owner:** Engine (owner rules via Lead) · **Date:** 2026-11-22. Amends D-065 (how time is shared) and D-080 (how a pool is fetched).
+- **Length rules (`planPlaylist`, pure):**
+  - Every playlist is at least 60 min.
+  - **Per artist by tier:** headliner 60–90 min, sub 40–50, mid 25–35, support 15–20. The middle of each range is the target, and popularity (Last.fm, D-065 factor) moves an artist only within its tier's range.
+  - **1 artist:** the whole show (default solo show 2 h 30 m), and never under an hour.
+  - **2 artists:** the headliner gets 60–90 min, the other act 30–45, and together at least 2 h.
+  - **3+ artists:** the sum of the targets, capped by the real show length (days × hours, D-065). When capped, support shrinks first, then mid, then sub, then headliners, down to floors of 7.5 / 10 / 20 / 45 min. A lineup too big even for the floors keeps headliners at 45 min and gives everyone else at least one song. Never "N artists × 1 h".
+  - Time an artist's pool can't fill goes to the headliners at pick time, without repeating another artist's songs.
+- **Plans for real shapes:** HOME (24 matched) is 820 min, ~220 songs. Sunburn Festival (4 headliners) is 4 × 75 min = 80 songs, where the old plan gave each headliner 3 h. Bhuwin is 120 min, 32 songs. The Chainsmokers (solo, no end time) is 150 min, 40 songs.
+- **The 8-song playlist (Sunburn Arena ft. The Chainsmokers):**
+  - Prod data wasn't readable from here, so the cause is inferred from the code: search results for big acts are mostly remixes, live versions and duplicate copies of a few songs, and nothing topped the pool up.
+  - When the budget was squeezed (5 calls per window), an artist's 6-call resolution could never finish inside one step. It started over every step and looped forever.
+  - **Fixes:**
+    - Paging stops when a page adds fewer than 3 new songs. Then the artist's albums and singles are opened (full albums first, newest first, up to 50 tracks per call), then targeted searches, all within the artist's call cap.
+    - A resolution saves its progress in the job checkpoint and continues after a pause or the step's time; it never restarts.
+    - Only finished resolutions are cached, marked with the song budget they were made for (`resolvedFor`). Rows from before the fix have no marker, may be truncated, and are resolved again automatically.
+- **Algorithm version 3:** every playlist built before this is stale and refreshes into the same Spotify playlist when its page is opened, or by the sweep (D-085).

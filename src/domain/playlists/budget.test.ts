@@ -33,90 +33,6 @@ describe("popularityFactor (log scale, 0.6–1.6)", () => {
   });
 });
 
-describe("planPlaylist", () => {
-  it("a single-artist concert gives the artist the whole show (150 min ≈ 40 songs)", () => {
-    const [only] = planPlaylist({
-      artists: lineup({ headliner: 1 }),
-      totalMinutes: 150,
-      isSingleArtist: true,
-    });
-    expect(only).toEqual({ minutes: 150, songs: 40 });
-  });
-
-  it("splits a festival by tier weight 10/5/2.5/1 and fills the whole show", () => {
-    const budgets = planPlaylist({
-      artists: lineup({ headliner: 2, sub: 4, mid: 15, support: 13 }),
-      totalMinutes: 960,
-      isSingleArtist: false,
-    });
-    expect(sum(budgets.map((b) => b.minutes))).toBeCloseTo(960, 6);
-    const [h, , s, , , , m] = budgets;
-    expect(h!.minutes / s!.minutes).toBeCloseTo(2, 6);
-    expect(s!.minutes / m!.minutes).toBeCloseTo(2, 6);
-    const songs = sum(budgets.map((b) => b.songs));
-    expect(songs).toBeGreaterThanOrEqual(220);
-    expect(songs).toBeLessThanOrEqual(260);
-  });
-
-  it("popularity shifts time within a tier; missing popularity counts as 1.0", () => {
-    const [big, unknown, small] = planPlaylist({
-      artists: [
-        { tier: "sub", listeners: 2_000_000 },
-        { tier: "sub", listeners: null },
-        { tier: "sub", listeners: 1_000 },
-        { tier: "sub", listeners: null },
-        { tier: "sub", listeners: null },
-      ],
-      totalMinutes: 300,
-      isSingleArtist: false,
-    });
-    expect(big!.minutes / unknown!.minutes).toBeCloseTo(1.6, 6);
-    expect(small!.minutes / unknown!.minutes).toBeCloseTo(0.6, 6);
-  });
-
-  it("raises tiny shares to the 2-song floor", () => {
-    const budgets = planPlaylist({
-      artists: lineup({ headliner: 1, support: 10 }, null),
-      totalMinutes: 400,
-      isSingleArtist: false,
-    });
-    for (const b of budgets.slice(1)) expect(b.minutes).toBeGreaterThanOrEqual(2 * 3.75);
-    expect(sum(budgets.map((b) => b.minutes))).toBeCloseTo(400, 6);
-  });
-
-  it("drops the floor to 1 song for a huge lineup", () => {
-    const budgets = planPlaylist({
-      artists: lineup({ headliner: 1, support: 120 }),
-      totalMinutes: 400,
-      isSingleArtist: false,
-    });
-    expect(Math.min(...budgets.map((b) => b.songs))).toBe(1);
-  });
-
-  it("caps one artist at 40% of a multi-artist event and re-shares the rest", () => {
-    const budgets = planPlaylist({
-      artists: [{ tier: "headliner", listeners: 2_000_000 }, ...lineup({ support: 4 }, 1_000)],
-      totalMinutes: 600,
-      isSingleArtist: false,
-    });
-    expect(budgets[0]!.minutes).toBeCloseTo(240, 6);
-    expect(sum(budgets.map((b) => b.minutes))).toBeCloseTo(600, 6);
-  });
-
-  it("splits evenly when two artists would both pass the cap", () => {
-    const budgets = planPlaylist({
-      artists: lineup({ headliner: 1, support: 1 }),
-      totalMinutes: 240,
-      isSingleArtist: false,
-    });
-    expect(budgets.map((b) => b.minutes)).toEqual([120, 120]);
-  });
-
-  it("returns nothing for no artists", () => {
-    expect(planPlaylist({ artists: [], totalMinutes: 100, isSingleArtist: false })).toEqual([]);
-  });
-});
-
 describe("summarizePlan", () => {
   it("totals songs and minutes per tier", () => {
     const artists = lineup({ headliner: 1, support: 2 });
@@ -168,18 +84,106 @@ describe("fillToBudget", () => {
   });
 });
 
-describe("planPlaylist keeps every minute allocated", () => {
+describe("planPlaylist (D-093 tier minutes)", () => {
+  const plan = (artists: PlannedArtistInput[], totalMinutes: number, isSingleArtist = false) =>
+    planPlaylist({ artists, totalMinutes, isSingleArtist });
+  const minutes = (b: { minutes: number }[]) => b.map((x) => Math.round(x.minutes * 10) / 10);
+  const total = (b: { minutes: number }[]) => sum(b.map((x) => x.minutes));
+
   it.each([
-    [["headliner", "support"], 60],
-    [["headliner", "sub", "support"], 60],
-    [["headliner", "headliner", "support", "support", "support"], 120],
-    [["headliner", "mid", "mid", "support"], 30],
-  ] as [BillingTier[], number][])("%j over %i min", (tiers, total) => {
-    const budgets = planPlaylist({
-      artists: tiers.map((tier) => ({ tier, listeners: null })),
-      totalMinutes: total,
-      isSingleArtist: false,
-    });
-    expect(sum(budgets.map((b) => b.minutes))).toBeCloseTo(total, 6);
+    ["a default solo show (2 h 30 m)", 150, 150],
+    ["a solo show with real times (2 h)", 120, 120],
+    ["a very short solo slot still makes an hour", 30, 60],
+  ])("1 artist: %s → %i min", (_n, show, expected) => {
+    const [only] = plan(lineup({ headliner: 1 }), show, true);
+    expect(only!.minutes).toBe(expected);
+  });
+
+  it("2 artists: ≥ 2 h together, headliner 60–90 min, the other act 30–45 min", () => {
+    for (const second of ["sub", "mid", "support"] as const) {
+      const [h, other] = plan([...lineup({ headliner: 1 }), ...lineup({ [second]: 1 })], 150);
+      expect(h!.minutes).toBeGreaterThanOrEqual(60);
+      expect(h!.minutes).toBeLessThanOrEqual(90);
+      expect(other!.minutes).toBeGreaterThanOrEqual(30);
+      expect(other!.minutes).toBeLessThanOrEqual(45);
+      expect(h!.minutes + other!.minutes).toBeGreaterThanOrEqual(120);
+    }
+    // Billing order decides who is the headliner, whichever is listed first.
+    const [support, head] = plan([...lineup({ support: 1 }), ...lineup({ headliner: 1 })], 150);
+    expect(head!.minutes).toBeGreaterThan(support!.minutes);
+  });
+
+  it("a small festival sums the tier targets when they fit the show", () => {
+    const budgets = plan(lineup({ headliner: 1, sub: 1, mid: 1, support: 1 }), 480);
+    expect(minutes(budgets)).toEqual([75, 45, 30, 17.5]);
+    expect(total(budgets)).toBeCloseTo(167.5, 6); // not 4 × 1 h, and not the whole 8 h day
+  });
+
+  it("HOME (2/4/15/13 over 2 × 8 h): capped at 16 h, support trimmed first", () => {
+    const budgets = plan(lineup({ headliner: 2, sub: 4, mid: 15, support: 13 }), 960);
+    expect(total(budgets)).toBeCloseTo(960, 6);
+    const [h, , , , , , m] = budgets;
+    expect(h!.minutes).toBe(75);
+    expect(budgets[2]!.minutes).toBe(45);
+    expect(m!.minutes).toBe(30);
+    const support = budgets.at(-1)!.minutes;
+    expect(support).toBeLessThan(17.5);
+    expect(support).toBeGreaterThanOrEqual(2 * 3.75);
+    const songs = sum(budgets.map((b) => b.songs));
+    expect(songs).toBeGreaterThanOrEqual(240);
+    expect(songs).toBeLessThanOrEqual(260);
+  });
+
+  it("Lolla (45 acts, 2 days): capped at the show, headliners keep ≥ 45 min, bottom tiers shrink first", () => {
+    const budgets = plan(lineup({ headliner: 4, sub: 8, mid: 15, support: 18 }), 960);
+    expect(total(budgets)).toBeCloseTo(960, 6);
+    const byTier = (t: BillingTier) =>
+      budgets.filter(
+        (_, i) => lineup({ headliner: 4, sub: 8, mid: 15, support: 18 })[i]!.tier === t,
+      );
+    for (const h of byTier("headliner")) expect(h.minutes).toBe(75);
+    for (const s of byTier("sub")) expect(s.minutes).toBe(45);
+    for (const s of byTier("support")) expect(s.minutes).toBeCloseTo(7.5, 6);
+    for (const m of byTier("mid")) {
+      expect(m.minutes).toBeGreaterThanOrEqual(10);
+      expect(m.minutes).toBeLessThan(30);
+    }
+  });
+
+  it("a lineup too big for the show shrinks every tier, headliners last and ≥ 45 min", () => {
+    const budgets = plan(lineup({ headliner: 6, sub: 10, mid: 30, support: 40 }), 480);
+    for (const b of budgets.slice(0, 6)) expect(b.minutes).toBeGreaterThanOrEqual(45 - 1e-6);
+    // 86 acts can't fit 8 h with ≥ 45 min headliners: everyone else scales down evenly, to at
+    // least one song, keeping billing order (sub ≥ mid ≥ support).
+    for (const b of budgets.slice(6)) expect(b.minutes).toBeGreaterThanOrEqual(3.75 - 1e-6);
+    const [sub, midAct, support] = [budgets[6]!, budgets[16]!, budgets[85]!].map((b) => b.minutes);
+    expect(sub).toBeGreaterThanOrEqual(midAct!);
+    expect(midAct).toBeGreaterThanOrEqual(support!);
+  });
+
+  it("popularity only moves time within a tier, inside the tier's range", () => {
+    const budgets = plan(
+      [
+        { tier: "sub", listeners: 2_000_000 },
+        { tier: "sub", listeners: 1_000 },
+        { tier: "support", listeners: 2_000_000 },
+        { tier: "support", listeners: null },
+      ],
+      480,
+    );
+    const [famous, niche, bigSupport] = budgets;
+    expect(famous!.minutes).toBeGreaterThan(niche!.minutes);
+    expect(famous!.minutes).toBeLessThanOrEqual(50);
+    expect(niche!.minutes).toBeGreaterThanOrEqual(40);
+    expect(bigSupport!.minutes).toBeLessThanOrEqual(20); // a famous support act stays support
+  });
+
+  it("is never under an hour in all", () => {
+    const budgets = plan(lineup({ mid: 1, support: 2 }), 480);
+    expect(total(budgets)).toBeGreaterThanOrEqual(60);
+  });
+
+  it("returns nothing for no artists", () => {
+    expect(plan([], 100)).toEqual([]);
   });
 });

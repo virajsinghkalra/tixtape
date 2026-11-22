@@ -27,6 +27,8 @@ const Header = z.object({
   listeners: z.number().nullable(),
   pages: z.number().int().min(0),
   exhausted: z.boolean(),
+  /** 8-song fix: the song budget the pool was resolved for (absent = pre-fix, re-resolved). */
+  resolvedFor: z.number().int().min(0).optional(),
   /** D-085: providers consulted; absent in rows written before setlist.fm. */
   providers: z.object({ setlistfm: z.object({ known: z.boolean() }).optional() }).optional(),
 });
@@ -61,7 +63,7 @@ export function decodeArtistSongs(cells: readonly string[], fetchedAt: Date): Ar
     if (!song.success) return null;
     songs.push(song.data);
   }
-  const { spotifyArtistId, listeners, pages, exhausted, providers } = header.data;
+  const { spotifyArtistId, listeners, pages, exhausted, providers, resolvedFor } = header.data;
   return {
     spotifyArtistId,
     songs,
@@ -69,6 +71,7 @@ export function decodeArtistSongs(cells: readonly string[], fetchedAt: Date): Ar
     pages,
     exhausted,
     fetchedAt,
+    ...(resolvedFor !== undefined ? { resolvedFor } : {}),
     ...(providers ? { providers } : {}),
   };
 }
@@ -80,6 +83,7 @@ export function encodeArtistSongs(songs: ArtistSongs): string[] {
     listeners: songs.listeners,
     pages: songs.pages,
     exhausted: songs.exhausted,
+    resolvedFor: songs.resolvedFor,
     providers: songs.providers,
   };
   return [JSON.stringify(header), ...songs.songs.map((s) => JSON.stringify(s))];

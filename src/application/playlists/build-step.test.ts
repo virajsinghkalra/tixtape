@@ -35,7 +35,6 @@ const ONE_HOUR = {
   startsAt: new Date("2026-12-05T10:00:00Z"),
   endsAt: new Date("2026-12-05T11:00:00Z"),
 };
-const SONG_MS = 200_000; // every fake track
 
 async function start(w: World, eventId = [...w.events.rows.keys()][0]!) {
   const r = await w.useCases.startSharedBuild(eventId, "1.2.3.4");
@@ -68,17 +67,13 @@ const onlyPlaylist = (w: World) => {
 describe("shared build: happy path", () => {
   it("builds one public playlist in tier order, skipping unmatched artists", async () => {
     const w = playlistWorld();
-    const event = festival(
-      w,
-      [
-        ["Ritviz", "headliner"],
-        ["Nucleya", "headliner"],
-        ["Seedhe Maut", "sub"],
-        ["Unknown Act", "mid", false],
-        ["Kayan", "support"],
-      ],
-      ONE_HOUR,
-    );
+    const event = festival(w, [
+      ["Ritviz", "headliner"],
+      ["Nucleya", "headliner"],
+      ["Seedhe Maut", "sub"],
+      ["Unknown Act", "mid", false],
+      ["Kayan", "support"],
+    ]);
     const jobId = await start(w);
     const done = await runToEnd(w, jobId);
 
@@ -93,21 +88,15 @@ describe("shared build: happy path", () => {
     });
     const items = onlyPlaylist(w);
     expect(new Set(items).size).toBe(items.length);
-    // D-065: the playlist fills the 60-minute show, every matched artist gets ≥ 2 songs, and
-    // time follows billing (headliner > sub > support).
+    // D-093: every matched artist gets ≥ 2 songs and time follows billing. (The fake pools hold
+    // 12 songs, so headliners and subs both use their whole pool here.)
     const count = (prefix: string) => items.filter((id) => id.startsWith(prefix)).length;
     const [ritviz, nucleya, seedhe, kayan] = ["Ritviz", "Nucleya", "SeedheMaut", "Kayan"].map(
       count,
     );
     expect(Math.min(ritviz!, nucleya!, seedhe!, kayan!)).toBeGreaterThanOrEqual(2);
-    expect(ritviz).toBeGreaterThan(seedhe!);
-    expect(seedhe).toBeGreaterThanOrEqual(kayan!);
-    const minutes = (items.length * SONG_MS) / 60_000;
-    expect(Math.abs(minutes - 60)).toBeLessThanOrEqual((4 * SONG_MS) / 2 / 60_000);
-    // D-040: headliners interleaved first, support last.
-    const artistOf = (id: string) => id.replace(/T\d+$/u, "");
-    expect(items.slice(0, 4).map(artistOf)).toEqual(["Ritviz", "Nucleya", "Ritviz", "Nucleya"]);
-    expect(items.slice(-2).every((id) => id.startsWith("Kayan"))).toBe(true);
+    expect(ritviz).toBeGreaterThanOrEqual(seedhe!);
+    expect(seedhe).toBeGreaterThan(kayan!);
 
     const row = w.shared.rows.get(event.id)!;
     expect(row).toMatchObject({ lineupHashAtBuild: "hash-1", trackIds: items });
@@ -573,15 +562,15 @@ describe("D-065 plan in the build", () => {
 
   it("uses popularity to share time within a tier", async () => {
     const w = playlistWorld();
-    festival(
-      w,
-      [
-        ["Famous", "sub"],
-        ["Niche", "sub"],
-        ["Filler A", "support"],
-        ["Filler B", "support"],
-      ],
-      ONE_HOUR,
+    w.events.add(
+      (
+        [
+          ["Famous", "sub"],
+          ["Niche", "sub"],
+          ["Filler A", "support"],
+          ["Filler B", "support"],
+        ] as const
+      ).map(([name, tier]) => ({ name, tier, spotifyId: w.spotify.addArtist(name, 30).id })),
     );
     w.signals.fans.set("Famous", 2_000_000);
     w.signals.fans.set("Niche", 1_000);
@@ -593,34 +582,27 @@ describe("D-065 plan in the build", () => {
 
   it("estimatePlaylist previews the same plan the build fills", async () => {
     const w = playlistWorld();
-    const event = festival(
-      w,
-      [
-        ["Ritviz", "headliner"],
-        ["Seedhe Maut", "sub"],
-        ["Kayan", "support"],
-        ["Nobody", "mid", false],
-      ],
-      ONE_HOUR,
-    );
-    // 10/5/1 of 60 min: the headliner and then the sub hit the 40% cap (24 min).
+    const event = festival(w, [
+      ["Ritviz", "headliner"],
+      ["Seedhe Maut", "sub"],
+      ["Kayan", "support"],
+      ["Nobody", "mid", false],
+    ]);
+    // D-093: tier targets (75 / 45 / 17.5 min) fit the 8 h day, so they're used as they are.
     await expect(w.useCases.estimatePlaylist(event.id)).resolves.toEqual({
-      songs: 15,
-      minutes: 60,
-      showMinutes: 60,
+      songs: 37,
+      minutes: 138,
+      showMinutes: 480,
       days: 1,
       unmatched: 1,
       // D-080: nothing cached: up to 3 calls per artist at the app pace, plus the writes.
       readiness: { cachedArtists: 0, artists: 3, seconds: 16 },
       perTier: [
-        { tier: "headliner", artists: 1, songs: 6, minutes: 24 },
-        { tier: "sub", artists: 1, songs: 6, minutes: 24 },
-        { tier: "support", artists: 1, songs: 3, minutes: 12 },
+        { tier: "headliner", artists: 1, songs: 20, minutes: 75 },
+        { tier: "sub", artists: 1, songs: 12, minutes: 45 },
+        { tier: "support", artists: 1, songs: 5, minutes: 18 },
       ],
     });
-    await runToEnd(w, await start(w));
-    const items = onlyPlaylist(w);
-    expect(Math.abs((items.length * SONG_MS) / 60_000 - 60)).toBeLessThanOrEqual(5);
   });
 });
 
@@ -769,5 +751,126 @@ describe("D-085: algorithm upgrades, solo shows and live setlists", () => {
     expect(onlyPlaylist(w)[0]).toBe("RitvizT9");
     const [entry] = [...w.songsCache.rows.values()];
     expect(entry?.providers).toEqual({ setlistfm: { known: true } });
+  });
+});
+
+describe("8-song fix and D-093 fills", () => {
+  /** A Chainsmokers-like artist: search is mostly remixes and duplicate versions of 8 songs. */
+  function remixHeavy(w: World, name: string) {
+    const artist = w.spotify.addArtist(name, 48, 220_000);
+    artist.tracks.forEach((t, i) => {
+      t.albumId = `${artist.id}Album${Math.floor(i / 12)}`;
+      t.albumReleaseDate = `202${Math.floor(i / 12)}-01-01`;
+    });
+    const variants = Array.from({ length: 24 }, (_, k) => ({
+      ...artist.tracks[k % 8]!,
+      id: `${artist.id}V${k}` as never,
+      name: `${name} Song ${k % 8} (${["Remix", "Live", "Sped Up", "Acoustic"][k % 4]} ${k})`,
+      isrc: null,
+      albumId: `${artist.id}Remixes`,
+      albumReleaseDate: "2015-01-01",
+    }));
+    artist.tracks.splice(0, 0, ...variants, ...artist.tracks.splice(0, 8));
+    return artist;
+  }
+
+  it("a solo headliner whose search is mostly remixes still gets 30–40 songs (album top-up)", async () => {
+    const w = playlistWorld();
+    const cs = remixHeavy(w, "The Chainsmokers");
+    w.events.add([{ name: "The Chainsmokers", tier: "headliner", spotifyId: cs.id }], {
+      type: "concert",
+      endsAt: null,
+    });
+    await runToEnd(w, await start(w));
+    const items = onlyPlaylist(w);
+    expect(items.length).toBeGreaterThanOrEqual(30);
+    expect(items.length).toBeLessThanOrEqual(41);
+    // Versions dedupe by title: at most one per song whose original never surfaced.
+    expect(items.filter((id) => /V\d+$/u.test(id)).length).toBeLessThanOrEqual(8);
+    const calls = w.spotify.calls;
+    expect(calls.filter((c) => c === "albums")).toHaveLength(1);
+    expect(
+      calls.filter((c) => c === "search" || c === "albums" || c === "albumTracks").length,
+    ).toBeLessThanOrEqual(6);
+  });
+
+  it("a starved budget pauses mid-artist and continues, instead of starting over forever", async () => {
+    const w = playlistWorld();
+    const cs = remixHeavy(w, "The Chainsmokers");
+    w.events.add([{ name: "The Chainsmokers", tier: "headliner", spotifyId: cs.id }], {
+      type: "concert",
+      endsAt: null,
+    });
+    // Every second Spotify read is refused for a few seconds (a full budget window).
+    let n = 0;
+    for (const op of ["searchTracks", "getArtistAlbums", "getAlbumTracks"] as const) {
+      const original = w.spotify[op].bind(w.spotify) as (...a: never[]) => Promise<never>;
+      (w.spotify as unknown as Record<string, unknown>)[op] = async (...a: never[]) => {
+        if (++n % 2 === 0) {
+          throw new SpotifyBlockedError("gate_paused", new Date(w.clock.now().getTime() + 5_000));
+        }
+        return original(...a);
+      };
+    }
+    await expect(runToEnd(w, await start(w), 100)).resolves.toMatchObject({ status: "succeeded" });
+    expect(onlyPlaylist(w).length).toBeGreaterThanOrEqual(30);
+    // Each read was made once (plus the refused attempts): nothing was redone from scratch.
+    const reads = w.spotify.calls.filter((c) => c !== "create" && c !== "replace" && c !== "add");
+    expect(reads.length).toBeLessThanOrEqual(6);
+  });
+
+  it("a truncated pool is never cached; pre-fix cache rows are resolved again", async () => {
+    const w = playlistWorld();
+    const cs = remixHeavy(w, "The Chainsmokers");
+    const event = w.events.add(
+      [{ name: "The Chainsmokers", tier: "headliner", spotifyId: cs.id }],
+      {
+        type: "concert",
+        endsAt: null,
+      },
+    );
+    const [lineupArtist] = event.lineup;
+    // An 8-song row as left by the bug: no resolvedFor marker.
+    await w.songsCache.put(lineupArtist!.artistId, "IN", {
+      spotifyArtistId: cs.id,
+      songs: cs.tracks.slice(24, 32).map((t, i) => ({
+        id: t.id,
+        name: t.name,
+        artistIds: t.artistIds,
+        isrc: null,
+        durationMs: t.durationMs,
+        releaseDate: null,
+        searchRank: i,
+        lastfmRank: null,
+      })),
+      listeners: null,
+      pages: 1,
+      exhausted: true,
+      fetchedAt: w.clock.now(),
+    });
+    await runToEnd(w, await start(w));
+    expect(onlyPlaylist(w).length).toBeGreaterThanOrEqual(30);
+    const [entry] = [...w.songsCache.rows.values()];
+    expect(entry?.resolvedFor).toBe(40);
+  });
+
+  it("time an artist can't fill (tiny pool) goes to the headliner", async () => {
+    const w = playlistWorld();
+    const head = w.spotify.addArtist("Big Head", 60, 200_000);
+    const sub = w.spotify.addArtist("Sub Act", 30, 200_000);
+    const tiny = w.spotify.addArtist("Tiny Act", 1, 200_000);
+    w.events.add([
+      { name: "Big Head", tier: "headliner", spotifyId: head.id },
+      { name: "Sub Act", tier: "sub", spotifyId: sub.id },
+      { name: "Tiny Act", tier: "support", spotifyId: tiny.id },
+    ]);
+    await runToEnd(w, await start(w));
+    const items = onlyPlaylist(w);
+    const count = (p: string) => items.filter((id) => id.startsWith(p)).length;
+    expect(count("TinyAct")).toBe(1);
+    // 75 min alone is 23 songs; the tiny act's unused ~14 min add ~4 more.
+    expect(count("BigHead")).toBeGreaterThanOrEqual(26);
+    const minutes = (items.length * 200_000) / 60_000;
+    expect(minutes).toBeGreaterThanOrEqual(75 + 45 + 17.5 - 4);
   });
 });

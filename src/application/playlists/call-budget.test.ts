@@ -57,14 +57,15 @@ describe("D-080 Spotify call budget, 24-artist festival", () => {
 
     const searches = count(calls, "search");
     expect(searches).toBeLessThanOrEqual(3 * 24);
-    // Tier-sized pages: 2 headliners × 5, 4 subs × 3, 9 mids × 2, 9 supports × 1.
-    expect(searches).toBe(2 * 5 + 4 * 3 + 9 * 2 + 9 * 1);
+    // D-093 tier minutes (75/45/30/17.5) → song budgets 20/12/8/5 → pages 3/2/2/1.
+    expect(searches).toBe(2 * 3 + 4 * 2 + 9 * 2 + 9 * 1);
     expect(count(calls, "albums") + count(calls, "albumTracks")).toBe(0);
     expect(count(calls, "create")).toBe(1);
     expect(count(calls, "replace") + count(calls, "add")).toBe(3);
     const items = [...w.spotify.playlists.values()][0]!;
-    expect(items.length).toBeGreaterThanOrEqual(220);
-    expect(items.length).toBeLessThanOrEqual(270); // 256 planned + up to half a song per artist
+    // 757.5 planned minutes (the tier targets fit the 2 × 8 h show) ≈ 202 songs of 3.75 min.
+    expect(items.length).toBeGreaterThanOrEqual(190);
+    expect(items.length).toBeLessThanOrEqual(215);
     expect(longestStepMs).toBeLessThanOrEqual(UNIT_START_LIMIT_MS + 6 * 300);
     expect(steps).toBeGreaterThan(1);
   });

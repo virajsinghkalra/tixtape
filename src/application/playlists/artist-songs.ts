@@ -17,7 +17,11 @@ import type {
 } from "@/application/ports/music-signals";
 import { blendScore, lastfmScore, type SongProvider } from "@/domain/playlists/song-score";
 import type { ArtistSongs, CachedSong } from "@/application/ports/playlists";
-import type { SpotifyTrack, TrackCatalog } from "@/application/ports/spotify";
+import {
+  SpotifyBlockedError,
+  type SpotifyTrack,
+  type TrackCatalog,
+} from "@/application/ports/spotify";
 import { fillToBudget } from "@/domain/playlists/budget";
 import {
   rankArtistPool,
@@ -147,11 +151,15 @@ export const entryFor = (
   return entry?.spotifyArtistId === artist.spotifyId ? entry : undefined;
 };
 
-/** Cached songs are usable while fresh and fetched deeply enough for this budget. */
+/**
+ * Cached songs are usable while fresh and resolved for at least this many songs (or the
+ * artist simply has no more). Entries from before the 8-song fix have no `resolvedFor`: they
+ * may be truncated, so they're resolved again.
+ */
 export function isUsable(entry: ArtistSongs | undefined, targetSongs: number, now: Date) {
-  if (!entry) return false;
+  if (!entry || entry.resolvedFor === undefined) return false;
   if (now.getTime() - entry.fetchedAt.getTime() >= SONGS_TTL_MS) return false;
-  return entry.exhausted || entry.pages >= pagesFor(targetSongs);
+  return entry.exhausted || entry.resolvedFor >= targetSongs;
 }
 
 const quoted = (s: string) => s.replace(/"/gu, "").trim();
@@ -171,20 +179,95 @@ async function lastfm<T>(
   }
 }
 
+/** One resolved-so-far track (kept in the job checkpoint between steps). */
+export type FoundTrack = {
+  id: SpotifyTrack["id"];
+  name: string;
+  artistIds: SpotifyTrack["artistIds"];
+  isrc: string | null;
+  durationMs: number;
+  releaseDate: string | null;
+};
+
 /**
- * Resolves one artist with at most `callsFor(targetSongs)` Spotify calls. Spotify errors
- * (`SpotifyBlockedError`, …) propagate so the caller can pause.
+ * Where an artist's resolution got to: it continues on the next step after a Spotify pause or
+ * the step's time, instead of starting over (the livelock behind the 8-song playlist).
  */
-export async function resolveArtistSongs(
-  deps: ArtistSongsDeps,
-  input: { artist: ArtistToResolve; market: string; targetSongs: number; now: Date },
-): Promise<ArtistSongs> {
-  const { artist, market } = input;
-  const top = await lastfm(deps, "top tracks", () => deps.mostListened.topTracks(artist.name), []);
+export type ResolveState = {
+  pages: number;
+  /** New eligible songs the last search page added (paging stops when it's small). */
+  lastPageNew: number;
+  exhausted: boolean;
+  calls: number;
+  found: FoundTrack[];
+  /** Album and single ids still to open, best first; null until listed. */
+  albumIds: string[] | null;
+  /** Titles already searched for directly. */
+  targeted: string[];
+};
+
+export const freshResolveState = (): ResolveState => ({
+  pages: 0,
+  lastPageNew: 0,
+  exhausted: false,
+  calls: 0,
+  found: [],
+  albumIds: null,
+  targeted: [],
+});
+
+export type ResolveOutcome =
+  | { done: true; songs: ArtistSongs }
+  | { done: false; state: ResolveState; blocked?: SpotifyBlockedError };
+
+/** Paging stops when a page adds fewer new songs than this (remixes and duplicates). */
+const MIN_NEW_PER_PAGE = 3;
+/** Albums are listed only when at least this many calls remain (the list itself costs one). */
+const MIN_CALLS_FOR_ALBUMS = 2;
+
+const toFound = (t: SpotifyTrack): FoundTrack => ({
+  id: t.id,
+  name: t.name,
+  artistIds: t.artistIds,
+  isrc: t.isrc,
+  durationMs: t.durationMs,
+  releaseDate: t.albumReleaseDate,
+});
+
+/** Distinct original songs credited to the artist (versions and duplicate titles count once). */
+const eligibleCount = (found: readonly FoundTrack[], artistId: SpotifyArtistId) =>
+  new Set(
+    found
+      .filter((t) => t.artistIds.includes(artistId) && trackVersion(t.name) === null)
+      .map((t) => normalizeTrackTitle(t.name)),
+  ).size;
+
+function addFound(state: ResolveState, tracks: readonly SpotifyTrack[], artistId: SpotifyArtistId) {
+  const before = eligibleCount(state.found, artistId);
+  const have = new Set(state.found.map((t) => t.id));
+  const found = [...state.found];
+  for (const t of tracks) {
+    if (t.artistIds.includes(artistId) && !have.has(t.id)) {
+      have.add(t.id);
+      found.push(toFound(t));
+    }
+  }
+  return { found, added: eligibleCount(found, artistId) - before };
+}
+
+type Ranking = {
+  top: { title: string; playcount: number }[];
+  listeners: number | null;
+  lastfmRank: Map<string, number>;
+  providers: ProviderResult[];
+};
+
+async function ranking(deps: ArtistSongsDeps, artistName: string): Promise<Ranking> {
+  const top = await lastfm(deps, "top tracks", () => deps.mostListened.topTracks(artistName), []);
   const listeners = await lastfm(
     deps,
     "listeners",
-    () => deps.popularity.listeners(artist.name),
+    () => deps.popularity.listeners(artistName),
     null,
   );
   const lastfmRank = new Map<string, number>();
@@ -194,82 +277,154 @@ export async function resolveArtistSongs(
       const key = normalizeTrackTitle(t.title);
       if (!lastfmRank.has(key)) lastfmRank.set(key, i + 1);
     });
-  const providers = await providerScores(deps, artist.name);
+  return { top, listeners, lastfmRank, providers: await providerScores(deps, artistName) };
+}
 
-  const found = new Map<string, SpotifyTrack>();
-  const credited = (t: SpotifyTrack) => t.artistIds.includes(artist.spotifyId);
-  let calls = 0;
-  let pages = 0;
-  let exhausted = false;
-  for (; pages < pagesFor(input.targetSongs); pages++) {
-    const page = await deps.tracks.searchTracks(`artist:"${quoted(artist.name)}"`, market, APP, {
-      offset: pages * SEARCH_PAGE,
-    });
-    calls++;
-    for (const t of page) if (credited(t) && !found.has(t.id)) found.set(t.id, t);
-    if (page.length < SEARCH_PAGE) {
-      exhausted = true;
-      pages++;
-      break;
-    }
-  }
-
-  // The best-scored titles (Last.fm + live setlists, D-085) the pages missed, while this
-  // artist's calls remain.
-  const haveTitles = new Set([...found.values()].map((t) => normalizeTrackTitle(t.name)));
+/** The best-scored titles (Last.fm + live setlists) not found yet and not searched yet. */
+function missingTitles(r: Ranking, state: ResolveState): string[] {
+  const have = new Set(state.found.map((t) => normalizeTrackTitle(t.name)));
   const known: SongProvider[] = [
-    ...(lastfmRank.size > 0 ? (["lastfm"] as const) : []),
-    ...providers.filter((p) => p.known).map((p) => p.id),
+    ...(r.lastfmRank.size > 0 ? (["lastfm"] as const) : []),
+    ...r.providers.filter((p) => p.known).map((p) => p.id),
   ];
-  const candidates = new Set([
-    ...lastfmRank.keys(),
-    ...providers.flatMap((p) => [...p.scores.keys()]),
+  const titles = new Set([
+    ...r.lastfmRank.keys(),
+    ...r.providers.flatMap((p) => [...p.scores.keys()]),
   ]);
-  const missing = [...candidates]
-    .filter((title) => !haveTitles.has(title))
+  return [...titles]
+    .filter((t) => !have.has(t) && !state.targeted.includes(t))
     .map((title) => ({
       title,
       score: blendScore(
         {
-          lastfm: lastfmScore(lastfmRank.get(title) ?? null),
-          setlistfm: providers.find((p) => p.id === "setlistfm")?.scores.get(title),
+          lastfm: lastfmScore(r.lastfmRank.get(title) ?? null),
+          setlistfm: r.providers.find((p) => p.id === "setlistfm")?.scores.get(title),
         },
         known,
       ),
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, TARGETED_TITLES);
-  const spelled = new Map<string, string>(top.map((t) => [normalizeTrackTitle(t.title), t.title]));
-  for (const { title } of missing) {
-    if (calls >= callsFor(input.targetSongs)) break;
-    const original = spelled.get(title) ?? title;
-    const hits = await deps.tracks.searchTracks(
-      `track:"${quoted(original)}" artist:"${quoted(artist.name)}"`,
-      market,
-      APP,
-    );
-    calls++;
-    const match =
-      hits.find(
-        (t) => credited(t) && normalizeTrackTitle(t.name) === title && !trackVersion(t.name),
-      ) ?? hits.find((t) => credited(t) && normalizeTrackTitle(t.name) === title);
-    if (match && !found.has(match.id)) found.set(match.id, match);
-  }
+    .slice(0, TARGETED_TITLES)
+    .map((x) => x.title);
+}
 
-  const songs: CachedSong[] = [...found.values()].map((t, i) => ({
-    id: t.id,
-    name: t.name,
-    artistIds: t.artistIds,
-    isrc: t.isrc,
-    durationMs: t.durationMs,
-    releaseDate: t.albumReleaseDate,
-    searchRank: i,
-    lastfmRank: lastfmRank.get(normalizeTrackTitle(t.name)) ?? null,
-  }));
-  return withProviders(
-    { spotifyArtistId: artist.spotifyId, songs, listeners, pages, exhausted, fetchedAt: input.now },
-    providers,
+/**
+ * One Spotify call: search pages until they stop adding songs, then (if still short) the
+ * artist's albums and singles newest-first (up to 50 tracks a call), then targeted searches for
+ * top Last.fm / live titles. Returns null when nothing is left to do.
+ */
+async function nextCall(
+  deps: ArtistSongsDeps,
+  input: { artist: ArtistToResolve; market: string; targetSongs: number },
+  r: Ranking,
+  state: ResolveState,
+): Promise<ResolveState | null> {
+  const { artist, market } = input;
+  const need = Math.ceil(input.targetSongs * POOL_HEADROOM);
+  const short = eligibleCount(state.found, artist.spotifyId) < need;
+  const callsLeft = callsFor(input.targetSongs) - state.calls;
+  const paging =
+    !state.exhausted &&
+    state.pages < pagesFor(input.targetSongs) &&
+    (state.pages < 2 || state.lastPageNew >= MIN_NEW_PER_PAGE);
+  if (short && paging) {
+    const page = await deps.tracks.searchTracks(`artist:"${quoted(artist.name)}"`, market, APP, {
+      offset: state.pages * SEARCH_PAGE,
+    });
+    const { found, added } = addFound(state, page, artist.spotifyId);
+    // Spotify drops unusable items from a page, so only a near-empty page means "no more".
+    const exhausted = page.length < SEARCH_PAGE / 2;
+    return {
+      ...state,
+      found,
+      pages: state.pages + 1,
+      lastPageNew: added,
+      exhausted,
+      calls: state.calls + 1,
+    };
+  }
+  if (short && state.albumIds === null && callsLeft >= MIN_CALLS_FOR_ALBUMS) {
+    const albums = await deps.tracks.getArtistAlbums(artist.spotifyId, market, APP);
+    const albumIds = albums
+      .filter((a) => a.albumType === "album" || a.albumType === "single")
+      // Full albums first (most songs per call), each group newest first.
+      .sort(
+        (a, b) =>
+          Number(b.albumType === "album") - Number(a.albumType === "album") ||
+          (b.releaseDate ?? "").localeCompare(a.releaseDate ?? ""),
+      )
+      .map((a) => a.id);
+    return { ...state, albumIds, calls: state.calls + 1 };
+  }
+  if (short && state.albumIds && state.albumIds.length > 0) {
+    const [albumId, ...rest] = state.albumIds;
+    const tracks = await deps.tracks.getAlbumTracks(albumId!, market, APP);
+    const { found } = addFound(state, tracks, artist.spotifyId);
+    return { ...state, found, albumIds: rest, calls: state.calls + 1 };
+  }
+  const [title] = missingTitles(r, state);
+  if (title === undefined) return null;
+  const spelled = r.top.find((t) => normalizeTrackTitle(t.title) === title)?.title ?? title;
+  const hits = await deps.tracks.searchTracks(
+    `track:"${quoted(spelled)}" artist:"${quoted(artist.name)}"`,
+    market,
+    APP,
   );
+  const credited = (t: SpotifyTrack) => t.artistIds.includes(artist.spotifyId);
+  const match =
+    hits.find(
+      (t) => credited(t) && normalizeTrackTitle(t.name) === title && !trackVersion(t.name),
+    ) ?? hits.find((t) => credited(t) && normalizeTrackTitle(t.name) === title);
+  const { found } = addFound(state, match ? [match] : [], artist.spotifyId);
+  return { ...state, found, targeted: [...state.targeted, title], calls: state.calls + 1 };
+}
+
+/**
+ * Resolves one artist with at most `callsFor(targetSongs)` Spotify calls, continuing from
+ * `state`. Stops early (not done) when `keepGoing` says the step's time is up or Spotify asks
+ * to wait; the caller keeps the state and continues later. Only a finished resolution is ever
+ * cached, so a cache entry is never a truncated pool.
+ */
+export async function resolveArtistSongs(
+  deps: ArtistSongsDeps,
+  input: {
+    artist: ArtistToResolve;
+    market: string;
+    targetSongs: number;
+    now: Date;
+    state?: ResolveState;
+    keepGoing?: () => boolean;
+  },
+): Promise<ResolveOutcome> {
+  const r = await ranking(deps, input.artist.name);
+  let state = input.state ?? freshResolveState();
+  while (state.calls < callsFor(input.targetSongs)) {
+    if (state.calls > 0 && input.keepGoing && !input.keepGoing()) return { done: false, state };
+    let next: ResolveState | null;
+    try {
+      next = await nextCall(deps, input, r, state);
+    } catch (e) {
+      if (e instanceof SpotifyBlockedError) return { done: false, state, blocked: e };
+      throw e;
+    }
+    if (!next) break;
+    state = next;
+  }
+  const songs: CachedSong[] = state.found.map((t, i) => ({
+    ...t,
+    searchRank: i,
+    lastfmRank: r.lastfmRank.get(normalizeTrackTitle(t.name)) ?? null,
+  }));
+  const entry: ArtistSongs = {
+    spotifyArtistId: input.artist.spotifyId,
+    songs,
+    listeners: r.listeners,
+    pages: state.pages,
+    exhausted: state.exhausted,
+    resolvedFor: input.targetSongs,
+    fetchedAt: input.now,
+  };
+  return { done: true, songs: withProviders(entry, r.providers) };
 }
 
 const byTitles = (songs: readonly CachedSong[], titles: readonly string[]) => {
