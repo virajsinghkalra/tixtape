@@ -3,6 +3,7 @@ export const SAVE_COPY = {
   savedTo: "Saved to Your gigs ♡",
   view: "View",
   removed: "Removed",
+  remove: "Remove",
   dismiss: "Close",
   seeAll: "See all",
   pageTitle: "Your gigs",

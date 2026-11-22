@@ -26,6 +26,9 @@ export async function listenNow(
 export async function sharedOrTourStatus(eventId: EventId): Promise<unknown> {
   const own = await playlists().getSharedStatus(eventId);
   if (own.status !== "none") return own;
-  const data = await readListenNow(container().db, eventId, new Date());
+  // The tour lookup is a bonus: if it fails, the event's own status still answers.
+  const data = await Promise.resolve()
+    .then(() => readListenNow(container().db, eventId, new Date()))
+    .catch(() => null);
   return data?.sibling ? { status: "ready", url: data.sibling.url } : own;
 }
