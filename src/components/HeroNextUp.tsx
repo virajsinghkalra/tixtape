@@ -126,7 +126,7 @@ export function HeroNextUp({ items, now }: { items: NextUpItem[]; now: string })
               </Sticker>
             )}
             <span className="block font-display text-2xl leading-tight font-extrabold text-balance [overflow-wrap:anywhere] sm:text-3xl">
-              {item.title} <span aria-hidden>→</span>
+              {item.title.replace(" · ", "\u00a0· ")} <span aria-hidden>→</span>
             </span>
           </span>
         </Link>
