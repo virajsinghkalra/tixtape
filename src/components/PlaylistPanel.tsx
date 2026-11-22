@@ -10,6 +10,7 @@ import {
   afterFailedStep,
   refreshView,
   formatClock,
+  isVisiblePause,
   nextStepDelay,
   viewFromStart,
   viewFromStatus,
@@ -182,7 +183,7 @@ function Actions({
       return null;
     case "building":
     case "starting":
-      return view.kind === "building" && view.waitUntil ? null : (
+      return view.kind === "building" && isVisiblePause(view.waitUntil) ? null : (
         <Button size="lg" className="w-full" disabled aria-disabled>
           Making playlist…
         </Button>
@@ -270,7 +271,7 @@ function Note({ view }: { view: PlaylistView }) {
 function Progress({ job }: { job: BuildProgress }) {
   return (
     <div className="mt-4 rounded-field border-2 border-night bg-surface-2 p-4 text-sm">
-      {job.waitUntil && (
+      {isVisiblePause(job.waitUntil) && job.waitUntil && (
         <p className="font-semibold">
           <span aria-hidden>🐢 </span>
           Paused · back at {formatClock(job.waitUntil)}

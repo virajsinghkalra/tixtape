@@ -238,6 +238,13 @@ const TIME = new Intl.DateTimeFormat("en-IN", {
 });
 
 /** "6:40 pm" in IST. */
+/** Our own pacing (D-080) waits a few seconds; only a real wait (≥ 30 s, e.g. a Spotify 429) shows as "Paused". */
+export const VISIBLE_PAUSE_MS = 30_000;
+
+export function isVisiblePause(waitUntil: string | null, now: Date = new Date()): boolean {
+  return waitUntil !== null && new Date(waitUntil).getTime() - now.getTime() >= VISIBLE_PAUSE_MS;
+}
+
 export function formatClock(iso: string): string {
   return TIME.format(new Date(iso)).toLowerCase();
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isVisiblePause,
   activeJob,
   afterFailedStep,
   refreshView,
@@ -279,5 +280,15 @@ describe("QA-F-19: a short Spotify pause on a 'running' job still reads as pause
       now,
     );
     expect(view).toMatchObject({ kind: "building", waitUntil: null });
+  });
+});
+
+describe("isVisiblePause (our own pacing is not a pause)", () => {
+  const now = new Date("2026-11-22T12:15:30Z");
+  it("hides short waits from our D-080 limiter and shows real ones", () => {
+    expect(isVisiblePause(null, now)).toBe(false);
+    expect(isVisiblePause("2026-11-22T12:15:40Z", now)).toBe(false);
+    expect(isVisiblePause("2026-11-22T12:16:00Z", now)).toBe(true);
+    expect(isVisiblePause("2026-11-22T18:00:00Z", now)).toBe(true);
   });
 });
