@@ -135,8 +135,11 @@ export default async function Home({ searchParams }: Props) {
             >
               Every gig. Its playlist.
             </h1>
-            <p className="mt-3 text-lg font-semibold">
-              Tap a show → hear its setlist on Spotify 🎧
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-night bg-night px-4 py-2 text-base leading-none font-bold text-lime shadow-[3px_3px_0_0_var(--color-violet)] sm:text-lg">
+              <span aria-hidden className="text-xl leading-none">
+                🎧
+              </span>
+              tap a show, vibe to its setlist
             </p>
             <div className="mt-7 max-w-2xl">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />

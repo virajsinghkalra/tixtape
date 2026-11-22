@@ -16,6 +16,8 @@ export type FeedRow = EventSummary &
     ticketUrl: string | null;
     /** UX #6: the shared playlist is live, being made, or not started. */
     playlistStatus: "ready" | "building" | null;
+    /** The playlist to play: this event's, or its tour's (same headliners). */
+    playlistUrl: string | null;
   };
 
 export interface EventFeedReader {

@@ -7,6 +7,7 @@ import { hasPhoto, type VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts } from "./event-format";
+import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
 import { cx } from "./ui/cx";
@@ -30,6 +31,8 @@ type Props = {
   artists?: readonly VisualArtist[];
   /** UX #6: the shared playlist's state, shown as a "🎧 Live" / "⏳ Cooking" sticker. */
   playlistStatus?: "ready" | "building" | null;
+  /** The playlist to play straight from the card (its own or its tour's). */
+  playlistUrl?: string | null;
   /** A tour shown as one card (D-079): the featured date is `event`; the rest are listed. */
   tour?: TourInfo;
 };
@@ -55,6 +58,7 @@ export function EventCard({
   artists = [],
   tour,
   playlistStatus = null,
+  playlistUrl = null,
 }: Props) {
   const badge = playlistBadge(playlistStatus);
   const photo = Boolean(poster ?? event.posterUrl) || artists.some(hasPhoto);
@@ -185,19 +189,30 @@ export function EventCard({
           </ul>
         </details>
       )}
-      {outbound && !tour && (
-        <div className="px-4 pb-4">
-          <ButtonLink
-            href={outbound.url}
-            external
-            variant="secondary"
-            className="w-full"
-            ticketFor={outbound.kind === "tickets" ? event.id : undefined}
-          >
-            {outbound.label}
+      {/* Sell the playlist: one tap to Spotify, tickets a quiet link beside it. */}
+      <div className="flex items-center gap-3 px-4 pb-4">
+        {playlistUrl ? (
+          <SpotifyOpenLink href={playlistUrl} size="md" className="flex-1" eventId={event.id}>
+            <span aria-hidden>🎧</span> Play the playlist <span aria-hidden>↗</span>
+          </SpotifyOpenLink>
+        ) : (
+          <ButtonLink href={`/events/${event.id}#playlist`} variant="secondary" className="flex-1">
+            <span aria-hidden>🎧</span> Playlist <span aria-hidden>→</span>
           </ButtonLink>
-        </div>
-      )}
+        )}
+        {outbound && !tour && (
+          <a
+            href={outbound.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-track={outbound.kind === "tickets" ? "ticket_click" : undefined}
+            data-track-event={outbound.kind === "tickets" ? event.id : undefined}
+            className="shrink-0 text-sm font-semibold text-muted underline-offset-4 hover:underline"
+          >
+            {outbound.kind === "tickets" ? "Tickets" : "Info"} <span aria-hidden>↗</span>
+          </a>
+        )}
+      </div>
     </article>
   );
 }

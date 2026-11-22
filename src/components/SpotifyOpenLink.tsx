@@ -15,6 +15,8 @@ type Props = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   className?: string;
+  /** For cards outside the event page (home), whose URL doesn't name the event. */
+  eventId?: string;
 };
 
 /**
@@ -23,13 +25,20 @@ type Props = {
  * 1.2 s. Desktop: the web URL in a new tab. Inside Instagram, Facebook or WhatsApp, where the
  * app often can't be reached, a stuck tap shows a tiny "⋯ → Open in browser" hint instead.
  */
-export function SpotifyOpenLink({ href, children, variant, size = "lg", className }: Props) {
+export function SpotifyOpenLink({
+  href,
+  children,
+  variant,
+  size = "lg",
+  className,
+  eventId,
+}: Props) {
   const [hint, setHint] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
-    track("playlist_open_spotify", { eventId: currentEventId() });
+    track("playlist_open_spotify", { eventId: eventId ?? currentEventId() });
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // new tab: let it be
     const platform = currentPlatform();
     const plan = spotifyOpenPlan(href, platform);

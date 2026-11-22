@@ -74,6 +74,7 @@ export function FrontSection({
                   artists={lead.headlinerArtists}
                   ticketUrl={lead.ticketUrl}
                   playlistStatus={lead.playlistStatus}
+                  playlistUrl={lead.playlistUrl}
                   tour={item.kind === "tour" ? tourInfo(item.tour, city) : undefined}
                 />
               </li>

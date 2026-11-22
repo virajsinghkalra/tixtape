@@ -46,6 +46,7 @@ const row = z.object({
   source_count: z.coerce.number(),
   ticket_url: z.string().nullable(),
   playlist_status: z.enum(["ready", "building"]).nullable(),
+  playlist_url: z.string().nullable(),
   views: z.coerce.number(),
   playlist_opens: z.coerce.number(),
 });
@@ -77,6 +78,17 @@ export class PgEventFeed implements EventFeedReader {
           when exists (select 1 from playlist_jobs j where j.event_id = e.id
             and j.status in ('queued', 'running', 'paused')) then 'building'
         end as playlist_status,
+        -- One tour, one playlist: this event's own, else a ready one with the same headliners.
+        coalesce(
+          (select sp.url from shared_playlists sp where sp.event_id = e.id),
+          (select sp.url from shared_playlists sp join events e2 on e2.id = sp.event_id
+            where e2.id <> e.id and e2.visibility = 'published'
+              and (select array_agg(x.artist_id order by x.artist_id) from event_artists x
+                    where x.event_id = e2.id and x.tier = 'headliner')
+                = (select array_agg(y.artist_id order by y.artist_id) from event_artists y
+                    where y.event_id = e.id and y.tier = 'headliner')
+            order by e2.starts_at limit 1)
+        ) as playlist_url,
         coalesce(st.views, 0) as views,
         coalesce(st.playlist_opens, 0) as playlist_opens
       from events e
@@ -155,6 +167,7 @@ function toFeedRow(r: z.infer<typeof row>): FeedRow {
     soloImage: r.artist_count === 1 ? r.first_image : null,
     ticketUrl: r.ticket_url,
     playlistStatus: r.playlist_status,
+    playlistUrl: r.playlist_url,
   };
 }
 
