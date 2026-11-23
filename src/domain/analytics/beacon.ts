@@ -18,7 +18,7 @@ export function pathGroup(pathname: string): PathGroup {
   return "other";
 }
 
-export const SHARE_CHANNELS = ["native", "copy", "story"] as const;
+export const SHARE_CHANNELS = ["native", "copy", "story", "whatsapp"] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
 export const MAX_EVENTS_PER_BEACON = 20;

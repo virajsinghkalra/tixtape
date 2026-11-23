@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { notePlayed } from "./after-play";
 import { currentEventId, track } from "./analytics/track";
 import { currentPlatform } from "./platform";
 import { spotifyOpenPlan } from "./spotify-link";
@@ -38,7 +39,9 @@ export function SpotifyOpenLink({
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
-    track("playlist_open_spotify", { eventId: eventId ?? currentEventId() });
+    const id = eventId ?? currentEventId();
+    track("playlist_open_spotify", { eventId: id });
+    notePlayed(id);
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // new tab: let it be
     const platform = currentPlatform();
     const plan = spotifyOpenPlan(href, platform);

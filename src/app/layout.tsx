@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
 import { Analytics } from "@/components/analytics/Analytics";
+import { AfterPlayShare } from "@/components/AfterPlayShare";
 import { IdentityPrompts } from "@/components/identity/IdentityPrompts";
 import { SavedSync } from "@/components/saved/SavedSync";
 import { NavShell } from "@/components/nav/NavShell";
@@ -98,6 +99,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <WebVitals />
             <Analytics />
             <IdentityPrompts />
+            <AfterPlayShare />
             <SavedSync />
           </ToastProvider>
         </MotionProvider>
