@@ -129,3 +129,94 @@ function MiniPlayer({ item, first = false }: { item: TrendingItem; first?: boole
     </div>
   );
 }
+
+/**
+ * Home's "🔥 Hot in Bengaluru" shelf (user, 24 Nov: the rail inside the hero looked clumsy).
+ * Album-style cards under the hero: square cover art with its record peeking out and spinning,
+ * the full title on two lines, the date, and a round Play on the cover. The first Play pulses
+ * and the shelf nudges once so the eye lands on it.
+ */
+export function HotShelf({ kicker, items }: { kicker: string; items: TrendingItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-8" data-testid="hot-shelf">
+      <div className="flex items-end justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-display text-big font-extrabold tracking-tight">
+          <span aria-hidden className="hot-flame">
+            🔥
+          </span>
+          {kicker}
+        </h2>
+        {items.length > 2 && (
+          <span aria-hidden className="pb-1 text-sm font-bold text-muted">
+            swipe →
+          </span>
+        )}
+      </div>
+      <ul className="rail-nudge no-scrollbar -mx-4 mt-4 flex snap-x snap-mandatory scroll-px-4 gap-5 overflow-x-auto px-4 pt-1 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6">
+        {items.map((item, i) => (
+          <li
+            key={item.id}
+            className="pop-in relative w-[44%] max-w-[12rem] shrink-0 snap-start"
+            style={{ "--i": i } as CSSProperties}
+          >
+            <AlbumCard item={item} first={i === 0} tilt={i % 2 === 0 ? -2 : 2} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AlbumCard({ item, first, tilt }: { item: TrendingItem; first: boolean; tilt: number }) {
+  const href = `/events/${item.id}`;
+  return (
+    <div data-vibe={item.vibe} data-testid="trending-card" className="group">
+      <div className="relative aspect-square">
+        <Link href={href} className="absolute inset-0" aria-label={`${item.title}, ${item.when}`}>
+          {/* The record, peeking out of the sleeve and spinning. */}
+          <span
+            aria-hidden
+            className="absolute top-[7%] right-0 bottom-[7%] aspect-square rounded-full border-2 border-night bg-[repeating-radial-gradient(circle,#1b1b22_0_2px,#0b0b0f_2px_5px)] transition-transform duration-500 ease-out group-hover:translate-x-2"
+          >
+            <span className="vinyl absolute inset-0 rounded-full" />
+            <span className="absolute top-1/2 left-1/2 size-[30%] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-night bg-lime" />
+          </span>
+          <span
+            style={{ rotate: `${tilt}deg` }}
+            className="absolute inset-y-0 left-0 z-10 block w-[84%] overflow-hidden rounded-tile border-2 border-night bg-night shadow-[4px_5px_0_0_var(--color-night)] transition-transform duration-(--duration-base) ease-spring group-hover:-translate-y-1 dark:border-line"
+          >
+            <span className="absolute inset-0 transition-transform duration-700 ease-out group-hover:scale-105">
+              <EventVisual poster={item.poster} artists={item.artists} label={item.label} />
+            </span>
+          </span>
+        </Link>
+        <SpotifyOpenLink
+          href={item.playlistUrl}
+          eventId={item.id}
+          size="md"
+          className={cx(
+            "absolute bottom-2 left-2 z-20 w-auto [&>a]:size-12 [&>a]:rounded-full [&>a]:p-0 [&>a]:shadow-[3px_3px_0_0_var(--color-night)]",
+            first && "play-pulse",
+          )}
+        >
+          <span aria-hidden className="translate-x-px text-lg leading-none">
+            ▶
+          </span>
+          <span className="sr-only">Play {item.title}</span>
+        </SpotifyOpenLink>
+      </div>
+      <Link href={href} className="mt-3 block" tabIndex={-1}>
+        <span className="line-clamp-2 font-display text-base leading-tight font-extrabold [overflow-wrap:anywhere]">
+          {item.title}
+        </span>
+        <span className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
+          <span className="text-accent-text">
+            <EqBars />
+          </span>
+          {item.when}
+        </span>
+      </Link>
+    </div>
+  );
+}

@@ -40,7 +40,7 @@ import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage, recentSpotifyOpens } from "@/server/front-page";
 import { pickHotList } from "@/domain/events/trending";
-import { HotRail } from "@/components/TrendingCard";
+import { HotShelf } from "@/components/TrendingCard";
 import { VibePicker } from "@/components/VibePicker";
 import { TourRail } from "@/components/TourRail";
 import { YourGigs } from "@/components/YourGigs";
@@ -97,13 +97,19 @@ export default async function Home({ searchParams }: Props) {
   const inCity = (e: FeedRow) => Boolean(city && e.city && metroOf(e.city) === metroOf(city));
   const hotList = pickHotList(rows, opens, inCity, 6);
   const hotKicker = hotList[0]?.local && city ? `Hot in ${city}` : "Trending now";
-  const hotItems = hotList.map(({ item: e }) => {
-    const title = shortTitle(e.title, e.headliners[0]);
+  const hotItems = hotList.map(({ item: e, local }) => {
+    // The shelf heading already says the city: a solo show reads as just the artist.
+    const title =
+      e.artistCount === 1 && e.headliners[0]
+        ? e.headliners[0]
+        : shortTitle(e.title, e.headliners[0]);
     return {
       id: e.id,
       title,
-      // No "Bengaluru" twice when the short title already names the city.
-      when: [shortDate(e.startsAt, now), e.city && !title.includes(e.city) ? e.city : null]
+      when: [
+        shortDate(e.startsAt, now),
+        !local && e.city && !title.includes(e.city) ? e.city : null,
+      ]
         .filter(Boolean)
         .join(" · "),
       poster: e.posterUrl ?? null,
@@ -198,15 +204,17 @@ export default async function Home({ searchParams }: Props) {
             </p>
             <div className="mt-5 max-w-2xl sm:mt-7">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
-              <HotRail kicker={hotKicker} items={hotItems} />
             </div>
           </Tile>
 
           {next ? (
             <>
-              <SectionBoundary label="Next up">
-                <HeroNextUp items={hero.map(nextUpItem)} now={now.toISOString()} />
-              </SectionBoundary>
+              {/* Phones get the hot shelf below instead: one picture-led strip, not two. */}
+              <div className="max-sm:hidden">
+                <SectionBoundary label="Next up">
+                  <HeroNextUp items={hero.map(nextUpItem)} now={now.toISOString()} />
+                </SectionBoundary>
+              </div>
               {/* UX #6: the stats tile costs a screen of scroll on phones; desktop only. */}
               <div className="hidden sm:contents">
                 <HeroBoard gigs={rows.length} cities={citiesByCount(rows)} />
@@ -218,6 +226,7 @@ export default async function Home({ searchParams }: Props) {
             </div>
           )}
         </div>
+        <HotShelf kicker={hotKicker} items={hotItems} />
       </section>
 
       <VibePicker vibes={vibes} />
