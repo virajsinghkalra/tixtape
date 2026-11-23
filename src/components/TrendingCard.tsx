@@ -4,6 +4,7 @@ import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { EqBars } from "./ui/EqBars";
+import { cx } from "./ui/cx";
 import type { Vibe } from "./vibe-copy";
 
 export type TrendingItem = {
@@ -24,11 +25,25 @@ export type TrendingItem = {
  * visitors left without opening a show; user: "make it interactive, scroll, animations").
  * Each one is a spinning record, the show, and one round Play.
  */
-export function HotRail({ kicker, items }: { kicker: string; items: TrendingItem[] }) {
+export function HotRail({
+  kicker,
+  items,
+  bleed = "tile",
+}: {
+  kicker: string;
+  items: TrendingItem[];
+  /** Inside the hero tile (its padding) or on the page (the page gutter). */
+  bleed?: "tile" | "page";
+}) {
   if (items.length === 0) return null;
   return (
     <div className="mt-4" data-testid="hot-rail">
-      <p className="flex items-center gap-2 text-sm font-extrabold">
+      <p
+        className={cx(
+          "flex items-center gap-2 font-extrabold",
+          bleed === "page" ? "font-display text-big tracking-tight" : "text-sm",
+        )}
+      >
         <span aria-hidden className="hot-flame">
           🔥
         </span>
@@ -39,7 +54,12 @@ export function HotRail({ kicker, items }: { kicker: string; items: TrendingItem
           </span>
         )}
       </p>
-      <ul className="no-scrollbar -mx-5 mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 sm:-mx-7 sm:px-7">
+      <ul
+        className={cx(
+          "no-scrollbar mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2",
+          bleed === "tile" ? "-mx-5 px-5 sm:-mx-7 sm:px-7" : "-mx-4 px-4 sm:-mx-6 sm:px-6",
+        )}
+      >
         {items.map((item, i) => (
           <li
             key={item.id}

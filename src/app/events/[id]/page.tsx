@@ -7,8 +7,10 @@ import { EventActions } from "@/components/EventActions";
 import { PlayCta } from "@/components/PlayCta";
 import { readyUrl } from "@/components/playlist-state";
 import { EventHeader } from "@/components/EventHeader";
-import { formatDateRange } from "@/components/event-format";
-import { EventStory } from "@/components/EventStory";
+import { formatDateRange, shortDate } from "@/components/event-format";
+import { shortTitle } from "@/components/hero-copy";
+import { HotRail } from "@/components/TrendingCard";
+import { upcomingRows } from "@/server/front-page";
 import { AlsoOnTour, type TourStop } from "@/components/AlsoOnTour";
 import { SearchPageParamsSchema } from "@/application/events";
 import { EventVisit } from "@/components/EventVisit";
@@ -18,7 +20,7 @@ import { parsePreview } from "@/components/playlist-preview";
 import { LineupPoster } from "@/components/LineupPoster";
 import { ticketLink } from "@/components/links";
 import { PlaylistPanel } from "@/components/PlaylistPanel";
-import { vibeOf } from "@/components/vibe-copy";
+import { vibeOf, vibeTag, type Vibe } from "@/components/vibe-copy";
 import { ShareButton } from "@/components/ShareButton";
 import { EventBottomBar } from "@/components/EventBottomBar";
 import { SectionBoundary } from "@/components/ui/SectionBoundary";
@@ -99,6 +101,8 @@ export default async function EventPage({ params, searchParams }: Params) {
   // One headliner touring: the other dates, for "Also on this tour".
   const headliner = groups[0]?.artists.length === 1 ? groups[0].artists[0]!.name : null;
   const tourStops = headliner ? await alsoOnTour(headliner, event.id, now) : [];
+  const more = await morePlaylists(event, vibe, now);
+  const moreTitle = `More ${vibeTag(vibe)?.label ?? ""} playlists`.replace("  ", " ");
   const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
   const outbound = ticketLink(event.sources.map((s) => s.url));
   // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
@@ -166,13 +170,14 @@ export default async function EventPage({ params, searchParams }: Params) {
         )}
       </div>
       {headliner && <AlsoOnTour artist={headliner} stops={tourStops} now={now} />}
-      {/* OD-6: the rundown carousel stays on the event page. */}
-      {groups.length > 0 && (
-        <div className="mt-12">
-          <SectionBoundary label="The rundown">
-            <EventStory event={event} now={now} />
+      {/* Playlist first (user, 24 Nov): the page ends in more playlists of the same vibe, not a
+          story card repeating the header. */}
+      {more.length > 0 && (
+        <section aria-label={moreTitle} className="reveal mt-12">
+          <SectionBoundary label="More playlists">
+            <HotRail kicker={moreTitle} items={more} bleed="page" />
           </SectionBoundary>
-        </div>
+        </section>
       )}
       <EventBottomBar>
         <PlayCta eventId={event.id} playUrl={playUrl} fallback={fallbackPlay} className="flex-1" />
@@ -192,6 +197,42 @@ async function alsoOnTour(artist: string, eventId: string, now: Date): Promise<T
       .filter((e) => e.id !== eventId)
       .map((e) => ({ id: e.id, city: e.city, startsAt: new Date(e.startsAt) }))
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * "More EDM playlists": other upcoming gigs of the same vibe with a playlist, one per artist,
+ * never this gig's tour. Falls back to any playlists when the vibe has too few. Never throws.
+ */
+async function morePlaylists(event: EventDetail, vibe: Vibe, now: Date) {
+  try {
+    const mine = new Set(event.lineup.map((a) => a.name));
+    const rows = (await upcomingRows(now)).filter(
+      (r) => r.playlistUrl && r.id !== event.id && !r.headliners.some((h) => mine.has(h)),
+    );
+    const same = rows.filter((r) => vibeOf(r.genre, r.type) === vibe);
+    const pool = same.length >= 3 ? same : [...same, ...rows.filter((r) => !same.includes(r))];
+    const seen = new Set<string>();
+    return pool
+      .filter((r) => {
+        const key = r.headliners[0] ?? r.title;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8)
+      .map((e) => ({
+        id: e.id,
+        title: shortTitle(e.title, e.headliners[0]),
+        when: [shortDate(e.startsAt, now), e.city].filter(Boolean).join(" · "),
+        poster: e.posterUrl ?? null,
+        artists: e.headlinerArtists,
+        label: e.headliners[0] ?? e.title,
+        playlistUrl: e.playlistUrl!,
+        vibe: vibeOf(e.genre, e.type),
+      }));
   } catch {
     return [];
   }

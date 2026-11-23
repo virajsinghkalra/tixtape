@@ -121,7 +121,12 @@ export function LineupPoster({ lineup, highlight }: Props) {
         </details>
       )}
       {credits.length > 0 && (
-        <p className="mt-8 text-left text-[0.6875rem] text-muted">📷 {credits.join(" · ")}</p>
+        <details className="mt-6 text-left text-[0.6875rem] text-muted">
+          <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 font-semibold">
+            📷 Photo credits <span aria-hidden>▾</span>
+          </summary>
+          <p className="mt-1">{credits.join(" · ")}</p>
+        </details>
       )}
     </section>
   );

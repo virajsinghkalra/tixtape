@@ -71,7 +71,12 @@ export function Splash({ nonce }: { nonce?: string }) {
           tix<span className="text-white">tape</span>
         </span>
       </div>
-      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: DROP_IF_SEEN }} />
+      {/* Browsers hide a script's nonce from the DOM (it reads ""), so React would flag it. */}
+      <script
+        nonce={nonce}
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{ __html: DROP_IF_SEEN }}
+      />
     </>
   );
 }
