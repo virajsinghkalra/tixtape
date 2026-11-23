@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
-import { metroOf, type FrontItem, type Tour } from "@/domain/events/front-page";
+import { metroOf, type FrontItem } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CityEmptyNote } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
@@ -13,7 +12,7 @@ import {
   yearTag,
   shortDate,
 } from "@/components/event-format";
-import { FrontSection, tourInfo } from "@/components/FrontSection";
+import { FrontSection } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
 import { HeroBoard } from "@/components/HeroBoard";
 import { readyFirst } from "@/components/nav/browse";
@@ -43,6 +42,7 @@ import { frontPage, recentSpotifyOpens } from "@/server/front-page";
 import { pickHotList } from "@/domain/events/trending";
 import { HotRail } from "@/components/TrendingCard";
 import { VibePicker } from "@/components/VibePicker";
+import { TourRail } from "@/components/TourRail";
 import { YourGigs } from "@/components/YourGigs";
 
 export const dynamic = "force-dynamic";
@@ -294,7 +294,7 @@ export default async function Home({ searchParams }: Props) {
 
       {front.tours.length > 0 && (
         <SectionBoundary label="Tours">
-          <ToursList tours={front.tours} />
+          <TourRail tours={front.tours} />
         </SectionBoundary>
       )}
 
@@ -367,53 +367,4 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       vibe: vibeOf(e.genre, e.type),
     }),
   };
-}
-
-/** Tours, collapsed: one line each, opening to every city (D-079). */
-function ToursList({ tours }: { tours: Tour<FeedRow>[] }) {
-  return (
-    <section aria-labelledby="tours-title" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
-      <h2 id="tours-title" className="mb-4 font-display text-big font-extrabold tracking-tight">
-        <span aria-hidden className="mr-2">
-          🗺️
-        </span>
-        Tours
-      </h2>
-      <ul className="space-y-3">
-        {tours.map((t) => {
-          const info = tourInfo(t, null);
-          return (
-            <li key={t.key}>
-              <details className="group/t rounded-card border-2 border-night bg-surface dark:border-line">
-                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2">
-                  <span className="font-display text-lg font-bold">{t.title}</span>
-                  <span className="shrink-0 text-sm font-semibold text-accent-text">
-                    {info.count}{" "}
-                    <span
-                      aria-hidden
-                      className="inline-block transition-transform group-open/t:rotate-180"
-                    >
-                      ▾
-                    </span>
-                  </span>
-                </summary>
-                <ul className="grid gap-1 px-2 pb-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {info.stops.map((s) => (
-                    <li key={s.id}>
-                      <Link
-                        href={`/events/${s.id}`}
-                        className="flex min-h-11 items-center justify-between rounded-field px-3 hover:bg-surface-2"
-                      >
-                        {s.label} <span aria-hidden>→</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
 }
