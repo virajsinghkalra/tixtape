@@ -32,7 +32,7 @@ describe("plural", () => {
 describe("lineupShape and whoLine", () => {
   it.each([
     [[], 0, "empty", "Lineup soon 🫣"],
-    [["Bhuwin"], 1, "solo", "Bhuwin, all night."],
+    [["Bhuwin"], 1, "solo", "Bhuwin."],
     [["Anyma", "Aeden"], 2, "duo", "Anyma and Aeden. One night."],
     [["A", "B", "C"], 3, "trio", "A, B and C. One night."],
     [["A", "B", "C", "D"], 34, "festival", "34 artists."],
@@ -73,7 +73,7 @@ describe("titleSize", () => {
 
 describe("lineupTeaser (cards)", () => {
   it.each([
-    [["Martin Garrix"], 1, "Martin Garrix, all night"],
+    [["Martin Garrix"], 1, "Martin Garrix"],
     [["Anyma", "Aeden"], 2, "Anyma and Aeden"],
     [["A", "B"], 34, "A, B + 32 more"],
     [[], 1, "1 artist"],
@@ -94,7 +94,7 @@ describe("story copy", () => {
     [["A", "B"], 12, 1, "12 acts. One night."],
     [["Anyma", "Aeden"], 2, 1, "Anyma and Aeden. One night."],
     [["A", "B", "C"], 3, 2, "A, B and C. 2 days."],
-    [["Bhuwin"], 1, 1, "Bhuwin, all night."],
+    [["Bhuwin"], 1, 1, "Bhuwin."],
     [[], 0, 1, "Lineup soon 🫣"],
   ] as const)("%j, %i acts, %i days", (names, total, days, line) => {
     expect(introLine(names, total, days)).toBe(line);

@@ -6,7 +6,7 @@
  *   duo/trio → intro · the lineup · playlist
  *   festival → intro · headliners · also on the bill · hidden gems · playlist
  */
-import { soloLine, vibeHeadline, type Vibe } from "./vibe-copy";
+import { tagline, vibeHeadline, vibeTag, type Vibe } from "./vibe-copy";
 import type { BillingTier } from "@/domain/shared/lineup";
 import {
   lineupLayout,
@@ -81,6 +81,10 @@ export type SlidePlan =
   | (Common & {
       kind: "playlist";
       headline: string;
+      /** The genre sticker ("⚡ EDM"), or null for "🎧 The playlist". */
+      tag: { emoji: string; label: string } | null;
+      /** A solo show's vibe line, shown under the name (never glued onto it). */
+      tagline: string | null;
       /** Solo show: the artist's face leads the slide, so it's never an empty colour block. */
       face: StoryArtist | null;
       cta: { href: string; text: string };
@@ -201,8 +205,10 @@ function playlistSlide(
     headline: pending
       ? PLAYLIST_SOON
       : solo
-        ? `${soloLine(solo.name, input.vibe ?? "default", input.id)}.`
+        ? solo.name
         : vibeHeadline(input.vibe ?? "festival", input.id),
+    tag: vibeTag(input.vibe ?? "default"),
+    tagline: solo && !pending ? tagline(input.vibe ?? "default", input.id) : null,
     face: solo,
     cta: {
       href: input.playlistHref,

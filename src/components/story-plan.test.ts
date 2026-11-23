@@ -44,7 +44,9 @@ describe("planStory: solo (1 artist)", () => {
   it("the playlist slide is a headline and two links: the playlist and the event", () => {
     expect(plan.slides[1]).toMatchObject({
       kind: "playlist",
-      headline: "Bhuwin, all night.",
+      headline: "Bhuwin",
+      tag: null,
+      tagline: expect.any(String) as string,
       face: { name: "Bhuwin" },
       cta: { href: "/events/e1#playlist", text: "Open playlist" },
       secondary: { href: "/events/e1", text: "See event" },

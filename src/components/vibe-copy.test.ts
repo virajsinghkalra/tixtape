@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cookingLine, pick, shareCopy, soloLine, vibeHeadline, vibeOf, VIBES } from "./vibe-copy";
+import { cookingLine, pick, shareCopy, tagline, vibeHeadline, vibeOf, VIBES } from "./vibe-copy";
 
 describe("vibeOf", () => {
   it.each([
@@ -25,17 +25,28 @@ describe("vibeOf", () => {
 
 describe("copy picks", () => {
   it("is stable per show and varies across shows", () => {
-    expect(soloLine("Garrix", "edm", "e1")).toBe(soloLine("Garrix", "edm", "e1"));
-    const lines = new Set(
-      Array.from({ length: 40 }, (_, i) => soloLine("Garrix", "edm", `event-${i}`)),
-    );
+    expect(tagline("edm", "e1")).toBe(tagline("edm", "e1"));
+    const lines = new Set(Array.from({ length: 40 }, (_, i) => tagline("edm", `event-${i}`)));
     expect(lines.size).toBeGreaterThan(1);
-    expect([...lines].every((l) => l.startsWith("Garrix, "))).toBe(true);
   });
 
-  it("never says 'all night' for a show with a known vibe", () => {
-    for (const vibe of VIBES.filter((v) => v !== "default")) {
-      for (let i = 0; i < 20; i++) expect(soloLine("X", vibe, `s${i}`)).not.toMatch(/all night/u);
+  it("speaks English only and never says 'all night'", () => {
+    const hinglish = /\b(gaane|gaana|dil se|sukoon|rooh|dhol|balle|bhangra|hai|sun|yaar)\b/iu;
+    for (const vibe of VIBES) {
+      for (let i = 0; i < 30; i++) {
+        const seed = `s${i}`;
+        const all = [
+          tagline(vibe, seed),
+          vibeHeadline(vibe, seed),
+          cookingLine(vibe, seed),
+          shareCopy(vibe, seed).title,
+          shareCopy(vibe, seed).text,
+        ];
+        for (const line of all) {
+          expect(line).not.toMatch(hinglish);
+          expect(line).not.toMatch(/all night/iu);
+        }
+      }
     }
   });
 

@@ -2,7 +2,9 @@
  * Copy that matches the music (user feedback, 23 Nov: "everywhere it says all night"). Each show
  * gets a vibe from its genre, and each line is picked from that vibe's pool by the event id, so
  * the same show always reads the same (server and client agree) while different shows vary.
- * Tiny Gen Z copy only (D-082).
+ *
+ * Voice: short, confident Gen Z English. No Hinglish (user feedback, 23 Nov). A tagline is never
+ * glued onto an artist's name: it renders as its own element (a chip or a line of its own).
  */
 export type Vibe =
   | "edm"
@@ -49,146 +51,181 @@ export function pick<T>(pool: readonly T[], seed: string, salt = ""): T {
 }
 
 type VibeCopy = {
-  /** The ready playlist's status line. */
-  live: string;
   emoji: string;
-  /** After a solo artist's name: "Martin Garrix, drop after drop". */
-  solo: readonly string[];
+  /** The genre chip ("⚡ EDM"); null shows no chip. */
+  label: string | null;
+  /** A solo show's tagline, shown on its own line under the name. */
+  tagline: readonly string[];
   /** The story's last slide for a multi-act show. */
   headline: readonly string[];
+  /** The ready playlist's status line. */
+  live: string;
   /** Above the "Listen now" links while the playlist is being made. */
   cooking: readonly string[];
-  /** The back-from-Spotify share card. */
+  /** The back-from-Spotify share card. Titles stay one line at 360px (≤ 30 chars). */
   shareTitle: readonly string[];
   shareText: readonly string[];
 };
 
 const COPY: Record<Vibe, VibeCopy> = {
   edm: {
-    live: "Drops are live ⚡",
     emoji: "⚡",
-    solo: ["drop after drop", "bass till late", "hands in the air", "lights, bass, go"],
-    headline: ["Every drop. One playlist.", "Pre-game the drops.", "Bass loaded. Hit play."],
+    label: "EDM",
+    tagline: ["Know every drop first", "Bass you'll feel", "Peak-time energy", "Lights. Bass. Go."],
+    headline: [
+      "Every drop. One playlist.",
+      "Learn the drops. Own the night.",
+      "Bass loaded. Hit play.",
+    ],
+    live: "Drops are live ⚡",
     cooking: ["Drops loading ⚡ till then 👇", "Bass warming up 🔊 till then 👇"],
-    shareTitle: ["Squad needs these drops ⚡", "Send the drops to the gang"],
-    shareText: ["pre-game playlist ⚡", "drops before the drop 🔊"],
+    shareTitle: ["Your squad needs these drops", "Send the drops to the squad ⚡"],
+    shareText: ["pre-game with this ⚡", "learn the drops before we go 🔊"],
   },
   bollywood: {
-    live: "Gaane are live 🎤",
     emoji: "🎤",
-    solo: ["every feel, live", "full sing-along", "goosebumps live", "dil se, live"],
-    headline: ["Every hit. One playlist.", "Sing-along mode: on.", "Gaane ready hai 🎤"],
-    cooking: ["Gaane loading 🎤 till then 👇", "Sing-along loading 🎶 till then 👇"],
-    shareTitle: ["Tag your sing-along gang 🎤", "Send it to the gaana gang"],
-    shareText: ["sing-along prep 🎤", "gaane ready hai, sun 🎶"],
+    label: "Bollywood",
+    tagline: [
+      "Every hit, word for word",
+      "Goosebumps guaranteed",
+      "The hits you grew up on",
+      "Sing louder than the crowd",
+    ],
+    headline: ["Every hit. One playlist.", "Learn every word. Sing louder."],
+    live: "Hits are live 🎤",
+    cooking: ["Hits loading 🎤 till then 👇", "Sing-along loading 🎶 till then 👇"],
+    shareTitle: ["Tag your sing-along squad 🎤", "Send it to your karaoke crew"],
+    shareText: ["learn every word before the show 🎤", "sing-along prep 🎶"],
   },
   punjabi: {
-    live: "Dhol's live 🥁",
     emoji: "🥁",
-    solo: ["full bhangra mode", "dhol on, live", "Punjabi vibes only"],
-    headline: ["Every banger. One playlist.", "Bhangra mode: on.", "Dhol ready? Hit play."],
-    cooking: ["Dhol warming up 🥁 till then 👇", "Bhangra loading 🥁 till then 👇"],
-    shareTitle: ["Bhangra crew needs this 🥁", "Send it to the dhol gang"],
-    shareText: ["full Punjabi vibe 🥁", "bhangra prep, sun le 🥁"],
+    label: "Punjabi",
+    tagline: [
+      "Pure Punjabi energy",
+      "Turn it all the way up",
+      "Dance-floor ready",
+      "Hit after hit",
+    ],
+    headline: ["Every banger. One playlist.", "Turn it up. Hit play."],
+    live: "Bangers are live 🥁",
+    cooking: ["Bangers loading 🥁 till then 👇", "Beat drops soon 🥁 till then 👇"],
+    shareTitle: ["Your dance crew needs this 🥁", "Send it to the dance crew"],
+    shareText: ["warm up with this 🥁", "full Punjabi energy 🥁"],
   },
   sufi: {
-    live: "Sukoon's live 🕊️",
     emoji: "🕊️",
-    solo: ["pure sukoon, live", "soul on, live", "rooh tak, live"],
-    headline: ["Pure sukoon. One playlist.", "Rooh ready? Hit play."],
-    cooking: ["Sukoon loading 🕊️ till then 👇"],
-    shareTitle: ["Share the sukoon 🕊️", "Send some sukoon over"],
-    shareText: ["pure sukoon 🕊️", "rooh wala playlist 🕊️"],
+    label: "Sufi",
+    tagline: ["Soul-deep, live", "Music that stays with you", "Close your eyes. Feel it."],
+    headline: ["Soul-deep. One playlist.", "Feel it first. Hit play."],
+    live: "Soul mode is live 🕊️",
+    cooking: ["Soul mode loading 🕊️ till then 👇"],
+    shareTitle: ["Share the calm 🕊️", "Someone needs this calm"],
+    shareText: ["soul-deep playlist 🕊️", "feel this before the show 🕊️"],
   },
   indie: {
-    live: "Setlist's live 🎸",
     emoji: "🎸",
-    solo: ["up close", "small-room magic", "every lyric, live", "songs you feel"],
-    headline: ["Every song. One playlist.", "Learn the words first."],
+    label: "Indie",
+    tagline: ["Up close", "Small-room magic", "Know every lyric", "Songs that hit different"],
+    headline: ["Every song. One playlist.", "Know the words. Be front row."],
+    live: "Setlist's live 🎸",
     cooking: ["Tuning up 🎸 till then 👇", "Strings on 🎸 till then 👇"],
     shareTitle: ["Send it to your gig buddy 🎸", "Your indie friend needs this"],
     shareText: ["learn the words first 🎸", "gig prep 🎸"],
   },
   rock: {
-    live: "Amps on, it's live 🤘",
     emoji: "🤘",
-    solo: ["loud and live", "riffs on riffs", "mosh ready", "turn it up"],
+    label: "Rock",
+    tagline: ["Loud and live", "Riffs on riffs", "Mosh-ready", "Turn it up"],
     headline: ["Every riff. One playlist.", "Turn it up. Hit play."],
+    live: "Amps on, it's live 🤘",
     cooking: ["Amps warming up 🤘 till then 👇"],
-    shareTitle: ["Mosh crew needs this 🤘", "Send it to the rock gang"],
+    shareTitle: ["Mosh crew needs this 🤘", "Send it to the rock crew"],
     shareText: ["turn it up 🤘", "gig prep, loud 🤘"],
   },
   hiphop: {
-    live: "Bars are live 🔥",
     emoji: "🔥",
-    solo: ["bars on bars", "beats, live", "all bangers", "turn up, live"],
+    label: "Hip hop",
+    tagline: ["Bars on bars", "All bangers", "Know every verse", "Turn up, live"],
     headline: ["Every banger. One playlist.", "Bars loaded. Hit play."],
+    live: "Bars are live 🔥",
     cooking: ["Beat's cooking 🔥 till then 👇", "Bars loading 🎤 till then 👇"],
-    shareTitle: ["Crew needs these bars 🔥", "Send it to the cypher"],
+    shareTitle: ["Crew needs these bars 🔥", "Send it to the crew"],
     shareText: ["bars before the show 🔥", "bangers only 🔥"],
   },
   pop: {
-    live: "Hits are live 💖",
     emoji: "💖",
-    solo: ["every chorus, live", "sing it back", "hits only", "main-character night"],
+    label: "Pop",
+    tagline: ["Every chorus, live", "Sing it back", "Hits only", "Main-character night"],
     headline: ["Every chorus. One playlist.", "Hits only. Hit play."],
+    live: "Choruses are live 💖",
     cooking: ["Chorus loading 💖 till then 👇"],
     shareTitle: ["Group chat needs this 💖", "Send it to your bestie"],
     shareText: ["learn every chorus 💖", "hits before the show 💖"],
   },
   kpop: {
-    live: "Era's live 💜",
     emoji: "💜",
-    solo: ["lightsticks up", "fanchant ready", "bias, live"],
+    label: "K-pop",
+    tagline: ["Lightsticks up", "Fanchant ready", "Every era, live"],
     headline: ["Every era. One playlist.", "Lightsticks up. Hit play."],
+    live: "The era is live 💜",
     cooking: ["Lightsticks charging 💜 till then 👇"],
-    shareTitle: ["Send it to your bias crew 💜", "Fandom needs this 💜"],
+    shareTitle: ["Send it to your bias crew 💜", "The fandom needs this 💜"],
     shareText: ["fanchant prep 💜", "lightsticks up 💜"],
   },
   fusion: {
-    live: "Live on Spotify 🌍",
     emoji: "🌍",
-    solo: ["worlds collide, live", "live and rare", "sounds from everywhere"],
+    label: "World fusion",
+    tagline: ["Worlds collide, live", "Rare and live", "Sounds from everywhere"],
     headline: ["Every sound. One playlist.", "Worlds collide. Hit play."],
+    live: "Live on Spotify 🌍",
     cooking: ["Tuning up 🌍 till then 👇"],
     shareTitle: ["Send it to the music nerds 🌍", "Share this rare one"],
     shareText: ["rare live one 🌍", "listen before you go 🌍"],
   },
   festival: {
-    live: "Lineup's live 🎪",
     emoji: "🎪",
-    solo: ["fest mode", "all day, all vibes"],
+    // The card already wears a "🎪 Festival" sticker: no second chip.
+    label: null,
+    tagline: ["Fest mode on", "All day, all vibes"],
     headline: ["Every act. One playlist.", "The whole lineup, one tap.", "Fest mode: on."],
+    live: "Lineup's live 🎪",
     cooking: ["Lineup loading 🎪 till then 👇", "Fest mix cooking 🍳 till then 👇"],
-    shareTitle: ["Fest squad needs this 🎪", "Send it to the fest gang"],
+    shareTitle: ["Fest squad needs this 🎪", "Send it to the fest squad"],
     shareText: ["fest prep playlist 🎪", "the whole lineup 🎪"],
   },
   default: {
-    live: "Live on Spotify 🎉",
     emoji: "🎧",
-    solo: ["all night", "live", "one night only", "front row energy"],
+    label: null,
+    tagline: ["One night only", "Front-row energy", "Be there"],
     headline: ["Every act. One playlist.", "Hit play before the show."],
+    live: "Live on Spotify 🎉",
     cooking: ["Playlist's cooking 🍳 till then 👇"],
-    shareTitle: ["Send it to the gang 🎧"],
+    shareTitle: ["Send it to the squad 🎧"],
     shareText: ["found this gig's playlist 🎧"],
   },
 };
-
-export function liveLine(vibe: Vibe): string {
-  return COPY[vibe].live;
-}
 
 export function vibeEmoji(vibe: Vibe): string {
   return COPY[vibe].emoji;
 }
 
-/** "Martin Garrix, drop after drop". */
-export function soloLine(name: string, vibe: Vibe, seed: string): string {
-  return `${name}, ${pick(COPY[vibe].solo, seed, "solo")}`;
+/** "⚡ EDM" for the genre chip, or null (no chip). */
+export function vibeTag(vibe: Vibe): { emoji: string; label: string } | null {
+  const { emoji, label } = COPY[vibe];
+  return label ? { emoji, label } : null;
+}
+
+/** A solo show's tagline, rendered on its own (never appended to the name). */
+export function tagline(vibe: Vibe, seed: string): string {
+  return pick(COPY[vibe].tagline, seed, "tagline");
 }
 
 export function vibeHeadline(vibe: Vibe, seed: string): string {
   return pick(COPY[vibe].headline, seed, "headline");
+}
+
+export function liveLine(vibe: Vibe): string {
+  return COPY[vibe].live;
 }
 
 export function cookingLine(vibe: Vibe, seed: string): string {

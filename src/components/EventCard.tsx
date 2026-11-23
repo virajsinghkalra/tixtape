@@ -11,6 +11,7 @@ import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts, yearTag } from "./event-format";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { vibeEmoji, vibeOf } from "./vibe-copy";
+import { VibeChip } from "./VibeChip";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
 import { cx } from "./ui/cx";
@@ -168,8 +169,9 @@ export function EventCard({
           )}
           <p className="mt-auto pt-2 text-sm font-semibold">
             <span aria-hidden>🎶 </span>
-            {lineupTeaser(headliners, event.artistCount, { vibe, seed: event.id })}
+            {lineupTeaser(headliners, event.artistCount)}
           </p>
+          <VibeChip vibe={vibe} seed={event.id} solo={event.artistCount === 1} />
         </div>
       </Link>
       {/* In a side-scrolling row an expanding list would stretch every card in the row (big

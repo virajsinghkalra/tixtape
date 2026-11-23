@@ -138,10 +138,13 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
       return (
         <div className="flex flex-1 flex-col justify-center gap-4">
           {slide.face && <BigFace artist={slide.face} />}
-          <Sticker tone="night" size="md" emoji="🎧" className="self-start">
-            The playlist
+          <Sticker tone="night" size="md" emoji={slide.tag?.emoji ?? "🎧"} className="self-start">
+            {slide.tag ? `${slide.tag.label} playlist` : "The playlist"}
           </Sticker>
-          <p className="font-display text-big leading-tight font-extrabold">{slide.headline}</p>
+          <div className="flex flex-col gap-1">
+            <p className="font-display text-big leading-tight font-extrabold">{slide.headline}</p>
+            {slide.tagline && <p className="text-lg font-semibold opacity-85">{slide.tagline}</p>}
+          </div>
           <div className="relative z-10 mt-2 flex flex-wrap gap-3">
             <ButtonLink href={slide.cta.href} variant="night" size="lg">
               {slide.cta.text} <span aria-hidden>→</span>
