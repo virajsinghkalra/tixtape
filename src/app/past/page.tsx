@@ -16,6 +16,7 @@ export default async function Page() {
       rows={rows}
       now={now}
       city={null}
+      past
     />
   );
 }

@@ -10,6 +10,7 @@ import { Countdown } from "./ui/Countdown";
 import { Sticker } from "./ui/Sticker";
 import { Tile } from "./ui/Tile";
 import { PlayCta } from "./PlayCta";
+import { vibeOf, vibeTag } from "./vibe-copy";
 
 const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = {
   announced: { emoji: "📣", label: "Announced" },
@@ -36,6 +37,10 @@ const H1: Record<TitleSize, string> = { xl: "text-mega", lg: "text-huge", md: "t
  */
 export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }: Props) {
   const status = STATUS[event.status];
+  const tag = vibeTag(vibeOf(event.genre, event.type)) ?? {
+    emoji: event.type === "festival" ? "🎪" : "🎤",
+    label: event.type === "festival" ? "Festival" : "Concert",
+  };
   const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
   const ordered = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
@@ -67,16 +72,15 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
               now={now.toISOString()}
               size="md"
             />
-            <Sticker
-              tone="night"
-              tilt={2}
-              size="md"
-              emoji={event.type === "festival" ? "🎪" : "🎤"}
-            >
-              {event.type === "festival" ? "Festival" : "Concert"}
+            {/* The music's vibe ("⚡ EDM"), not a generic "Concert" (user feedback, 24 Nov). */}
+            <Sticker tone="night" tilt={2} size="md" emoji={tag.emoji}>
+              {tag.label}
             </Sticker>
-            {/* An ended show's "Announced" / "Lineup dropping" is stale: only "Cancelled" stays. */}
-            {(event.status === "cancelled" || !hasEnded(event.startsAt, event.endsAt, now)) && (
+            {/* Only news worth a sticker: "Cancelled", or a lineup still dropping (never for an
+                ended show). "Announced" / "Full lineup" were noise. */}
+            {(event.status === "cancelled" ||
+              (event.status === "partial_lineup" &&
+                !hasEnded(event.startsAt, event.endsAt, now))) && (
               <Sticker tone="surface" tilt={-2} size="md" emoji={status.emoji}>
                 {status.label}
               </Sticker>

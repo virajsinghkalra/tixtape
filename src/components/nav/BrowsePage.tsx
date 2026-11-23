@@ -11,13 +11,15 @@ type Props = {
   rows: FeedRow[];
   now: Date;
   city: string | null;
+  /** Past shows: no tour grouping (it scores upcoming shows only), most recent first. */
+  past?: boolean;
 };
 
 /**
  * A browse list (ready / week / upcoming): the visitor's city as a swipeable rail of cards,
  * then everything else as compact month-grouped rows, one row per tour (user feedback, 24 Nov).
  */
-export function BrowsePage({ emoji, title, empty, rows, now, city }: Props) {
+export function BrowsePage({ emoji, title, empty, rows, now, city, past = false }: Props) {
   const { here, other } = splitByCity(rows, city);
   const soonest = (xs: ReturnType<typeof groupTours<FeedRow>>) =>
     [...xs].sort(
@@ -25,8 +27,10 @@ export function BrowsePage({ emoji, title, empty, rows, now, city }: Props) {
         (a.kind === "event" ? a.event : a.tour.featured).startsAt.getTime() -
         (b.kind === "event" ? b.event : b.tour.featured).startsAt.getTime(),
     );
-  const local = soonest(groupTours(here, city, now));
-  const rest = soonest(groupTours(other, city, now));
+  const asItems = (xs: FeedRow[]) =>
+    xs.map((event) => ({ kind: "event" as const, event, score: 0 }));
+  const local = past ? asItems(here) : soonest(groupTours(here, city, now));
+  const rest = past ? asItems(other) : soonest(groupTours(other, city, now));
   return (
     <div className="pb-16">
       <h1 className="mx-auto mt-8 max-w-6xl px-4 font-display text-mega font-extrabold tracking-tight sm:px-6">
@@ -57,7 +61,7 @@ export function BrowsePage({ emoji, title, empty, rows, now, city }: Props) {
             </span>
             {local.length > 0 ? "Explore more" : "All India"}
           </h2>
-          <CompactList items={rest} now={now} />
+          <CompactList items={rest} now={now} newestFirst={past} />
         </section>
       )}
     </div>

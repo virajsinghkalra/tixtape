@@ -15,8 +15,19 @@ const lead = (i: FrontItem<FeedRow>) => (i.kind === "event" ? i.event : i.tour.f
  * ~47,000px of big cards). A tour is one row linking to its tour page; every row with a
  * playlist has a round Play.
  */
-export function CompactList({ items, now }: { items: FrontItem<FeedRow>[]; now: Date }) {
-  const sorted = [...items].sort((a, b) => lead(a).startsAt.getTime() - lead(b).startsAt.getTime());
+export function CompactList({
+  items,
+  now,
+  newestFirst = false,
+}: {
+  items: FrontItem<FeedRow>[];
+  now: Date;
+  newestFirst?: boolean;
+}) {
+  const sign = newestFirst ? -1 : 1;
+  const sorted = [...items].sort(
+    (a, b) => sign * (lead(a).startsAt.getTime() - lead(b).startsAt.getTime()),
+  );
   const months = new Map<string, FrontItem<FeedRow>[]>();
   for (const item of sorted) {
     const { month } = istParts(lead(item).startsAt);

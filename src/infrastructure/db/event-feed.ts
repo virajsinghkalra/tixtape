@@ -64,14 +64,21 @@ export class PgEventFeed implements EventFeedReader {
 
   /** Published events that ended in [from, to), most recent first (the /past page). */
   async past({ from, to, limit }: { from: Date; to: Date; limit: number }): Promise<FeedRow[]> {
+    // Ended shows are archived by the sweep (D-070) but stay reachable: /past lists them too.
     return this.select(
       sql`${stillOn} >= ${from.toISOString()}::timestamptz and ${stillOn} < ${to.toISOString()}::timestamptz`,
       sql`desc`,
       limit,
+      sql`e.visibility in ('published', 'archived')`,
     );
   }
 
-  private async select(when: SQL, direction: SQL, limit: number): Promise<FeedRow[]> {
+  private async select(
+    when: SQL,
+    direction: SQL,
+    limit: number,
+    visible: SQL = sql`e.visibility = 'published'`,
+  ): Promise<FeedRow[]> {
     const result = await this.db.execute(sql`
       select
         e.id, e.title, e.type, e.status, e.starts_at, e.starts_at_date_only, e.ends_at, e.genre, e.image_url, e.poster_url, e.created_at,
@@ -121,7 +128,7 @@ export class PgEventFeed implements EventFeedReader {
           select ea2.tier from event_artists ea2 where ea2.event_id = e.id
           order by ea2.billing_rank limit 1)
       ) top on true
-      where e.visibility = 'published' and ${when}
+      where ${visible} and ${when}
       order by e.starts_at ${direction}, e.id ${direction}
       limit ${limit}
     `);

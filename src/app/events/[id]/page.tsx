@@ -9,6 +9,8 @@ import { readyUrl } from "@/components/playlist-state";
 import { EventHeader } from "@/components/EventHeader";
 import { formatDateRange } from "@/components/event-format";
 import { EventStory } from "@/components/EventStory";
+import { AlsoOnTour, type TourStop } from "@/components/AlsoOnTour";
+import { SearchPageParamsSchema } from "@/application/events";
 import { EventVisit } from "@/components/EventVisit";
 import { shareText } from "@/components/lineup-copy";
 import { groupByTier, isMatched } from "@/components/lineup-view";
@@ -94,6 +96,9 @@ export default async function EventPage({ params, searchParams }: Params) {
         .then((d) => d?.artists[0] ?? null)
         .catch(() => null);
   const vibe = vibeOf(event.genre, event.type);
+  // One headliner touring: the other dates, for "Also on this tour".
+  const headliner = groups[0]?.artists.length === 1 ? groups[0].artists[0]!.name : null;
+  const tourStops = headliner ? await alsoOnTour(headliner, event.id, now) : [];
   const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
   const outbound = ticketLink(event.sources.map((s) => s.url));
   // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
@@ -145,12 +150,16 @@ export default async function EventPage({ params, searchParams }: Params) {
         ) : (
           <div className="flex flex-wrap gap-3 lg:order-2">{actions}</div>
         )}
-        <div className="lg:order-1">
-          <SectionBoundary label="The lineup">
-            <LineupPoster lineup={event.lineup} highlight={artist} />
-          </SectionBoundary>
-        </div>
+        {/* A solo show's face already leads the header and the story: no third copy. */}
+        {event.lineup.length > 1 && (
+          <div className="lg:order-1">
+            <SectionBoundary label="The lineup">
+              <LineupPoster lineup={event.lineup} highlight={artist} />
+            </SectionBoundary>
+          </div>
+        )}
       </div>
+      {headliner && <AlsoOnTour artist={headliner} stops={tourStops} now={now} />}
       {/* OD-6: the rundown carousel stays on the event page. */}
       {groups.length > 0 && (
         <div className="mt-12">
@@ -165,4 +174,19 @@ export default async function EventPage({ params, searchParams }: Params) {
       </EventBottomBar>
     </div>
   );
+}
+
+/** The headliner's other upcoming dates (search by artist), this one left out. Never throws. */
+async function alsoOnTour(artist: string, eventId: string, now: Date): Promise<TourStop[]> {
+  try {
+    const r = await events().searchPage(
+      SearchPageParamsSchema.parse({ artist, from: now.toISOString(), pageSize: "30" }),
+    );
+    return r.results
+      .filter((e) => e.id !== eventId)
+      .map((e) => ({ id: e.id, city: e.city, startsAt: new Date(e.startsAt) }))
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  } catch {
+    return [];
+  }
 }
