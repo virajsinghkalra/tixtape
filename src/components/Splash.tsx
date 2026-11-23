@@ -4,8 +4,8 @@ import { TONE_CLASS, type BlockTone } from "./ui/tone";
 
 /**
  * A different splash every time someone opens Tixtape (user, 24 Nov: random each visit,
- * ~3.5 s, stylish and animated). Drifting colour blobs, floating emojis, words that pop in one by
- * one, then an iris wipe out at ~3.5 s. Pure CSS: it never blocks taps after it ends, a tap skips
+ * ~5 s, stylish and animated). Drifting colour blobs, floating emojis, words that pop in one by
+ * one, then an iris wipe out at ~5 s. Pure CSS: it never blocks taps after it ends, a tap skips
  * it, a refresh in the same visit skips it, and reduced-motion users never see it.
  */
 const LINES = [
