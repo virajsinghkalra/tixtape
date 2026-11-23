@@ -10,7 +10,8 @@ import { Countdown } from "./ui/Countdown";
 import { Sticker } from "./ui/Sticker";
 import { Tile } from "./ui/Tile";
 import { PlayCta } from "./PlayCta";
-import { vibeOf, vibeTag } from "./vibe-copy";
+import Link from "next/link";
+import { vibeHref, vibeOf, vibeTag } from "./vibe-copy";
 import { VENUE_SOON, venueName } from "./venue";
 
 const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = {
@@ -43,6 +44,7 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
     label: event.type === "festival" ? "Festival" : "Concert",
   };
   const ended = hasEnded(event.startsAt, event.endsAt, now);
+  const vibeLink = vibeHref(vibeOf(event.genre, event.type));
   const venue = venueName(event.venue?.name);
   const where = event.venue
     ? venue
@@ -53,6 +55,11 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
     : ended
       ? "India"
       : VENUE_SOON;
+  // A real venue opens in Google Maps (people tap it to see where the gig is).
+  const mapsUrl =
+    venue && event.venue
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue}, ${event.venue.city}`)}`
+      : null;
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
   const ordered = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
   const time = formatStartTime(event.startsAt);
@@ -84,9 +91,17 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
               size="md"
             />
             {/* The music's vibe ("⚡ EDM"), not a generic "Concert" (user feedback, 24 Nov). */}
-            <Sticker tone="night" tilt={2} size="md" emoji={tag.emoji}>
-              {tag.label}
-            </Sticker>
+            {vibeLink ? (
+              <Link href={vibeLink} className="transition-transform active:scale-95">
+                <Sticker tone="night" tilt={2} size="md" emoji={tag.emoji}>
+                  {tag.label} <span aria-hidden>→</span>
+                </Sticker>
+              </Link>
+            ) : (
+              <Sticker tone="night" tilt={2} size="md" emoji={tag.emoji}>
+                {tag.label}
+              </Sticker>
+            )}
             {/* Only news worth a sticker: "Cancelled", or a lineup still dropping (never for an
                 ended show). "Announced" / "Full lineup" were noise. */}
             {(event.status === "cancelled" ||
@@ -114,7 +129,19 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
             </span>
             <span className="flex items-baseline gap-2">
               <span aria-hidden>📍</span>
-              <span>{where}</span>
+              {mapsUrl ? (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-2 underline-offset-4 hover:decoration-4"
+                >
+                  {where}
+                  <span className="sr-only"> (opens Google Maps)</span>
+                </a>
+              ) : (
+                <span>{where}</span>
+              )}
             </span>
           </p>
           <PlayCta

@@ -182,7 +182,9 @@ export function PlaylistPanel({
         )}
       </div>
 
-      {view.kind === "ready" && inside && <Inside tracks={inside.tracks} total={inside.total} />}
+      {view.kind === "ready" && inside && (
+        <Inside tracks={inside.tracks} total={inside.total} url={view.url} eventId={eventId} />
+      )}
 
       {/* UX #5: the secondary row (Share · Remind me · Tickets/Info), passed in by the page. */}
       {actions && <div className="mt-5 flex flex-wrap items-center gap-3">{actions}</div>}
@@ -191,7 +193,17 @@ export function PlaylistPanel({
 }
 
 /** Songs people know make them tap play (funnel, 23 Nov). Each song is its own row. */
-function Inside({ tracks, total }: { tracks: PreviewTrack[]; total: number }) {
+function Inside({
+  tracks,
+  total,
+  url,
+  eventId,
+}: {
+  tracks: PreviewTrack[];
+  total: number;
+  url: string;
+  eventId: string;
+}) {
   const shown = tracks.slice(0, 4);
   return (
     <div className="mt-4">
@@ -200,14 +212,32 @@ function Inside({ tracks, total }: { tracks: PreviewTrack[]; total: number }) {
       </p>
       <ol className="mt-2 divide-y divide-line overflow-hidden rounded-field border-2 border-line">
         {shown.map((t, i) => (
-          <li key={`${t.name}-${i}`} className="flex items-center gap-3 px-3 py-2">
-            <span aria-hidden className="w-4 shrink-0 text-sm font-bold text-muted">
-              {i + 1}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate font-semibold">{t.name}</span>
-              {t.artist && <span className="block truncate text-xs text-muted">{t.artist}</span>}
-            </span>
+          <li key={`${t.name}-${i}`}>
+            {/* Every song row plays the playlist (people tap the songs). */}
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-track="playlist_open_spotify"
+              data-track-event={eventId}
+              className="group flex min-h-12 items-center gap-3 px-3 py-2 transition-colors hover:bg-surface-2 active:bg-surface-2"
+            >
+              <span aria-hidden className="w-4 shrink-0 text-sm font-bold text-muted">
+                <span className="group-hover:hidden">{i + 1}</span>
+                <span className="hidden text-accent-text group-hover:inline">▶</span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{t.name}</span>
+                {t.artist && <span className="block truncate text-xs text-muted">{t.artist}</span>}
+              </span>
+              <span
+                aria-hidden
+                className="text-muted transition-transform group-hover:translate-x-0.5"
+              >
+                ▶
+              </span>
+              <span className="sr-only"> (plays the playlist on Spotify)</span>
+            </a>
           </li>
         ))}
       </ol>

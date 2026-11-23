@@ -60,7 +60,7 @@ export function EventStory({ event, now }: Props) {
               days,
             )}
           </p>
-          <VibeChip vibe={vibe} seed={event.id} solo={lineup.length === 1} size="lg" />
+          <VibeChip vibe={vibe} seed={event.id} solo={lineup.length === 1} size="lg" link />
           {lineup.length > 1 && (
             <ul aria-label="Who's playing" className="flex flex-wrap gap-3">
               {wall.map((a, i) => (

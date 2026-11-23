@@ -59,7 +59,7 @@ export function TourHub({ artist, shows, homeCity, now, playlist }: Props) {
           </p>
         </div>
         <div className="flex flex-col gap-3 p-4">
-          <VibeChip vibe={vibe} seed={lead.id} solo />
+          <VibeChip vibe={vibe} seed={lead.id} solo link />
           {songs.length > 0 && (
             <p className="text-sm">
               <span className="font-semibold text-muted">Inside </span>

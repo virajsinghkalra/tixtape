@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { pathGroup } from "@/domain/analytics/beacon";
 import { currentEventId, track } from "./track";
+import { notePlayed } from "../after-play";
 
 /**
  * D-090: one `page_view` per route (as a path group, never the path), and a delegated click
@@ -21,9 +22,11 @@ export function Analytics() {
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const link = (e.target as Element | null)?.closest?.("a[data-track]");
-      if (link?.getAttribute("data-track") !== "ticket_click") return;
+      const kind = link?.getAttribute("data-track");
+      if (!link || (kind !== "ticket_click" && kind !== "playlist_open_spotify")) return;
       const eventId = link.getAttribute("data-track-event") || currentEventId();
-      track("ticket_click", eventId ? { eventId } : {});
+      track(kind, eventId ? { eventId } : {});
+      if (kind === "playlist_open_spotify") notePlayed(eventId);
     };
     document.addEventListener("click", onClick, { capture: true });
     return () => document.removeEventListener("click", onClick, { capture: true });

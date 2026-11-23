@@ -240,3 +240,24 @@ export function shareCopy(vibe: Vibe, seed: string): { title: string; text: stri
 }
 
 export const VIBES = Object.keys(COPY) as Vibe[];
+
+/** What a vibe searches for (the search knows these genre words); null: nothing to open. */
+const VIBE_QUERY: Partial<Record<Vibe, string>> = {
+  edm: "edm",
+  bollywood: "bollywood",
+  punjabi: "punjabi",
+  hiphop: "hip hop",
+  indie: "indie",
+  rock: "rock",
+  sufi: "sufi",
+  pop: "pop",
+  kpop: "kpop",
+  fusion: "fusion",
+  festival: "festival",
+};
+
+/** "/search?q=edm": every show with this vibe. */
+export function vibeHref(vibe: Vibe): string | null {
+  const q = VIBE_QUERY[vibe];
+  return q ? `/search?q=${encodeURIComponent(q)}` : null;
+}
