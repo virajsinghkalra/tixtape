@@ -1,6 +1,7 @@
 /** One public playlist per concert (D-036). The event id is the natural key. */
 import { and, asc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { SharedPlaylist, SharedPlaylistRepository } from "@/application/ports/playlists";
+import type { PreviewTrack } from "@/application/ports/spotify";
 import type { Database } from "@/db/client";
 import { events, sharedPlaylists } from "@/db/schema";
 import {
@@ -66,10 +67,34 @@ export class PgSharedPlaylistRepository implements SharedPlaylistRepository {
         lineupHashAtBuild: build.lineupHash,
         optionsVersion: build.optionsVersion ?? 1,
         builtAt: build.at,
+        // The songs changed: the old preview is stale until the build reads the new one.
+        previewTracks: null,
         updatedAt: sql`now()`,
       })
       .where(eq(sharedPlaylists.eventId, eventId));
   }
+
+  async savePreview(eventId: EventId, tracks: PreviewTrack[]): Promise<void> {
+    await this.db
+      .update(sharedPlaylists)
+      .set({ previewTracks: tracks.slice(0, 10), updatedAt: sql`now()` })
+      .where(eq(sharedPlaylists.eventId, eventId));
+  }
+}
+
+/** "What's inside" for a playlist URL (an event's own or its tour's): songs and the total. */
+export async function readPlaylistPreview(
+  db: Database,
+  url: string,
+): Promise<{ tracks: PreviewTrack[]; total: number } | null> {
+  const rows = await db
+    .select({ tracks: sharedPlaylists.previewTracks, ids: sharedPlaylists.trackIds })
+    .from(sharedPlaylists)
+    .where(eq(sharedPlaylists.url, url))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.tracks?.length) return null;
+  return { tracks: row.tracks, total: row.ids.length };
 }
 
 /**

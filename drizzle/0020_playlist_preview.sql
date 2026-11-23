@@ -1,0 +1,1 @@
+ALTER TABLE "shared_playlists" ADD COLUMN "preview_tracks" jsonb;

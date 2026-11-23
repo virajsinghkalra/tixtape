@@ -68,6 +68,9 @@ export interface TrackCatalog {
 
 export type CreatedPlaylist = { id: SpotifyPlaylistId; url: string; snapshotId: string | null };
 
+/** One song for "what's inside" (the playlist's first few). */
+export type PreviewTrack = { name: string; artist: string };
+
 export interface PlaylistWriter {
   /** `POST /me/playlists`. */
   createPlaylist(
@@ -89,6 +92,15 @@ export interface PlaylistWriter {
     playlistId: SpotifyPlaylistId,
     details: { name: string; description: string },
   ): Promise<void>;
+  /**
+   * `GET /playlists/{id}/items`: the first `limit` songs, for "what's inside". Optional so
+   * older fakes keep compiling; a build without it just shows no preview.
+   */
+  readTopItems?(
+    userId: string,
+    playlistId: SpotifyPlaylistId,
+    limit: number,
+  ): Promise<PreviewTrack[]>;
   /** `POST /playlists/{id}/items`. At most 100 URIs. */
   addItems(
     userId: string,

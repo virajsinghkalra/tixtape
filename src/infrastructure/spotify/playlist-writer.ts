@@ -1,6 +1,6 @@
 /** Playlist writes for the signed-in user (P1.3, D-007, LLD §7.3). */
 import { z } from "zod";
-import type { CreatedPlaylist, PlaylistWriter } from "@/application/ports/spotify";
+import type { CreatedPlaylist, PlaylistWriter, PreviewTrack } from "@/application/ports/spotify";
 import {
   asSpotifyPlaylistId,
   type SpotifyPlaylistId,
@@ -15,6 +15,14 @@ import type { SpotifyHttp } from "./spotify-http";
 export const MAX_ITEMS_PER_REQUEST = 100;
 const MAX_NAME_LENGTH = 100;
 const MAX_DESCRIPTION_LENGTH = 300;
+
+const previewTrack = z
+  .object({ name: z.string(), artists: z.array(z.object({ name: z.string() })).optional() })
+  .nullish();
+/** Lenient: Spotify calls the entry `track` (older) or `item` (newer). */
+const topItemsSchema = z.object({
+  items: z.array(z.object({ track: previewTrack, item: previewTrack }).partial().nullable()),
+});
 
 export class SpotifyPlaylistWriter implements PlaylistWriter {
   constructor(private readonly http: SpotifyHttp) {}
@@ -78,6 +86,28 @@ export class SpotifyPlaylistWriter implements PlaylistWriter {
     trackIds: SpotifyTrackId[],
   ): Promise<{ snapshotId: string }> {
     return this.writeItems("PUT", userId, playlistId, trackIds);
+  }
+
+  /** The first few songs (name and first artist). Fields are trimmed to keep it small. */
+  async readTopItems(
+    userId: string,
+    playlistId: SpotifyPlaylistId,
+    limit: number,
+  ): Promise<PreviewTrack[]> {
+    const body = await this.http.request({
+      method: "GET",
+      path: `/playlists/${checkId(playlistId, "playlist")}/items`,
+      query: {
+        limit: Math.min(Math.max(limit, 1), 10),
+        fields: "items(track(name,artists(name)))",
+      },
+      auth: { kind: "user", userId },
+      schema: topItemsSchema,
+    });
+    return body.items.flatMap((i) => {
+      const t = i?.track ?? i?.item;
+      return t?.name ? [{ name: t.name, artist: t.artists?.[0]?.name ?? "" }] : [];
+    });
   }
 
   async addItems(

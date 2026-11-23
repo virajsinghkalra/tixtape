@@ -42,6 +42,9 @@ import {
 import { CHUNK_SIZE, progressFor, toProgress, type BuildProgress } from "./progress";
 import { getPublisher, type PublisherDeps, type PublisherProblem } from "./publisher";
 
+/** How many songs "what's inside" shows. */
+export const PREVIEW_TRACKS = 4;
+
 /**
  * D-085: the song-selection algorithm version, stored with every built playlist. A playlist
  * built by an older version is stale, exactly like a lineup change, and is rebuilt into the
@@ -396,7 +399,7 @@ class BuildRun {
     if (!playlistId) throw new Error("write stage without a playlist id");
     const index = cp.chunksDone;
     const chunk = chunks[index];
-    if (!chunk) return this.finish(cp);
+    if (!chunk) return this.finish(cp, publisherId);
 
     this.checkLeaseTimeForWrite();
     await this.advance({ ...cp, chunkInFlight: index }); // also proves the lease is still ours
@@ -407,7 +410,7 @@ class BuildRun {
     await this.advance({ ...cp, chunksDone: index + 1, chunkInFlight: null, snapshotId });
   }
 
-  private async finish(cp: JobCheckpoint): Promise<void> {
+  private async finish(cp: JobCheckpoint, publisherId: string): Promise<void> {
     await this.deps.shared.markBuilt(this.job.eventId, {
       trackIds: cp.pickedTrackIds,
       snapshotId: cp.snapshotId,
@@ -415,6 +418,7 @@ class BuildRun {
       at: this.deps.clock.now(),
       optionsVersion: PLAYLIST_ALGORITHM_VERSION,
     });
+    await this.fillPreview(cp, publisherId);
     const done: JobCheckpoint = { ...cp, stage: "done" };
     this.cp = done;
     await this.save({
@@ -423,6 +427,18 @@ class BuildRun {
       progress: 100,
       status: cp.unresolved.length > 0 ? "partial" : "succeeded",
     });
+  }
+
+  /** "What's inside": the first few songs, read back from Spotify. Best effort, never fails a build. */
+  private async fillPreview(cp: JobCheckpoint, publisherId: string): Promise<void> {
+    const read = this.deps.writer.readTopItems?.bind(this.deps.writer);
+    const save = this.deps.shared.savePreview?.bind(this.deps.shared);
+    if (!read || !save || !cp.playlistId) return;
+    try {
+      await save(this.job.eventId, await read(publisherId, cp.playlistId, PREVIEW_TRACKS));
+    } catch {
+      // No preview is fine: the playlist itself is done.
+    }
   }
 
   private async blocked(e: SpotifyBlockedError): Promise<BuildProgress> {

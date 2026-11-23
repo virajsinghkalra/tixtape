@@ -2,7 +2,11 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { events } from "@/db/schema";
 import { asEventId, asSpotifyPlaylistId, type EventId } from "@/domain/shared/ids";
 import { testDb, truncateAll } from "../../../tests/setup/db";
-import { listStaleSharedPlaylists, PgSharedPlaylistRepository } from "./shared-playlist-repository";
+import {
+  listStaleSharedPlaylists,
+  PgSharedPlaylistRepository,
+  readPlaylistPreview,
+} from "./shared-playlist-repository";
 
 const db = testDb();
 const repo = new PgSharedPlaylistRepository(db);
@@ -60,6 +64,26 @@ describe("PgSharedPlaylistRepository", () => {
       lineupHashAtBuild: "h",
       builtAt: at,
     });
+  });
+
+  it("keeps a preview until the next build, read by the playlist's url", async () => {
+    const eventId = await newEvent();
+    await repo.saveCreated(eventId, pl("pl1"));
+    const at = new Date("2026-11-21T10:00:00.000Z");
+    await repo.markBuilt(eventId, {
+      trackIds: ["a", "b", "c"],
+      snapshotId: "s",
+      lineupHash: "h",
+      at,
+    });
+    await expect(readPlaylistPreview(db, pl("pl1").url)).resolves.toBeNull();
+    await repo.savePreview(eventId, [{ name: "Kesariya", artist: "Arijit Singh" }]);
+    await expect(readPlaylistPreview(db, pl("pl1").url)).resolves.toEqual({
+      tracks: [{ name: "Kesariya", artist: "Arijit Singh" }],
+      total: 3,
+    });
+    await repo.markBuilt(eventId, { trackIds: ["d"], snapshotId: "s2", lineupHash: "h", at });
+    await expect(readPlaylistPreview(db, pl("pl1").url)).resolves.toBeNull();
   });
 });
 

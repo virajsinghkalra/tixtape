@@ -1,6 +1,7 @@
 /**
  * Shared playlist persistence (P2.2–P2.5, D-036, D-037). Implemented in src/infrastructure/db/.
  */
+import type { PreviewTrack } from "./spotify";
 import { z } from "zod";
 import type { PickedTrack } from "@/domain/playlists/selection";
 import type { EventDetail } from "./events";
@@ -177,6 +178,8 @@ export interface SharedPlaylistRepository {
       optionsVersion?: number;
     },
   ): Promise<void>;
+  /** The first few songs, for "what's inside" (optional: fakes may skip it). */
+  savePreview?(eventId: EventId, tracks: PreviewTrack[]): Promise<void>;
 }
 
 export type PublisherRecord = { userId: UserId; connectedAt: Date };

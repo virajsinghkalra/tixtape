@@ -1,5 +1,6 @@
 /** Read-only "Listen now" fallback data (DB only; no Spotify). */
 import { readListenNow } from "@/infrastructure/db/listen-now-reader";
+import { readPlaylistPreview } from "@/infrastructure/db/shared-playlist-repository";
 import { PgSpotifyGateStore } from "@/infrastructure/db/spotify-gate-store";
 import type { ListenNow } from "@/domain/events/listen-now";
 import type { EventId } from "@/domain/shared/ids";
@@ -31,4 +32,10 @@ export async function sharedOrTourStatus(eventId: EventId): Promise<unknown> {
     .then(() => readListenNow(container().db, eventId, new Date()))
     .catch(() => null);
   return data?.sibling ? { status: "ready", url: data.sibling.url } : own;
+}
+
+/** "What's inside" a ready playlist (DB only; filled after each build). Never throws. */
+export async function playlistInside(url: string | null) {
+  if (!url) return null;
+  return readPlaylistPreview(container().db, url).catch(() => null);
 }

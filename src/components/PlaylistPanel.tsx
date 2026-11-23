@@ -1,6 +1,7 @@
 "use client";
 
 import { liveLine, type Vibe } from "./vibe-copy";
+import type { PreviewTrack } from "@/application/ports/spotify";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { track } from "./analytics/track";
@@ -30,6 +31,8 @@ import { haptic } from "./ui/feedback";
 type Props = {
   eventId: string;
   vibe?: Vibe;
+  /** "What's inside": the playlist's first songs, when we have them. */
+  inside?: { tracks: PreviewTrack[]; total: number } | null;
   /** UX #5: secondary actions under the primary button (other teams can add one-line inserts). */
   actions?: ReactNode;
   /** Status rendered on the server (GET /api/events/:id/playlist shape); null = unknown. */
@@ -48,6 +51,7 @@ type Props = {
 export function PlaylistPanel({
   eventId,
   vibe,
+  inside,
   actions,
   preview,
   matched,
@@ -178,9 +182,39 @@ export function PlaylistPanel({
         )}
       </div>
 
+      {view.kind === "ready" && inside && <Inside tracks={inside.tracks} total={inside.total} />}
+
       {/* UX #5: the secondary row (Share · Remind me · Tickets/Info), passed in by the page. */}
       {actions && <div className="mt-5 flex flex-wrap items-center gap-3">{actions}</div>}
     </section>
+  );
+}
+
+/** Songs people know make them tap play (funnel, 23 Nov). Each song is its own row. */
+function Inside({ tracks, total }: { tracks: PreviewTrack[]; total: number }) {
+  const shown = tracks.slice(0, 4);
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-bold tracking-wide text-muted uppercase">
+        Inside <span aria-hidden>👀</span>
+      </p>
+      <ol className="mt-2 divide-y divide-line overflow-hidden rounded-field border-2 border-line">
+        {shown.map((t, i) => (
+          <li key={`${t.name}-${i}`} className="flex items-center gap-3 px-3 py-2">
+            <span aria-hidden className="w-4 shrink-0 text-sm font-bold text-muted">
+              {i + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-semibold">{t.name}</span>
+              {t.artist && <span className="block truncate text-xs text-muted">{t.artist}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {total > shown.length && (
+        <p className="mt-2 text-sm font-semibold text-muted">+ the rest on Spotify</p>
+      )}
+    </div>
   );
 }
 

@@ -371,6 +371,8 @@ export const sharedPlaylists = pgTable("shared_playlists", {
   lineupHashAtBuild: text("lineup_hash_at_build"),
   optionsVersion: integer("options_version").notNull().default(1),
   builtAt: timestamp("built_at", { withTimezone: true }).notNull().defaultNow(),
+  /** "What's inside": the first few songs ({ name, artist }), read back after each build. */
+  previewTracks: jsonb("preview_tracks").$type<{ name: string; artist: string }[]>(),
   updatedAt: updatedAt(),
 });
 

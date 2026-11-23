@@ -23,7 +23,7 @@ import { SectionBoundary } from "@/components/ui/SectionBoundary";
 import { ButtonLink } from "@/components/ui/Button";
 import { noteVisitorDemand } from "@/server/demand";
 import { events } from "@/server/events";
-import { listenNow, sharedOrTourStatus } from "@/server/listen-now";
+import { listenNow, playlistInside, sharedOrTourStatus } from "@/server/listen-now";
 import { playlists } from "@/server/playlists";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +86,7 @@ export default async function EventPage({ params, searchParams }: Params) {
     .catch(() => null);
 
   const playUrl = readyUrl(initialPlaylistStatus);
+  const inside = await playlistInside(playUrl);
   // No playlist yet: the bottom bar still plays something (the top-billed artist on Spotify).
   const fallbackPlay = playUrl
     ? null
@@ -133,6 +134,7 @@ export default async function EventPage({ params, searchParams }: Params) {
                 initialStatus={initialPlaylistStatus}
                 eventId={event.id}
                 vibe={vibe}
+                inside={inside}
                 actions={actions}
                 preview={preview}
                 matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}

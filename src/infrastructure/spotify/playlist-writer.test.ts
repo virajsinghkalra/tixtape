@@ -116,4 +116,27 @@ describe("SpotifyPlaylistWriter", () => {
     );
     expect(seen).toHaveLength(0);
   });
+
+  it("reads the first songs back, whichever key Spotify uses for the entry", async () => {
+    const { writer } = setup();
+    let url = "";
+    server.use(
+      mock.get(`${API}/playlists/pl1/items`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({
+          items: [
+            { track: { name: "Kesariya", artists: [{ name: "Arijit Singh" }] } },
+            { item: { name: "Tum Hi Ho", artists: [] } },
+            null,
+            { track: null },
+          ],
+        });
+      }),
+    );
+    await expect(writer.readTopItems("u1", PL, 4)).resolves.toEqual([
+      { name: "Kesariya", artist: "Arijit Singh" },
+      { name: "Tum Hi Ho", artist: "" },
+    ]);
+    expect(new URL(url).searchParams.get("limit")).toBe("4");
+  });
 });
