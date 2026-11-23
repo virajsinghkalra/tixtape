@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { createPortal } from "react-dom";
 import {
   useCallback,
   useEffect,
@@ -65,6 +66,10 @@ function ModalStory(props: Extract<Props, { variant: "modal" }>) {
   const { open, onClose, slides, title, autoAdvanceMs = 5000, onNext, onPrev, startAtEnd } = props;
   const reduceMotion = useReducedMotion();
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Rendered at <body>: an animating ancestor (a section's scroll reveal) would otherwise trap
+  // this "full screen" layer inside itself (user report, 24 Nov: the story broke the layout).
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
 
   useEffect(() => {
     if (!open) return;
@@ -78,21 +83,22 @@ function ModalStory(props: Extract<Props, { variant: "modal" }>) {
     };
   }, [open]);
 
-  return (
+  if (!host) return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="fixed inset-0 z-[60] grid place-items-center bg-night/90 sm:p-6"
+          className="fixed inset-0 z-[60] grid place-items-center bg-night/80 backdrop-blur-xl sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onKeyDown={(e) => e.key === "Escape" && onClose()}
         >
           <motion.div
-            className="relative h-dvh w-full sm:h-[min(85dvh,46rem)] sm:max-w-sm"
+            className="relative h-dvh w-full overflow-hidden sm:h-[min(85dvh,46rem)] sm:max-w-sm sm:rounded-tile sm:border-2 sm:border-night sm:shadow-[6px_8px_0_0_var(--color-violet)]"
             initial={reduceMotion ? false : { scale: 0.9, y: 30 }}
             animate={{ scale: 1, y: 0 }}
             exit={reduceMotion ? undefined : { scale: 0.95, y: 20 }}
@@ -114,14 +120,15 @@ function ModalStory(props: Extract<Props, { variant: "modal" }>) {
               type="button"
               onClick={onClose}
               aria-label="Close story"
-              className="absolute top-6 right-3 z-20 grid size-11 place-items-center rounded-full bg-night/70 text-xl text-white"
+              className="absolute top-6 right-3 z-20 grid size-11 place-items-center rounded-full border-2 border-white/20 bg-night/60 text-xl text-white backdrop-blur-md transition-transform hover:rotate-90 active:scale-90"
             >
               <span aria-hidden>✕</span>
             </button>
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    host,
   );
 }
 
