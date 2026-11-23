@@ -85,7 +85,7 @@ const COPY: Record<Vibe, VibeCopy> = {
   punjabi: {
     live: "Dhol's live 🥁",
     emoji: "🥁",
-    solo: ["full bhangra mode", "dhol on, live", "balle balle live", "Punjabi vibes only"],
+    solo: ["full bhangra mode", "dhol on, live", "Punjabi vibes only"],
     headline: ["Every banger. One playlist.", "Bhangra mode: on.", "Dhol ready? Hit play."],
     cooking: ["Dhol warming up 🥁 till then 👇", "Bhangra loading 🥁 till then 👇"],
     shareTitle: ["Bhangra crew needs this 🥁", "Send it to the dhol gang"],
