@@ -25,3 +25,19 @@ export function pickTrending<T extends Candidate>(
   }
   return best ?? [...fallback, ...rows].find((r) => r.playlistUrl) ?? null;
 }
+
+/**
+ * Home's top card: the visitor's own city first (the hottest playable show there), else the
+ * nationwide pick. `local` says which, so the card can read "Hot in Bengaluru" or "Trending now".
+ */
+export function pickHot<T extends Candidate>(
+  rows: readonly T[],
+  opens: ReadonlyMap<string, number>,
+  fallback: readonly T[],
+  inCity: (row: T) => boolean,
+): { item: T; local: boolean } | null {
+  const mine = pickTrending(rows.filter(inCity), opens);
+  if (mine) return { item: mine, local: true };
+  const any = pickTrending(rows, opens, fallback);
+  return any ? { item: any, local: false } : null;
+}

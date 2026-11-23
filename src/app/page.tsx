@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
-import type { FrontItem, Tour } from "@/domain/events/front-page";
+import { metroOf, type FrontItem, type Tour } from "@/domain/events/front-page";
 import { AuthNotice } from "@/components/AuthNotice";
 import { CityEmptyNote } from "@/components/CitySwitcher";
 import { toneSequence } from "@/components/event-color";
@@ -11,6 +11,7 @@ import {
   hasEnded,
   istParts,
   yearTag,
+  shortDate,
 } from "@/components/event-format";
 import { FrontSection, tourInfo } from "@/components/FrontSection";
 import { artistVisual, orderForVisuals } from "@/domain/visuals/visuals";
@@ -39,7 +40,8 @@ import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage, recentSpotifyOpens } from "@/server/front-page";
-import { pickTrending } from "@/domain/events/trending";
+import { pickHot } from "@/domain/events/trending";
+import { playlistInside } from "@/server/listen-now";
 import { TrendingCard } from "@/components/TrendingCard";
 import { YourGigs } from "@/components/YourGigs";
 
@@ -90,11 +92,16 @@ export default async function Home({ searchParams }: Props) {
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
   const hero = pickNextUp(rows, now);
   const heroIds = new Set(hero.map((e) => e.id));
-  const trending = pickTrending(
+  // Funnel (24 Nov): most visitors left without opening a show, so the first screen plays
+  // the hottest playlist in their own city, else the nationwide pick.
+  const hot = pickHot(
     rows,
     opens,
     front.bigOnes.map((i) => (i.kind === "event" ? i.event : i.tour.featured)),
+    (e) => Boolean(city && e.city && metroOf(e.city) === metroOf(city)),
   );
+  const trending = hot?.item ?? null;
+  const trendingInside = (await playlistInside(trending?.playlistUrl ?? null))?.tracks ?? [];
   const thisWeek = readyFirst(
     rows.filter(
       (e) =>
@@ -159,6 +166,20 @@ export default async function Home({ searchParams }: Props) {
                 artists: trending.headlinerArtists,
                 label: trending.headliners[0] ?? trending.title,
                 playlistUrl: trending.playlistUrl,
+                when: [
+                  shortDate(trending.startsAt, now),
+                  // No "Bengaluru" twice when the short title already names the city.
+                  trending.city &&
+                  !shortTitle(trending.title, trending.headliners[0]).includes(trending.city)
+                    ? trending.city
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
+                vibe: vibeOf(trending.genre, trending.type),
+                solo: trending.artistCount === 1,
+                kicker: hot?.local && city ? `Hot in ${city}` : "Trending now",
+                inside: trendingInside,
               }}
             />
           </div>
