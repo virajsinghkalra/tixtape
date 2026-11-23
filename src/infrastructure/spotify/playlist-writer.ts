@@ -99,7 +99,7 @@ export class SpotifyPlaylistWriter implements PlaylistWriter {
       path: `/playlists/${checkId(playlistId, "playlist")}/items`,
       query: {
         limit: Math.min(Math.max(limit, 1), 10),
-        fields: "items(track(name,artists(name)))",
+        fields: "items(item(name,artists(name)),track(name,artists(name)))",
       },
       auth: { kind: "user", userId },
       schema: topItemsSchema,

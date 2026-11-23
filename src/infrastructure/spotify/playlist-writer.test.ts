@@ -138,5 +138,7 @@ describe("SpotifyPlaylistWriter", () => {
       { name: "Tum Hi Ho", artist: "" },
     ]);
     expect(new URL(url).searchParams.get("limit")).toBe("4");
+    // Spotify nests the song under `item` now; asking only for `track` returns empty entries.
+    expect(new URL(url).searchParams.get("fields")).toContain("item(name");
   });
 });
