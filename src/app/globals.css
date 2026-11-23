@@ -307,7 +307,11 @@ body {
   transform-origin: bottom;
   animation: eq-bar 0.8s ease-in-out infinite;
 }
-/* No motion wanted: no splash at all (it must never sit on screen without its fade). */
+/* Once per visit (a refresh doesn't replay it), and never without motion: it must never sit
+   on screen without its fade. */
+html[data-splash="seen"] .splash {
+  display: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .splash {
     display: none;

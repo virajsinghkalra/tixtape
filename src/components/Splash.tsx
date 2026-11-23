@@ -21,8 +21,11 @@ const EMOJIS = ["🎧", "🎤", "⚡", "🥁", "🎸", "💜", "🔥"];
 
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 
-/** Seen this visit already: remove before first paint (runs as the element is parsed). */
-const DROP_IF_SEEN = `try{var s=sessionStorage;if(s.getItem("tt.splash")||matchMedia("(prefers-reduced-motion: reduce)").matches){document.getElementById("tt-splash").remove()}else{s.setItem("tt.splash","1")}}catch(e){}`;
+/**
+ * Seen this visit already (a refresh or another page): hide it before first paint with a flag on
+ * <html>. Never remove the node: React would put it back while hydrating (and replay it).
+ */
+const DROP_IF_SEEN = `try{var s=sessionStorage;if(s.getItem("tt.splash")){document.documentElement.dataset.splash="seen"}else{s.setItem("tt.splash","1")}}catch(e){}`;
 
 export function Splash({ nonce }: { nonce?: string }) {
   const [a, b] = pick(LINES);

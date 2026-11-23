@@ -77,7 +77,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     visitorCity({ headers: await headers(), cookie: (await cookies()).get(CITY_COOKIE)?.value })
       ?.city ?? null;
   return (
-    <html lang="en-IN" className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable}`}>
+    <html
+      lang="en-IN"
+      className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
+    >
       <body className="flex min-h-dvh flex-col antialiased">
         <Splash nonce={nonceOf(hdrs.get("content-security-policy"))} />
         <MotionProvider>
