@@ -34,8 +34,11 @@ export function ServiceWorker() {
     else window.addEventListener("load", register, { once: true });
 
     let reloading = false;
+    // A first visit gains its first controller when the worker claims the page: that is not an
+    // update, and reloading then cut the splash short and double-counted the visit.
+    const hadController = Boolean(navigator.serviceWorker.controller);
     const onControllerChange = () => {
-      if (reloading) return;
+      if (reloading || !hadController) return;
       reloading = true;
       window.location.reload();
     };
