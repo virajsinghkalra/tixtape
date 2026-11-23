@@ -1,5 +1,5 @@
 /** One public playlist per concert (D-036). The event id is the natural key. */
-import { and, asc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { SharedPlaylist, SharedPlaylistRepository } from "@/application/ports/playlists";
 import type { PreviewTrack } from "@/application/ports/spotify";
 import type { Database } from "@/db/client";
@@ -123,4 +123,19 @@ export async function listStaleSharedPlaylists(
     .orderBy(asc(events.startsAt))
     .limit(opts.limit);
   return rows.map((r) => asEventId(r.eventId));
+}
+
+/** The newest-built playlist among these events (a tour's shows), or null. */
+export async function readNewestPlaylistUrl(
+  db: Database,
+  eventIds: readonly string[],
+): Promise<string | null> {
+  if (eventIds.length === 0) return null;
+  const rows = await db
+    .select({ url: sharedPlaylists.url })
+    .from(sharedPlaylists)
+    .where(inArray(sharedPlaylists.eventId, [...eventIds]))
+    .orderBy(desc(sharedPlaylists.builtAt))
+    .limit(1);
+  return rows[0]?.url ?? null;
 }

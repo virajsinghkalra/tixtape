@@ -18,6 +18,8 @@ import { buttonClass } from "@/components/ui/Button";
 import type { ShowRowItem } from "@/components/ShowRow";
 import { COPY, inCity } from "@/components/ux-copy";
 import { events } from "@/server/events";
+import { tourPlaylist } from "@/server/listen-now";
+import { TourHub } from "@/components/search/TourHub";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { cookies, headers } from "next/headers";
 
@@ -25,6 +27,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Search" };
 
 const PAGE_SIZE = 12;
+/** An artist's tour fits on one page (the tour hub lists every date). */
+const TOUR_PAGE_SIZE = 40;
+const pageSizeFor = (params: Params) => (params.artist ? TOUR_PAGE_SIZE : PAGE_SIZE);
 
 type Params = {
   q?: string;
@@ -72,6 +77,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const details = await detailsFor(
     [...data.rows, ...(lookedFor ? [] : data.fallback)].map((r) => r.id),
   );
+  // An artist with 2+ shows is a tour: one header, one playlist, every date as a row.
+  const tourShows =
+    params.artist && !lookedFor && data.rows.length >= 2
+      ? data.rows.flatMap((r) => details.get(r.id) ?? [])
+      : [];
+  const tour = tourShows.length >= 2 ? await tourPlaylist(tourShows.map((s) => s.id)) : null;
   const heading = params.artist
     ? `Shows by ${params.artist}`
     : params.city && !params.q
@@ -92,81 +103,97 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         />
       )}
 
-      <h1 className="mt-10 font-display text-huge font-extrabold">{heading}</h1>
-      {!lookedFor && (
-        <p className="mt-2 text-muted">
-          {data.total} {data.total === 1 ? "show" : "shows"}
-        </p>
-      )}
-
-      <nav aria-label="Dates" className="mt-5 flex flex-wrap gap-2">
-        {dateChips(params, now).map((c) => (
-          <ChipLink key={c.label} href={c.href} selected={c.selected}>
-            {c.label}
-          </ChipLink>
-        ))}
-      </nav>
-
-      {(data.artists.length > 0 || data.cities.length > 0) && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          {data.artists.map((a) => (
-            <ChipLink key={a.name} href={`/search?artist=${encodeURIComponent(a.name)}`}>
-              <span aria-hidden>🎤</span> {a.name} · {upcomingLabel(a.upcomingCount)}
-            </ChipLink>
-          ))}
-          {data.cities.map((c) => (
-            <ChipLink key={c.city} href={cityHref(c.city)}>
-              <span aria-hidden>📍</span> {c.city} · {upcomingLabel(c.upcomingCount)}
-            </ChipLink>
-          ))}
-        </div>
-      )}
-
-      {lookedFor ? (
-        <div className="mt-8">
-          {/* The live lookup and similar artists run after paint (D-057). */}
-          <ZeroResults
-            query={lookedFor}
-            nearTitle={near?.title ?? COPY.upNext}
-            nearRow={near?.items ?? []}
-            didYouMean={data.didYouMean}
+      {tourShows.length >= 2 ? (
+        <>
+          <h1 className="sr-only">{heading}</h1>
+          <TourHub
+            artist={params.artist!}
+            shows={tourShows}
+            homeCity={homeCity}
+            now={now}
+            playlist={tour}
           />
-        </div>
-      ) : data.rows.length === 0 ? (
-        <div className="mt-8 space-y-8">
-          <EmptyState
-            emoji="🔍"
-            title={`No ${params.artist ?? params.q ?? params.city ?? ""} shows yet`}
-          >
-            {data.didYouMean ? (
-              <>
-                Did you mean{" "}
-                <Link
-                  className="font-semibold underline"
-                  href={`/search?q=${encodeURIComponent(data.didYouMean)}`}
-                >
-                  {data.didYouMean}
-                </Link>
-                ?
-              </>
-            ) : (
-              "Try an artist or city"
-            )}
-          </EmptyState>
-          {data.fallback.length > 0 && (
-            <ResultGrid
-              title="Try these instead"
-              rows={data.fallback}
-              details={details}
-              now={now}
-            />
-          )}
-        </div>
+          <Pager params={params} page={page} total={data.total} />
+        </>
       ) : (
-        <CityFirstGrid rows={data.rows} home={data.homeCity} details={details} now={now} />
-      )}
+        <>
+          <h1 className="mt-10 font-display text-huge font-extrabold">{heading}</h1>
+          {!lookedFor && (
+            <p className="mt-2 text-muted">
+              {data.total} {data.total === 1 ? "show" : "shows"}
+            </p>
+          )}
 
-      <Pager params={params} page={page} total={data.total} />
+          <nav aria-label="Dates" className="mt-5 flex flex-wrap gap-2">
+            {dateChips(params, now).map((c) => (
+              <ChipLink key={c.label} href={c.href} selected={c.selected}>
+                {c.label}
+              </ChipLink>
+            ))}
+          </nav>
+
+          {(data.artists.length > 0 || data.cities.length > 0) && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {data.artists.map((a) => (
+                <ChipLink key={a.name} href={`/search?artist=${encodeURIComponent(a.name)}`}>
+                  <span aria-hidden>🎤</span> {a.name} · {upcomingLabel(a.upcomingCount)}
+                </ChipLink>
+              ))}
+              {data.cities.map((c) => (
+                <ChipLink key={c.city} href={cityHref(c.city)}>
+                  <span aria-hidden>📍</span> {c.city} · {upcomingLabel(c.upcomingCount)}
+                </ChipLink>
+              ))}
+            </div>
+          )}
+
+          {lookedFor ? (
+            <div className="mt-8">
+              {/* The live lookup and similar artists run after paint (D-057). */}
+              <ZeroResults
+                query={lookedFor}
+                nearTitle={near?.title ?? COPY.upNext}
+                nearRow={near?.items ?? []}
+                didYouMean={data.didYouMean}
+              />
+            </div>
+          ) : data.rows.length === 0 ? (
+            <div className="mt-8 space-y-8">
+              <EmptyState
+                emoji="🔍"
+                title={`No ${params.artist ?? params.q ?? params.city ?? ""} shows yet`}
+              >
+                {data.didYouMean ? (
+                  <>
+                    Did you mean{" "}
+                    <Link
+                      className="font-semibold underline"
+                      href={`/search?q=${encodeURIComponent(data.didYouMean)}`}
+                    >
+                      {data.didYouMean}
+                    </Link>
+                    ?
+                  </>
+                ) : (
+                  "Try an artist or city"
+                )}
+              </EmptyState>
+              {data.fallback.length > 0 && (
+                <ResultGrid
+                  title="Try these instead"
+                  rows={data.fallback}
+                  details={details}
+                  now={now}
+                />
+              )}
+            </div>
+          ) : (
+            <CityFirstGrid rows={data.rows} home={data.homeCity} details={details} now={now} />
+          )}
+
+          <Pager params={params} page={page} total={data.total} />
+        </>
+      )}
     </div>
   );
 }
@@ -262,7 +289,7 @@ function ResultGrid(props: {
 }
 
 function Pager({ params, page, total }: { params: Params; page: number; total: number }) {
-  const pages = Math.ceil(total / PAGE_SIZE);
+  const pages = Math.ceil(total / pageSizeFor(params));
   if (pages <= 1) return null;
   const href = (p: number) =>
     `/search?${new URLSearchParams({ ...clean(params), page: String(p) })}`;
@@ -304,7 +331,7 @@ async function load(
       ...(homeCity ? { homeCity } : {}),
       from,
       page: String(page),
-      pageSize: String(PAGE_SIZE),
+      pageSize: String(pageSizeFor(params)),
     });
     if (!parsed.success) return { rows: [], artists: [], cities: [], fallback: [], total: 0 };
     const r = await events().searchPage(parsed.data);
@@ -327,7 +354,7 @@ async function load(
         to: params.to,
         type: params.type === "festival" || params.type === "concert" ? params.type : undefined,
         page: String(page),
-        pageSize: String(PAGE_SIZE),
+        pageSize: String(pageSizeFor(params)),
       }),
     );
     return {
