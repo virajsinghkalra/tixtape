@@ -10,6 +10,8 @@ import { Countdown } from "./ui/Countdown";
 import { Sticker } from "./ui/Sticker";
 import { Tile } from "./ui/Tile";
 import { PlayCta } from "./PlayCta";
+import type { CSSProperties } from "react";
+import { EqBars } from "./ui/EqBars";
 import Link from "next/link";
 import { vibeHref, vibeOf, vibeTag } from "./vibe-copy";
 import { VENUE_SOON, venueName } from "./venue";
@@ -28,6 +30,8 @@ type Props = {
   playUrl?: string | null;
   /** No playlist yet: play the top-billed artist instead. */
   fallbackPlay?: { name: string; url: string } | null;
+  /** The playlist's first songs: shown in the header as chips that play it. */
+  inside?: { name: string; artist: string }[];
 };
 
 /** Long titles step down a size so they never stack into four giant lines. */
@@ -37,7 +41,13 @@ const H1: Record<TitleSize, string> = { xl: "text-mega", lg: "text-huge", md: "t
  * Event page header (UX #5): back link, the picture, stickers, the title and one facts row.
  * Desktop gets the one Play button here; phones get it in the sticky bottom bar.
  */
-export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }: Props) {
+export function EventHeader({
+  event,
+  now,
+  playUrl = null,
+  fallbackPlay = null,
+  inside = [],
+}: Props) {
   const status = STATUS[event.status];
   const tag = vibeTag(vibeOf(event.genre, event.type)) ?? {
     emoji: event.type === "festival" ? "🎪" : "🎤",
@@ -81,6 +91,7 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
           label={ordered[0]?.name ?? event.title}
           caption={solo?.name ?? null}
           credit={event.posterUrl ? (event.posterCredit ?? null) : null}
+          playable={Boolean(playUrl)}
         />
         <div className="min-w-0">
           <div className="flex flex-wrap gap-2">
@@ -112,6 +123,37 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
               </Sticker>
             )}
           </div>
+          {/* Playlist first (user, 24 Nov): what's on it, before anything else, one tap to play. */}
+          {playUrl && inside.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-extrabold tracking-wide uppercase opacity-80">
+                <span aria-hidden>🎧 </span>On the gig playlist
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {inside.slice(0, 3).map((t, i) => (
+                  <li
+                    key={`${t.name}-${i}`}
+                    className="pop-in"
+                    style={{ "--i": i + 2 } as CSSProperties}
+                  >
+                    <a
+                      href={playUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-track="playlist_open_spotify"
+                      data-track-event={event.id}
+                      className="inline-flex min-h-10 max-w-[15rem] items-center gap-1.5 rounded-chip border-2 border-night bg-surface px-3 py-1 text-sm font-bold text-ink shadow-[2px_3px_0_0_var(--color-night)] transition-transform hover:-translate-y-0.5 active:scale-95"
+                    >
+                      <span aria-hidden className="text-accent-text">
+                        ▶
+                      </span>
+                      <span className="truncate">{t.name.replace(/\s*[([].*$/u, "")}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <h1
             className={cx(
               "mt-5 font-display font-extrabold tracking-tight text-balance [overflow-wrap:anywhere]",
@@ -166,6 +208,7 @@ function HeroPicture({
   label,
   caption,
   credit,
+  playable,
 }: {
   poster: string | null | undefined;
   artists: VisualArtist[];
@@ -173,14 +216,35 @@ function HeroPicture({
   caption: string | null;
   /** D-083: shown tiny under the picture when the poster needs attribution. */
   credit: string | null;
+  /** The gig has a playlist: the picture becomes an album sleeve with its record sliding out. */
+  playable: boolean;
 }) {
   return (
     <figure className="relative order-first md:order-last">
-      <div className="relative aspect-[4/5] max-h-[26rem] w-full rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] max-md:aspect-[4/3]">
+      {playable && (
+        <div aria-hidden className="vinyl-out absolute top-[6%] right-0 bottom-[6%] aspect-square">
+          <div className="vinyl-disc relative h-full rounded-full border-2 border-night bg-[repeating-radial-gradient(circle,#16161c_0_2px,#0b0b0f_2px_5px)] shadow-[4px_5px_0_0_var(--color-night)]">
+            <span className="absolute top-1/2 left-1/2 grid size-[34%] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-night bg-lime text-[0.6rem] font-extrabold text-on-block">
+              tixtape
+            </span>
+          </div>
+        </div>
+      )}
+      <div
+        className={cx(
+          "relative z-10 aspect-[4/5] max-h-[26rem] rotate-2 overflow-hidden rounded-tile border-2 border-night bg-night shadow-[5px_6px_0_0_var(--color-night)] max-md:aspect-[4/3]",
+          playable ? "w-[82%]" : "w-full",
+        )}
+      >
         <EventVisual poster={poster} artists={artists} label={label} priority />
+        {playable && (
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-chip border-2 border-night bg-lime px-2.5 py-0.5 text-xs font-extrabold text-on-block shadow-[2px_3px_0_0_var(--color-night)]">
+            <EqBars /> GIG PLAYLIST
+          </span>
+        )}
       </div>
       {caption && (
-        <figcaption className="absolute -bottom-3 left-3">
+        <figcaption className="absolute -bottom-3 left-3 z-20">
           <span className="inline-block -rotate-3 rounded-chip border-2 border-night bg-lime px-3 py-1 text-sm font-bold text-on-block">
             🎤 {caption}
           </span>

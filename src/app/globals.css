@@ -261,6 +261,23 @@ body {
 .group:active .vinyl {
   animation-duration: 2.5s;
 }
+/* Event page: the gig's record slides out of its sleeve, then spins. */
+@keyframes vinyl-slide {
+  from {
+    transform: translateX(-30%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.vinyl-out {
+  animation: vinyl-slide 0.9s var(--ease-spring) 0.25s backwards;
+}
+.vinyl-disc {
+  animation: ring-spin 7s linear infinite;
+}
 .hot-flame {
   display: inline-block;
   animation: wiggle 1.2s ease-in-out infinite;
@@ -330,6 +347,8 @@ body {
   .sticker-wiggle:hover,
   .ring-spin,
   .vinyl,
+  .vinyl-out,
+  .vinyl-disc,
   .hot-flame,
   .reveal,
   .vibe-tile:hover .vibe-emoji,
