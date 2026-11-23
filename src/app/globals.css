@@ -287,69 +287,47 @@ body {
   animation: rail-nudge 0.9s var(--ease-spring) 1.7s 1 backwards;
 }
 
-/* Splash: ~5 s. Words pop in one by one, blobs drift, emojis float up, then an iris wipe
-   closes it and it stops catching taps (CSS only, no JS timer). */
+/* Splash: ~5 s, brand palette only. Words resolve from blur, the glow drifts, then a curtain
+   lifts and it stops catching taps (CSS only, no JS timer). */
 @keyframes splash-out {
   0% {
-    clip-path: circle(150% at 50% 50%);
+    transform: none;
   }
   99% {
-    clip-path: circle(0% at 50% 50%);
+    transform: translateY(-100%);
     visibility: visible;
   }
   100% {
-    clip-path: circle(0% at 50% 50%);
+    transform: translateY(-100%);
     visibility: hidden;
   }
 }
-@keyframes splash-pop {
+@keyframes splash-in {
   from {
-    transform: scale(0.3) rotate(-30deg);
+    transform: scale(0.85);
     opacity: 0;
-  }
-  60% {
-    transform: scale(1.08) rotate(4deg);
+    filter: blur(12px);
   }
 }
 @keyframes splash-word {
   from {
-    transform: translateY(0.6em) rotate(-8deg) scale(0.7);
+    transform: translateY(0.35em);
     opacity: 0;
-  }
-  60% {
-    transform: translateY(-0.08em) rotate(2deg) scale(1.05);
-    opacity: 1;
+    filter: blur(10px);
   }
 }
-@keyframes splash-bounce {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-20px) scale(1.12) rotate(-8deg);
-  }
-}
-@keyframes splash-blob {
+@keyframes splash-glow {
   0%,
   100% {
     transform: translate(0, 0) scale(1);
   }
   50% {
-    transform: translate(40px, 60px) scale(1.2);
+    transform: translate(30px, 40px) scale(1.15);
   }
 }
-@keyframes splash-float {
-  from {
-    transform: translateY(0) rotate(0deg);
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
+@keyframes splash-ticker {
   to {
-    transform: translateY(-110vh) rotate(25deg);
-    opacity: 0.9;
+    transform: translateX(-50%);
   }
 }
 @keyframes splash-arm {
@@ -357,55 +335,48 @@ body {
     transform: rotate(-35deg);
   }
   to {
-    transform: rotate(18deg);
+    transform: rotate(16deg);
   }
 }
 @keyframes splash-chip {
   from {
-    transform: translateY(16px) scale(0.6);
+    transform: translateY(10px);
     opacity: 0;
-  }
-  70% {
-    transform: translateY(-3px) scale(1.08);
   }
 }
 .splash {
-  animation: splash-out 0.6s cubic-bezier(0.7, 0, 0.84, 0) 4.3s forwards;
+  animation: splash-out 0.7s cubic-bezier(0.76, 0, 0.24, 1) 4.3s forwards;
 }
-.splash-pop {
-  animation: splash-pop 0.7s var(--ease-spring) backwards;
+.splash-in {
+  animation: splash-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .splash-word {
-  animation: splash-word 0.55s var(--ease-spring) backwards;
+  animation: splash-word 0.8s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .splash-chip {
-  animation: splash-chip 0.5s var(--ease-spring) 1s backwards;
-}
-.splash-bounce {
-  display: inline-block;
-  animation: splash-bounce 0.7s var(--ease-spring) infinite;
+  animation: splash-chip 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.3s backwards;
 }
 .splash-bar {
   height: 100%;
   transform-origin: bottom;
   animation: eq-bar 0.8s ease-in-out infinite;
 }
-.splash-blob {
-  animation: splash-blob 3s ease-in-out infinite;
+.splash-glow {
+  animation: splash-glow 5s ease-in-out infinite;
 }
-.splash-blob-b {
+.splash-glow-b {
   animation-direction: reverse;
 }
-.splash-float {
-  animation: splash-float 4.6s ease-out backwards;
+.splash-ticker {
+  animation: splash-ticker 9s linear infinite;
 }
 .splash-arm {
-  animation: splash-arm 0.8s var(--ease-spring) 0.35s backwards;
-  transform: rotate(18deg);
+  animation: splash-arm 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.5s backwards;
+  transform: rotate(16deg);
 }
 .splash:active {
   animation-delay: 0s;
-  animation-duration: 0.3s;
+  animation-duration: 0.35s;
 }
 
 /* Once per visit (a refresh doesn't replay it), and never without motion: it must never sit
@@ -507,13 +478,12 @@ html[data-splash="seen"] .splash {
   .vinyl,
   .play-pulse > a,
   .rail-nudge > li,
-  .splash-pop,
   .splash-word,
+  .splash-in,
+  .splash-glow,
+  .splash-ticker,
   .splash-chip,
-  .splash-bounce,
   .splash-bar,
-  .splash-blob,
-  .splash-float,
   .splash-arm,
   .vinyl-out,
   .vinyl-disc,
