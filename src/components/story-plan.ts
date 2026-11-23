@@ -6,6 +6,7 @@
  *   duo/trio → intro · the lineup · playlist
  *   festival → intro · headliners · also on the bill · hidden gems · playlist
  */
+import { soloLine, vibeHeadline, type Vibe } from "./vibe-copy";
 import type { BillingTier } from "@/domain/shared/lineup";
 import {
   lineupLayout,
@@ -44,6 +45,8 @@ export type StoryInput = {
   matched?: number;
   /** False when the show has no playlist (ready or cooking): the button says "Listen now". */
   playable?: boolean;
+  /** The music's vibe, for the last slide's line (vibe-copy.ts). */
+  vibe?: Vibe;
 };
 
 type Common = { id: string; label: string };
@@ -195,7 +198,11 @@ function playlistSlide(
     id: "playlist",
     label: "The playlist",
     kind: "playlist",
-    headline: pending ? PLAYLIST_SOON : solo ? `${solo.name}, all night.` : STORY_CTA.headline,
+    headline: pending
+      ? PLAYLIST_SOON
+      : solo
+        ? `${soloLine(solo.name, input.vibe ?? "default", input.id)}.`
+        : vibeHeadline(input.vibe ?? "festival", input.id),
     face: solo,
     cta: {
       href: input.playlistHref,

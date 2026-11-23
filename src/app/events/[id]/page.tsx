@@ -16,6 +16,7 @@ import { parsePreview } from "@/components/playlist-preview";
 import { LineupPoster } from "@/components/LineupPoster";
 import { ticketLink } from "@/components/links";
 import { PlaylistPanel } from "@/components/PlaylistPanel";
+import { vibeOf } from "@/components/vibe-copy";
 import { ShareButton } from "@/components/ShareButton";
 import { EventBottomBar } from "@/components/EventBottomBar";
 import { SectionBoundary } from "@/components/ui/SectionBoundary";
@@ -91,6 +92,7 @@ export default async function EventPage({ params, searchParams }: Params) {
     : await listenNow(event.id)
         .then((d) => d?.artists[0] ?? null)
         .catch(() => null);
+  const vibe = vibeOf(event.genre, event.type);
   const names = [...event.lineup].sort((x, y) => x.billingRank - y.billingRank).map((a) => a.name);
   const outbound = ticketLink(event.sources.map((s) => s.url));
   // UX #5: the secondary row. Other teams mount one-liners here (e.g. a "Remind me" button).
@@ -112,7 +114,7 @@ export default async function EventPage({ params, searchParams }: Params) {
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+    <div data-vibe={vibe} className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
       <EventVisit eventId={event.id} highlight={Boolean(artist)} />
       <EventHeader event={event} now={now} playUrl={playUrl} fallbackPlay={fallbackPlay} />
       {event.archived && (
@@ -130,6 +132,7 @@ export default async function EventPage({ params, searchParams }: Params) {
               <PlaylistPanel
                 initialStatus={initialPlaylistStatus}
                 eventId={event.id}
+                vibe={vibe}
                 actions={actions}
                 preview={preview}
                 matched={event.lineup.filter((a) => isMatched(a.matchStatus)).length}

@@ -41,7 +41,7 @@ export function SpotifyOpenLink({
   function onClick(e: MouseEvent<HTMLAnchorElement>) {
     const id = eventId ?? currentEventId();
     track("playlist_open_spotify", { eventId: id });
-    notePlayed(id);
+    notePlayed(id, e.currentTarget.closest<HTMLElement>("[data-vibe]")?.dataset.vibe ?? null);
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // new tab: let it be
     const platform = currentPlatform();
     const plan = spotifyOpenPlan(href, platform);

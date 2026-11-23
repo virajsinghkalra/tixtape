@@ -4,6 +4,10 @@
  * commentary. A solo show reads "Bhuwin, all night.", never "1 artists".
  */
 import type { BillingTier } from "@/domain/shared/lineup";
+import { soloLine, type Vibe } from "./vibe-copy";
+
+/** The show's vibe and id, so solo lines match the music (vibe-copy.ts). */
+export type VibeSeed = { vibe: Vibe; seed: string };
 
 /** "1 artist", "2 artists", "1 show". */
 export function plural(n: number, one: string, many = `${one}s`): string {
@@ -27,12 +31,12 @@ export function joinNames(names: readonly string[]): string {
 }
 
 /** The one-line "who's playing", sized to the lineup. */
-export function whoLine(names: readonly string[], total = names.length): string {
+export function whoLine(names: readonly string[], total = names.length, v?: VibeSeed): string {
   switch (lineupShape(total)) {
     case "empty":
       return "Lineup soon 🫣";
     case "solo":
-      return `${names[0]}, all night.`;
+      return v ? `${soloLine(names[0] ?? "", v.vibe, v.seed)}.` : `${names[0]}, all night.`;
     case "duo":
       return `${joinNames(names.slice(0, 2))}. One night.`;
     case "trio":
@@ -71,9 +75,14 @@ export function titleSize(title: string): TitleSize {
 }
 
 /** Card teaser: "Martin Garrix, all night", "A and B", "A, B + 6 more", or a count. */
-export function lineupTeaser(headliners: readonly string[], artistCount: number): string {
+export function lineupTeaser(
+  headliners: readonly string[],
+  artistCount: number,
+  v?: VibeSeed,
+): string {
   if (headliners.length === 0) return plural(artistCount, "artist");
-  if (artistCount === 1) return `${headliners[0]}, all night`;
+  if (artistCount === 1)
+    return v ? soloLine(headliners[0] ?? "", v.vibe, v.seed) : `${headliners[0]}, all night`;
   const shown = headliners.slice(0, 2);
   const more = artistCount - shown.length;
   return more > 0 ? `${shown.join(", ")} + ${more} more` : joinNames(shown);
@@ -85,10 +94,15 @@ export function lineupTeaser(headliners: readonly string[], artistCount: number)
 export const STORY_HEADER = "The rundown";
 
 /** "34 acts. 2 days." Sized to the lineup and the show length. */
-export function introLine(names: readonly string[], total: number, days: number): string {
+export function introLine(
+  names: readonly string[],
+  total: number,
+  days: number,
+  v?: VibeSeed,
+): string {
   const shape = lineupShape(total);
   if (shape === "empty") return "Lineup soon 🫣";
-  if (shape === "solo") return whoLine(names, total);
+  if (shape === "solo") return whoLine(names, total, v);
   const when = days > 1 ? `${days} days` : "One night";
   if (shape === "festival") return `${total} acts. ${when}.`;
   return `${joinNames(names.slice(0, total))}. ${when}.`;

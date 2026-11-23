@@ -10,8 +10,10 @@ import {
   shouldOfferShare,
   whatsAppUrl,
   withSeen,
+  type Played,
 } from "./after-play";
 import { track } from "./analytics/track";
+import { shareCopy, VIBES, type Vibe } from "./vibe-copy";
 import { buttonClass } from "./ui/Button";
 import { copyText } from "./ui/copy-text";
 import { cx } from "./ui/cx";
@@ -19,7 +21,6 @@ import { haptic } from "./ui/feedback";
 import { SPRING } from "./ui/motion";
 import { useToast } from "./ui/Toast";
 
-const SHARE_TEXT = "found this gig's playlist 🎧";
 const VISIT_KEY = "tixtape.aftershare.visit";
 
 function readSeen(): string[] {
@@ -49,12 +50,14 @@ function shownThisVisit(): boolean {
 
 /** Mounted once in the layout: after a play, when the visitor comes back, "send it to the gang". */
 export function AfterPlayShare() {
-  const [eventId, setEventId] = useState<string | null>(null);
-  const pending = useRef<{ id: string; at: number } | null>(null);
+  const [shown, setShown] = useState<{ id: string; vibe: Vibe } | null>(null);
+  const pending = useRef<{ id: string; vibe: Vibe; at: number } | null>(null);
 
   useEffect(() => {
     const onPlayed = (e: Event) => {
-      pending.current = { id: (e as CustomEvent<string>).detail, at: Date.now() };
+      const { eventId, vibe } = (e as CustomEvent<Played>).detail;
+      const known = VIBES.find((v) => v === vibe) ?? "default";
+      pending.current = { id: eventId, vibe: known, at: Date.now() };
     };
     const onVisible = () => {
       const p = pending.current;
@@ -69,7 +72,7 @@ export function AfterPlayShare() {
       });
       if (!ok) return;
       markShown(p.id);
-      setEventId(p.id);
+      setShown({ id: p.id, vibe: p.vibe });
     };
     window.addEventListener(PLAYED_EVENT, onPlayed);
     document.addEventListener("visibilitychange", onVisible);
@@ -81,12 +84,28 @@ export function AfterPlayShare() {
 
   return (
     <AnimatePresence>
-      {eventId && <ShareCard key={eventId} eventId={eventId} onClose={() => setEventId(null)} />}
+      {shown && (
+        <ShareCard
+          key={shown.id}
+          eventId={shown.id}
+          vibe={shown.vibe}
+          onClose={() => setShown(null)}
+        />
+      )}
     </AnimatePresence>
   );
 }
 
-function ShareCard({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+function ShareCard({
+  eventId,
+  vibe,
+  onClose,
+}: {
+  eventId: string;
+  vibe: Vibe;
+  onClose: () => void;
+}) {
+  const copy = shareCopy(vibe, eventId);
   const titleId = useId();
   const toast = useToast();
   const reduceMotion = useReducedMotion();
@@ -110,7 +129,7 @@ function ShareCard({ eventId, onClose }: { eventId: string; onClose: () => void 
     track("share", { channel, eventId });
     try {
       if (navigator.share) {
-        await navigator.share({ text: SHARE_TEXT, url });
+        await navigator.share({ text: copy.text, url });
         haptic("success");
       } else {
         haptic("success");
@@ -142,7 +161,7 @@ function ShareCard({ eventId, onClose }: { eventId: string; onClose: () => void 
     >
       <div className="flex items-start justify-between gap-2">
         <h2 id={titleId} className="font-display text-lg font-extrabold">
-          Send it to the gang 🎧
+          {copy.title}
         </h2>
         <button
           type="button"
@@ -155,7 +174,7 @@ function ShareCard({ eventId, onClose }: { eventId: string; onClose: () => void 
       </div>
       <div className="mt-3 flex gap-2">
         <a
-          href={whatsAppUrl(SHARE_TEXT, sharePageUrl(origin, eventId, "wa"))}
+          href={whatsAppUrl(copy.text, sharePageUrl(origin, eventId, "wa"))}
           target="_blank"
           rel="noopener noreferrer"
           onClick={onWhatsApp}

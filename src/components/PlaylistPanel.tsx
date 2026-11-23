@@ -1,5 +1,6 @@
 "use client";
 
+import { liveLine, type Vibe } from "./vibe-copy";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { track } from "./analytics/track";
@@ -28,6 +29,7 @@ import { haptic } from "./ui/feedback";
 
 type Props = {
   eventId: string;
+  vibe?: Vibe;
   /** UX #5: secondary actions under the primary button (other teams can add one-line inserts). */
   actions?: ReactNode;
   /** Status rendered on the server (GET /api/events/:id/playlist shape); null = unknown. */
@@ -43,7 +45,15 @@ type Props = {
  * copy: a title, the button, and the state in a few words. States: ready, none → live staged progress → confetti, building (join), stale
  * (auto-refresh), partial, paused and unavailable. Steps the job about every 1.5s.
  */
-export function PlaylistPanel({ eventId, actions, preview, matched, total, initialStatus }: Props) {
+export function PlaylistPanel({
+  eventId,
+  vibe,
+  actions,
+  preview,
+  matched,
+  total,
+  initialStatus,
+}: Props) {
   // null while the tour/cool-down check loads: no "Make playlist" flash before it answers.
   const [tour, setTour] = useState<boolean | null>(null);
   const [view, setView] = useState<PlaylistView>(() =>
@@ -153,7 +163,7 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
 
       <div className="relative mt-6">
         {(view.kind === "idle" || view.kind === "building") && (
-          <ListenNow eventId={eventId} onTour={setTour} />
+          <ListenNow eventId={eventId} onTour={setTour} vibe={vibe} />
         )}
         {/* One tour, one playlist: a sibling's playlist is this event's, so nothing to make. */}
         {!(tour !== false && (view.kind === "idle" || view.kind === "building")) && (
@@ -163,7 +173,9 @@ export function PlaylistPanel({ eventId, actions, preview, matched, total, initi
       </div>
 
       <div role="status" aria-live="polite">
-        {!(tour && (view.kind === "idle" || view.kind === "building")) && <Note view={view} />}
+        {!(tour && (view.kind === "idle" || view.kind === "building")) && (
+          <Note view={view} vibe={vibe} />
+        )}
       </div>
 
       {/* UX #5: the secondary row (Share · Remind me · Tickets/Info), passed in by the page. */}
@@ -221,7 +233,7 @@ function Actions({
   }
 }
 
-function Note({ view }: { view: PlaylistView }) {
+function Note({ view, vibe = "default" }: { view: PlaylistView; vibe?: Vibe }) {
   const reduceMotion = useReducedMotion();
   const box = "mt-4 rounded-field border-2 border-night p-4 text-sm";
   let content: React.ReactNode = null;
@@ -235,9 +247,7 @@ function Note({ view }: { view: PlaylistView }) {
     case "ready":
       content = (
         <div className={`${box} bg-lime text-on-block`}>
-          <p className="font-semibold">
-            Live on Spotify <span aria-hidden>🎉</span>
-          </p>
+          <p className="font-semibold">{liveLine(vibe)}</p>
           {/* Refreshes run quietly in the background: the live playlist is all people see. */}
         </div>
       );

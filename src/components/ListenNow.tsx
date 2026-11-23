@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
-import { PLAYLIST_COOKING } from "./lineup-copy";
+import { cookingLine, type Vibe } from "./vibe-copy";
 import type { ListenNow as Data } from "@/domain/events/listen-now";
 
 /**
@@ -12,8 +12,11 @@ import type { ListenNow as Data } from "@/domain/events/listen-now";
 export function ListenNow({
   eventId,
   onTour,
+  vibe = "default",
 }: {
   eventId: string;
+  /** The music's vibe: the cooking line matches it (vibe-copy.ts). */
+  vibe?: Vibe;
   /** Told when a tour sibling exists: that playlist is this event's playlist too. */
   onTour?: (has: boolean) => void;
 }) {
@@ -46,7 +49,7 @@ export function ListenNow({
   if (data.artists.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
-      {data.paused && <p className="text-lg font-semibold">{PLAYLIST_COOKING}</p>}
+      {data.paused && <p className="text-lg font-semibold">{cookingLine(vibe, eventId)}</p>}
       {data.artists.map((a, i) => (
         <SpotifyOpenLink
           key={a.url}

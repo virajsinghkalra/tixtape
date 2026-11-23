@@ -28,6 +28,7 @@ import type { RecommendationSection } from "@/components/search/types";
 import { SearchLauncher } from "@/components/SearchLauncher";
 import { Section } from "@/components/Section";
 import { planStory } from "@/components/story-plan";
+import { vibeOf } from "@/components/vibe-copy";
 import { UpNextRings, type RingEvent } from "@/components/UpNextRings";
 import { BottomBar } from "@/components/ui/BottomBar";
 import { Marquee } from "@/components/ui/Marquee";
@@ -346,6 +347,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       playlistHref: `/events/${e.id}#playlist`,
       eventHref: `/events/${e.id}`,
       playable: Boolean(e.playlistUrl) || e.playlistStatus === "building",
+      vibe: vibeOf(e.genre, e.type),
     }),
   };
 }

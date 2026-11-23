@@ -10,6 +10,7 @@ import { toSavedShowInput } from "./saved/save-show";
 import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts, yearTag } from "./event-format";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
+import { vibeEmoji, vibeOf } from "./vibe-copy";
 import { ButtonLink } from "./ui/Button";
 import { Countdown } from "./ui/Countdown";
 import { cx } from "./ui/cx";
@@ -68,11 +69,13 @@ export function EventCard({
   // OD-5: a news page is "Info ↗", never "Buy tickets".
   const outbound = ticketLink([ticketUrl]);
   const compact = variant === "compact";
+  const vibe = vibeOf(event.genre, event.type);
   const place = event.venue ? `${event.venue.city} · ${event.venue.name}` : "Venue TBA";
 
   return (
     <article
       data-testid="event-card"
+      data-vibe={vibe}
       style={{ "--i": index } as CSSProperties}
       className={cx(
         "pop-in group relative flex h-full flex-col overflow-hidden rounded-card border-2 border-night bg-surface",
@@ -165,7 +168,7 @@ export function EventCard({
           )}
           <p className="mt-auto pt-2 text-sm font-semibold">
             <span aria-hidden>🎶 </span>
-            {lineupTeaser(headliners, event.artistCount)}
+            {lineupTeaser(headliners, event.artistCount, { vibe, seed: event.id })}
           </p>
         </div>
       </Link>
@@ -220,11 +223,11 @@ export function EventCard({
             eventId={event.id}
           >
             {/* "Play the playlist" overflows the button at 360px next to Tickets. */}
-            <span aria-hidden>🎧</span> Play playlist
+            <span aria-hidden>{vibeEmoji(vibe)}</span> Play playlist
           </SpotifyOpenLink>
         ) : (
           <ButtonLink href={`/events/${event.id}#playlist`} variant="secondary" className="flex-1">
-            <span aria-hidden>🎧</span> Playlist <span aria-hidden>→</span>
+            <span aria-hidden>{vibeEmoji(vibe)}</span> Playlist <span aria-hidden>→</span>
           </ButtonLink>
         )}
         {outbound && !tour && (

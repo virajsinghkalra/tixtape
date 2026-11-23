@@ -7,6 +7,7 @@ import { isMatched } from "./lineup-view";
 import { planStory } from "./story-plan";
 import { renderStory } from "./StorySlides";
 import { StoryViewer } from "./ui/StoryViewer";
+import { vibeOf } from "./vibe-copy";
 
 type Props = {
   event: EventDetail;
@@ -23,6 +24,7 @@ const WALL = 12;
 export function EventStory({ event, now }: Props) {
   const lineup = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
   const days = istDayCount(event.startsAt, event.endsAt);
+  const vibe = vibeOf(event.genre, event.type);
   const plan = planStory({
     id: event.id,
     title: event.title,
@@ -34,6 +36,7 @@ export function EventStory({ event, now }: Props) {
     playlistHref: "#playlist",
     eventHref: null,
     matched: lineup.filter((a) => isMatched(a.matchStatus)).length,
+    vibe,
   });
   const visual = orderForVisuals(lineup);
   const wall = visual.slice(0, WALL);
@@ -54,6 +57,7 @@ export function EventStory({ event, now }: Props) {
               lineup.map((a) => a.name),
               lineup.length,
               days,
+              { vibe, seed: event.id },
             )}
           </p>
           {lineup.length > 1 && (

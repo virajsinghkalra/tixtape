@@ -101,6 +101,10 @@ export const GENRES: Readonly<Record<string, { words: string[]; matches: string[
   rock: { words: ["rock"], matches: ["rock"] },
   jazz: { words: ["jazz"], matches: ["jazz"] },
   metal: { words: ["metal"], matches: ["metal"] },
+  sufi: { words: ["sufi", "qawwali"], matches: ["sufi", "qawwali"] },
+  kpop: { words: ["kpop", "k pop"], matches: ["k-pop", "kpop"] },
+  pop: { words: ["pop"], matches: ["pop"] },
+  fusion: { words: ["fusion"], matches: ["fusion", "world"] },
 };
 
 const MONTHS: Readonly<Record<string, number>> = Object.fromEntries(

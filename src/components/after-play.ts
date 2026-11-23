@@ -10,10 +10,12 @@ export const SHARE_SEEN_KEY = "tixtape.aftershare.v1";
 export const MIN_AWAY_MS = 4_000;
 const MAX_SEEN = 50;
 
-export function notePlayed(eventId: string | null | undefined): void {
+export type Played = { eventId: string; vibe: string | null };
+
+export function notePlayed(eventId: string | null | undefined, vibe: string | null = null): void {
   if (!eventId) return;
   try {
-    window.dispatchEvent(new CustomEvent<string>(PLAYED_EVENT, { detail: eventId }));
+    window.dispatchEvent(new CustomEvent<Played>(PLAYED_EVENT, { detail: { eventId, vibe } }));
   } catch {
     // Outside a browser: nothing to show.
   }
