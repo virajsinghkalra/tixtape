@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
 import { Analytics } from "@/components/analytics/Analytics";
 import { AfterPlayShare } from "@/components/AfterPlayShare";
+import { Splash } from "@/components/Splash";
 import { IdentityPrompts } from "@/components/identity/IdentityPrompts";
 import { SavedSync } from "@/components/saved/SavedSync";
 import { NavShell } from "@/components/nav/NavShell";
@@ -71,12 +72,14 @@ async function headerUser(): Promise<HeaderUser | null> {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await headerUser();
+  const hdrs = await headers();
   const city =
     visitorCity({ headers: await headers(), cookie: (await cookies()).get(CITY_COOKIE)?.value })
       ?.city ?? null;
   return (
     <html lang="en-IN" className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable}`}>
       <body className="flex min-h-dvh flex-col antialiased">
+        <Splash nonce={nonceOf(hdrs.get("content-security-policy"))} />
         <MotionProvider>
           <ToastProvider>
             {/* Off-screen until focused, but full-size so it's a real tap target. */}
@@ -106,4 +109,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </body>
     </html>
   );
+}
+
+/** The page's CSP nonce (set by the middleware), so the splash's one-line script may run. */
+function nonceOf(csp: string | null): string | undefined {
+  return csp?.match(/'nonce-([^']+)'/u)?.[1];
 }
