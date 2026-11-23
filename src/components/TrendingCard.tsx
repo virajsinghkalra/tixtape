@@ -57,7 +57,9 @@ export function HotRail({
       <ul
         className={cx(
           "no-scrollbar mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2",
-          bleed === "tile" ? "-mx-5 px-5 sm:-mx-7 sm:px-7" : "-mx-4 px-4 sm:-mx-6 sm:px-6",
+          bleed === "tile"
+            ? "rail-nudge -mx-5 px-5 sm:-mx-7 sm:px-7"
+            : "-mx-4 px-4 sm:-mx-6 sm:px-6",
         )}
       >
         {items.map((item, i) => (
@@ -66,7 +68,7 @@ export function HotRail({
             className="pop-in relative w-[86%] max-w-sm shrink-0 snap-start"
             style={{ "--i": i } as CSSProperties}
           >
-            <MiniPlayer item={item} />
+            <MiniPlayer item={item} first={i === 0 && bleed === "tile"} />
           </li>
         ))}
       </ul>
@@ -74,7 +76,11 @@ export function HotRail({
   );
 }
 
-function MiniPlayer({ item }: { item: TrendingItem }) {
+/**
+ * `first`: the hero's first player pulses its Play and the rail nudges once (funnel, 24 Nov: 19
+ * of 32 visitors never opened a gig; the eye has to land on Play).
+ */
+function MiniPlayer({ item, first = false }: { item: TrendingItem; first?: boolean }) {
   return (
     <div
       data-vibe={item.vibe}
@@ -110,7 +116,10 @@ function MiniPlayer({ item }: { item: TrendingItem }) {
         href={item.playlistUrl}
         eventId={item.id}
         size="md"
-        className="w-auto shrink-0 [&>a]:size-12 [&>a]:rounded-full [&>a]:p-0"
+        className={cx(
+          "w-auto shrink-0 [&>a]:size-12 [&>a]:rounded-full [&>a]:p-0",
+          first && "play-pulse",
+        )}
       >
         <span aria-hidden className="translate-x-px text-lg leading-none">
           ▶

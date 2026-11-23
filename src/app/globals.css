@@ -261,6 +261,32 @@ body {
 .group:active .vinyl {
   animation-duration: 2.5s;
 }
+/* Hero rail: the first Play breathes a ring, and the rail slides once to show it swipes. */
+@keyframes play-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-lime) 70%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+.play-pulse > a {
+  animation: play-ring 1.6s ease-out 1.6s infinite;
+}
+@keyframes rail-nudge {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translateX(-36px);
+  }
+}
+.rail-nudge > li {
+  animation: rail-nudge 0.9s var(--ease-spring) 1.7s 1 backwards;
+}
+
 /* Splash: ~1.4 s, then fades and stops catching taps (CSS only, no JS timer). */
 @keyframes splash-out {
   to {
@@ -408,6 +434,8 @@ html[data-splash="seen"] .splash {
   .sticker-wiggle:hover,
   .ring-spin,
   .vinyl,
+  .play-pulse > a,
+  .rail-nudge > li,
   .splash-pop,
   .splash-rise,
   .splash-bounce,
