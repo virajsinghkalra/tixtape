@@ -17,6 +17,7 @@ import { Countdown } from "./ui/Countdown";
 import { cx } from "./ui/cx";
 import { Sticker } from "./ui/Sticker";
 import { TONE_CLASS } from "./ui/tone";
+import { venueName } from "./venue";
 
 type Props = {
   event: EventSummary;
@@ -71,7 +72,9 @@ export function EventCard({
   const outbound = ticketLink([ticketUrl]);
   const compact = variant === "compact";
   const vibe = vibeOf(event.genre, event.type);
-  const place = event.venue ? `${event.venue.city} · ${event.venue.name}` : "Venue TBA";
+  const place = event.venue
+    ? [event.venue.city, venueName(event.venue.name)].filter(Boolean).join(" · ")
+    : "City TBA";
 
   return (
     <article

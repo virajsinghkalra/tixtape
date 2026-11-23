@@ -12,6 +12,7 @@ import { EqBars } from "../ui/EqBars";
 import { cx } from "../ui/cx";
 import { VibeChip } from "../VibeChip";
 import { vibeOf } from "../vibe-copy";
+import { VENUE_SOON, venueName } from "../venue";
 
 type Props = {
   artist: string;
@@ -118,7 +119,7 @@ export function TourHub({ artist, shows, homeCity, now, playlist }: Props) {
                   <span
                     className={cx("block truncate text-sm", mine ? "opacity-80" : "text-muted")}
                   >
-                    {s.venue?.name ?? "Venue TBA"}
+                    {venueName(s.venue?.name) ?? VENUE_SOON}
                   </span>
                   <span className="block text-xs font-semibold">
                     <span aria-hidden>{badge.emoji} </span>

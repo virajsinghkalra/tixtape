@@ -4,6 +4,7 @@
  */
 import { orderForVisuals, type VisualArtist } from "@/domain/visuals/visuals";
 import { shortDateRange } from "./og-card";
+import { venueName } from "../venue";
 
 export type JsonLdEvent = {
   title: string;
@@ -42,7 +43,7 @@ export function eventJsonLd(e: JsonLdEvent, pageUrl: string, imageUrl: string) {
       ? {
           location: {
             "@type": "Place",
-            name: e.venue.name,
+            name: venueName(e.venue.name) ?? e.venue.city,
             address: {
               "@type": "PostalAddress",
               addressLocality: e.venue.city,

@@ -11,6 +11,7 @@ import { Sticker } from "./ui/Sticker";
 import { Tile } from "./ui/Tile";
 import { PlayCta } from "./PlayCta";
 import { vibeOf, vibeTag } from "./vibe-copy";
+import { VENUE_SOON, venueName } from "./venue";
 
 const STATUS: Record<EventDetail["status"], { emoji: string; label: string }> = {
   announced: { emoji: "📣", label: "Announced" },
@@ -41,7 +42,17 @@ export function EventHeader({ event, now, playUrl = null, fallbackPlay = null }:
     emoji: event.type === "festival" ? "🎪" : "🎤",
     label: event.type === "festival" ? "Festival" : "Concert",
   };
-  const where = event.venue ? `${event.venue.name}, ${event.venue.city}` : "Venue TBA";
+  const ended = hasEnded(event.startsAt, event.endsAt, now);
+  const venue = venueName(event.venue?.name);
+  const where = event.venue
+    ? venue
+      ? `${venue}, ${event.venue.city}`
+      : ended
+        ? event.venue.city
+        : `${event.venue.city} · ${VENUE_SOON}`
+    : ended
+      ? "India"
+      : VENUE_SOON;
   const solo = event.lineup.length === 1 ? event.lineup[0]! : null;
   const ordered = [...event.lineup].sort((a, b) => a.billingRank - b.billingRank);
   const time = formatStartTime(event.startsAt);

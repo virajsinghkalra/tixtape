@@ -8,6 +8,7 @@ import type {
   SearchFilters,
   SuggestResponse,
 } from "./types";
+import { venueName } from "../venue";
 
 export type SearchOption =
   | { kind: "artist"; key: string; artist: ArtistEntity }
@@ -181,7 +182,7 @@ export function reasonLabel(e: EventResult): string | null {
     case "city":
       return e.city ? `in ${e.city}` : null;
     case "venue":
-      return e.venueName ? `at ${e.venueName}` : null;
+      return venueName(e.venueName) ? `at ${venueName(e.venueName)}` : null;
     case "alias":
       return e.matchedText && e.matchedText.toLowerCase() !== e.title.toLowerCase()
         ? `aka ${e.matchedText}`

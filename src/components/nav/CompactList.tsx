@@ -7,6 +7,7 @@ import { shortTitle } from "../hero-copy";
 import { SpotifyOpenLink } from "../SpotifyOpenLink";
 import { cx } from "../ui/cx";
 import { vibeEmoji, vibeOf } from "../vibe-copy";
+import { venueName } from "../venue";
 
 const lead = (i: FrontItem<FeedRow>) => (i.kind === "event" ? i.event : i.tour.featured);
 
@@ -63,7 +64,7 @@ function Row({ item, i }: { item: FrontItem<FeedRow>; i: number }) {
   const href = tour && artist ? `/search?artist=${encodeURIComponent(artist)}` : `/events/${e.id}`;
   const sub = tour
     ? `🗺️ ${tour.cityCount > 1 ? `${tour.cityCount} cities` : `${tour.events.length} dates`} · next: ${e.city ?? "TBA"}`
-    : [e.venue?.city, e.venue?.name].filter(Boolean).join(" · ");
+    : [e.venue?.city, venueName(e.venue?.name)].filter(Boolean).join(" · ");
   const vibe = vibeOf(e.genre, e.type);
   return (
     <div

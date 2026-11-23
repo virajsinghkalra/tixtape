@@ -22,6 +22,7 @@ import { tourPlaylist } from "@/server/listen-now";
 import { TourHub } from "@/components/search/TourHub";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { cookies, headers } from "next/headers";
+import { venueName } from "@/components/venue";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Search" };
@@ -363,7 +364,7 @@ async function load(
         matchReason: "title",
         matchedText: "",
         city: e.venue?.city ?? null,
-        venueName: e.venue?.name ?? null,
+        venueName: venueName(e.venue?.name),
       })),
       artists: [],
       cities: [],

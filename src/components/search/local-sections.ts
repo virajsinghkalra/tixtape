@@ -4,6 +4,7 @@
  */
 import type { EventSummary } from "@/application/ports/events";
 import type { EventResult, RecommendationSection } from "./types";
+import { venueName } from "../venue";
 
 const DAY_MS = 86_400_000;
 const IST_OFFSET_MS = 5.5 * 3_600_000;
@@ -17,7 +18,7 @@ export function toEventResult(e: EventSummary): EventResult {
     startsAt: e.startsAt.toISOString(),
     startsAtDateOnly: false,
     city: e.venue?.city ?? null,
-    venueName: e.venue?.name ?? null,
+    venueName: venueName(e.venue?.name),
     matchReason: "title",
     matchedText: "",
   };
