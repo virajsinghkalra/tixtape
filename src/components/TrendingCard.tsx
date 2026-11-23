@@ -1,75 +1,102 @@
 import Link from "next/link";
-import type { PreviewTrack } from "@/application/ports/spotify";
+import type { CSSProperties } from "react";
 import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { EqBars } from "./ui/EqBars";
-import { VibeChip } from "./VibeChip";
 import type { Vibe } from "./vibe-copy";
 
 export type TrendingItem = {
   id: string;
-  /** Already short: "Shreya Ghoshal · Bengaluru". */
+  /** Short: "Diljit Dosanjh" or "Sunburn Festival 2026". */
   title: string;
-  /** "27 Nov '26 · Bengaluru". */
+  /** "29 Nov '26 · Bengaluru". */
   when: string;
   poster: string | null;
   artists: VisualArtist[];
   label: string;
   playlistUrl: string;
   vibe: Vibe;
-  /** A solo show (its vibe chip carries a tagline too). */
-  solo: boolean;
-  /** "Hot in Bengaluru" or "Trending now". */
-  kicker: string;
-  /** The playlist's first songs, when we have them. */
-  inside: PreviewTrack[];
 };
 
 /**
- * Home's first screen (funnel, 24 Nov: 21 of 31 evening visitors left without opening a show).
- * One big card: the hottest playlist in the visitor's city, picture first, a couple of songs
- * they may know, and one full-width Play. Each piece is its own element.
+ * "🔥 Hot in Bengaluru": a swipeable rail of mini players inside the hero (funnel, 24 Nov: most
+ * visitors left without opening a show; user: "make it interactive, scroll, animations").
+ * Each one is a spinning record, the show, and one round Play.
  */
-export function TrendingCard({ item }: { item: TrendingItem }) {
-  const songs = item.inside.slice(0, 2).map((t) => t.name.replace(/\s*[([].*$/u, ""));
+export function HotRail({ kicker, items }: { kicker: string; items: TrendingItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-4" data-testid="hot-rail">
+      <p className="flex items-center gap-2 text-sm font-extrabold">
+        <span aria-hidden className="hot-flame">
+          🔥
+        </span>
+        {kicker}
+        {items.length > 1 && (
+          <span aria-hidden className="ml-auto text-xs font-bold opacity-70">
+            swipe →
+          </span>
+        )}
+      </p>
+      <ul className="no-scrollbar -mx-5 mt-2 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 sm:-mx-7 sm:px-7">
+        {items.map((item, i) => (
+          <li
+            key={item.id}
+            className="pop-in relative w-[86%] max-w-sm shrink-0 snap-start"
+            style={{ "--i": i } as CSSProperties}
+          >
+            <MiniPlayer item={item} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MiniPlayer({ item }: { item: TrendingItem }) {
   return (
     <div
       data-vibe={item.vibe}
       data-testid="trending-card"
-      className="pop-in overflow-hidden rounded-card border-2 border-night bg-surface shadow-[4px_5px_0_0_var(--color-night)] dark:border-line"
+      className="group flex items-center gap-3 rounded-field border-2 border-night bg-night p-2 pr-2.5 text-white shadow-[3px_4px_0_0_var(--color-violet)] transition-transform duration-(--duration-base) ease-spring active:scale-[0.98]"
     >
-      <Link href={`/events/${item.id}`} className="relative block h-44 bg-night sm:h-52">
-        <EventVisual poster={item.poster} artists={item.artists} label={item.label} priority />
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(to_top,rgb(11_11_15/0.92),rgb(11_11_15/0.2)_60%,rgb(11_11_15/0.05))]"
-        />
-        <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-chip border-2 border-night bg-lime px-2.5 py-0.5 text-xs font-bold text-on-block shadow-[2px_3px_0_0_var(--color-night)]">
-          <span aria-hidden>🔥</span> {item.kicker}
+      <Link
+        href={`/events/${item.id}`}
+        className="flex min-w-0 flex-1 items-center gap-3"
+        aria-label={`${item.title}, ${item.when}`}
+      >
+        {/* A record that spins: the artwork in a disc with a hole in the middle. */}
+        <span className="vinyl relative block size-14 shrink-0 overflow-hidden rounded-full border-2 border-white/15 bg-night">
+          <EventVisual poster={item.poster} artists={item.artists} label={item.label} />
+          <span
+            aria-hidden
+            className="absolute top-1/2 left-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-night bg-lime"
+          />
         </span>
-        <span className="absolute inset-x-3 bottom-3 text-white">
-          <span className="line-clamp-2 font-display text-xl leading-tight font-extrabold [overflow-wrap:anywhere]">
+        <span className="min-w-0">
+          <span className="block truncate font-display text-base leading-tight font-extrabold">
             {item.title}
           </span>
-          <span className="mt-0.5 block text-sm font-semibold opacity-85">
-            {item.when} <span aria-hidden>→</span>
+          <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-white/70">
+            <span className="text-lime">
+              <EqBars />
+            </span>
+            {item.when}
           </span>
         </span>
       </Link>
-      <div className="flex flex-col gap-3 p-3">
-        <VibeChip vibe={item.vibe} seed={item.id} solo={item.solo} />
-        {songs.length > 0 && (
-          <p className="text-sm">
-            <span className="font-semibold text-muted">Inside </span>
-            <span className="font-semibold">{songs.join(" · ")}</span>
-            <span className="text-muted"> + more</span>
-          </p>
-        )}
-        <SpotifyOpenLink href={item.playlistUrl} eventId={item.id} size="lg">
-          <EqBars /> Play the playlist
-        </SpotifyOpenLink>
-      </div>
+      <SpotifyOpenLink
+        href={item.playlistUrl}
+        eventId={item.id}
+        size="md"
+        className="w-auto shrink-0 [&>a]:size-12 [&>a]:rounded-full [&>a]:p-0"
+      >
+        <span aria-hidden className="translate-x-px text-lg leading-none">
+          ▶
+        </span>
+        <span className="sr-only">Play {item.title}</span>
+      </SpotifyOpenLink>
     </div>
   );
 }

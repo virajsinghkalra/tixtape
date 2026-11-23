@@ -253,6 +253,69 @@ body {
   animation: ring-spin 6s linear infinite;
 }
 
+/* Hot rail: each mini player's artwork spins like a record; faster while you touch it. */
+.vinyl {
+  animation: ring-spin 9s linear infinite;
+}
+.group:hover .vinyl,
+.group:active .vinyl {
+  animation-duration: 2.5s;
+}
+.hot-flame {
+  display: inline-block;
+  animation: wiggle 1.2s ease-in-out infinite;
+  --tilt: -8deg;
+}
+
+/* Vibe tiles: lift and bounce on hover or tap; the emoji jumps. */
+@keyframes vibe-jump {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-6px) scale(1.15) rotate(-6deg);
+  }
+}
+.vibe-tile {
+  transition:
+    translate var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease-spring),
+    scale var(--duration-base) var(--ease-spring);
+}
+.vibe-tile:hover {
+  translate: 0 -4px;
+  box-shadow: 5px 8px 0 0 var(--color-night);
+}
+.vibe-tile:active {
+  scale: 0.94;
+}
+.vibe-tile:hover .vibe-emoji,
+.vibe-tile:active .vibe-emoji {
+  display: inline-block;
+  animation: vibe-jump 0.5s var(--ease-spring);
+}
+
+/* Sections fade and rise in as they scroll into view (no JS; browsers without scroll-driven
+   animations just show them). */
+@supports (animation-timeline: view()) {
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(28px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .reveal {
+    animation: reveal-up linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 40%;
+  }
+}
+
 .no-scrollbar {
   scrollbar-width: none;
 }
@@ -266,6 +329,11 @@ body {
   .skeleton,
   .sticker-wiggle:hover,
   .ring-spin,
+  .vinyl,
+  .hot-flame,
+  .reveal,
+  .vibe-tile:hover .vibe-emoji,
+  .vibe-tile:active .vibe-emoji,
   .eq-bars > i {
     animation: none !important;
   }

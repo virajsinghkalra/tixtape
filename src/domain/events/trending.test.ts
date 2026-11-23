@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickHot, pickTrending } from "./trending";
+import { pickHotList, pickTrending } from "./trending";
 
 const ev = (
   id: string,
@@ -57,22 +57,19 @@ describe("pickTrending", () => {
   });
 });
 
-describe("pickHot", () => {
-  const rows = [ev("mum1"), ev("blr1", null), ev("blr2"), ev("mum2")];
-  const inBlr = (r: { id: string }) => r.id.startsWith("blr");
-
-  it("prefers the hottest playable show in the visitor's city", () => {
+describe("pickHotList", () => {
+  it("puts the city's most-played first, then the rest of India, skipping unplayable", () => {
+    const rows = [ev("mum1"), ev("blr1", null), ev("blr2"), ev("blr3"), ev("mum2")];
     const opens = new Map([
-      ["mum1", 9],
-      ["blr2", 1],
+      ["blr3", 2],
+      ["mum2", 5],
     ]);
-    expect(pickHot(rows, opens, [], inBlr)).toEqual({ item: rows[2], local: true });
-  });
-
-  it("falls back to the nationwide pick when the city has nothing playable", () => {
-    const opens = new Map([["mum2", 3]]);
-    const none = (r: { id: string }) => r.id === "blr1";
-    expect(pickHot(rows, opens, [], none)).toEqual({ item: rows[3], local: false });
-    expect(pickHot([], opens, [], inBlr)).toBeNull();
+    const inBlr = (r: { id: string }) => r.id.startsWith("blr");
+    expect(pickHotList(rows, opens, inBlr, 4).map((x) => [x.item.id, x.local])).toEqual([
+      ["blr3", true],
+      ["blr2", true],
+      ["mum2", false],
+      ["mum1", false],
+    ]);
   });
 });

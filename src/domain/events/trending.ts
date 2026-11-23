@@ -27,17 +27,22 @@ export function pickTrending<T extends Candidate>(
 }
 
 /**
- * Home's top card: the visitor's own city first (the hottest playable show there), else the
- * nationwide pick. `local` says which, so the card can read "Hot in Bengaluru" or "Trending now".
+ * Home's "Hot in your city" rail: playable shows in the visitor's city first (most-played,
+ * then soonest), topped up from the rest of India the same way. At most `n`, no repeats.
  */
-export function pickHot<T extends Candidate>(
+export function pickHotList<T extends Candidate>(
   rows: readonly T[],
   opens: ReadonlyMap<string, number>,
-  fallback: readonly T[],
   inCity: (row: T) => boolean,
-): { item: T; local: boolean } | null {
-  const mine = pickTrending(rows.filter(inCity), opens);
-  if (mine) return { item: mine, local: true };
-  const any = pickTrending(rows, opens, fallback);
-  return any ? { item: any, local: false } : null;
+  n: number,
+): { item: T; local: boolean }[] {
+  const playable = rows.filter((r) => r.playlistUrl);
+  const rank = (list: T[]) =>
+    list
+      .map((r, i) => ({ r, i, o: opens.get(r.id) ?? 0 }))
+      .sort((a, b) => b.o - a.o || a.i - b.i)
+      .map((x) => x.r);
+  const local = rank(playable.filter(inCity)).map((item) => ({ item, local: true }));
+  const rest = rank(playable.filter((r) => !inCity(r))).map((item) => ({ item, local: false }));
+  return [...local, ...rest].slice(0, n);
 }

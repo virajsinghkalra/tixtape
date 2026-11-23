@@ -29,7 +29,7 @@ import type { RecommendationSection } from "@/components/search/types";
 import { SearchLauncher } from "@/components/SearchLauncher";
 import { Section } from "@/components/Section";
 import { planStory } from "@/components/story-plan";
-import { vibeOf } from "@/components/vibe-copy";
+import { vibeOf, type Vibe } from "@/components/vibe-copy";
 import { UpNextRings, type RingEvent } from "@/components/UpNextRings";
 import { BottomBar } from "@/components/ui/BottomBar";
 import { Marquee } from "@/components/ui/Marquee";
@@ -40,9 +40,9 @@ import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage, recentSpotifyOpens } from "@/server/front-page";
-import { pickHot } from "@/domain/events/trending";
-import { playlistInside } from "@/server/listen-now";
-import { TrendingCard } from "@/components/TrendingCard";
+import { pickHotList } from "@/domain/events/trending";
+import { HotRail } from "@/components/TrendingCard";
+import { VibePicker } from "@/components/VibePicker";
 import { YourGigs } from "@/components/YourGigs";
 
 export const dynamic = "force-dynamic";
@@ -92,16 +92,34 @@ export default async function Home({ searchParams }: Props) {
   // UX #6: the hero prefers ready playlists; OD-7: its shows aren't repeated below.
   const hero = pickNextUp(rows, now);
   const heroIds = new Set(hero.map((e) => e.id));
-  // Funnel (24 Nov): most visitors left without opening a show, so the first screen plays
-  // the hottest playlist in their own city, else the nationwide pick.
-  const hot = pickHot(
-    rows,
-    opens,
-    front.bigOnes.map((i) => (i.kind === "event" ? i.event : i.tour.featured)),
-    (e) => Boolean(city && e.city && metroOf(e.city) === metroOf(city)),
-  );
-  const trending = hot?.item ?? null;
-  const trendingInside = (await playlistInside(trending?.playlistUrl ?? null))?.tracks ?? [];
+  // Funnel (24 Nov): most visitors left without opening a show, so the hero plays the
+  // hottest playlists in their own city first (a swipeable rail), then the rest of India.
+  const inCity = (e: FeedRow) => Boolean(city && e.city && metroOf(e.city) === metroOf(city));
+  const hotList = pickHotList(rows, opens, inCity, 6);
+  const hotKicker = hotList[0]?.local && city ? `Hot in ${city}` : "Trending now";
+  const hotItems = hotList.map(({ item: e }) => {
+    const title = shortTitle(e.title, e.headliners[0]);
+    return {
+      id: e.id,
+      title,
+      // No "Bengaluru" twice when the short title already names the city.
+      when: [shortDate(e.startsAt, now), e.city && !title.includes(e.city) ? e.city : null]
+        .filter(Boolean)
+        .join(" · "),
+      poster: e.posterUrl ?? null,
+      artists: e.headlinerArtists,
+      label: e.headliners[0] ?? e.title,
+      playlistUrl: e.playlistUrl!,
+      vibe: vibeOf(e.genre, e.type),
+    };
+  });
+  // "Pick your vibe": genres with upcoming shows, most shows first.
+  const vibeCounts = new Map<Vibe, number>();
+  for (const e of rows) {
+    const v = vibeOf(e.genre, e.type);
+    if (v !== "default") vibeCounts.set(v, (vibeCounts.get(v) ?? 0) + 1);
+  }
+  const vibes = [...vibeCounts].sort((a, b) => b[1] - a[1]).map(([v]) => v);
   const thisWeek = readyFirst(
     rows.filter(
       (e) =>
@@ -156,36 +174,11 @@ export default async function Home({ searchParams }: Props) {
         aria-labelledby="hero-title"
         className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-10"
       >
-        {trending?.playlistUrl && (
-          <div className="mb-4">
-            <TrendingCard
-              item={{
-                id: trending.id,
-                title: shortTitle(trending.title, trending.headliners[0]),
-                poster: trending.posterUrl ?? null,
-                artists: trending.headlinerArtists,
-                label: trending.headliners[0] ?? trending.title,
-                playlistUrl: trending.playlistUrl,
-                when: [
-                  shortDate(trending.startsAt, now),
-                  // No "Bengaluru" twice when the short title already names the city.
-                  trending.city &&
-                  !shortTitle(trending.title, trending.headliners[0]).includes(trending.city)
-                    ? trending.city
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · "),
-                vibe: vibeOf(trending.genre, trending.type),
-                solo: trending.artistCount === 1,
-                kicker: hot?.local && city ? `Hot in ${city}` : "Trending now",
-                inside: trendingInside,
-              }}
-            />
-          </div>
-        )}
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Tile tone="lime" className="pop-in z-20 overflow-visible lg:col-span-2 lg:row-span-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
+          <Tile
+            tone="lime"
+            className="pop-in z-20 min-w-0 overflow-visible lg:col-span-2 lg:row-span-2"
+          >
             <div className="flex flex-wrap items-center gap-3">
               <Sticker tone="night" emoji="🎧" tilt={-4}>
                 Concert playlists · India
@@ -205,6 +198,7 @@ export default async function Home({ searchParams }: Props) {
             </p>
             <div className="mt-5 max-w-2xl sm:mt-7">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
+              <HotRail kicker={hotKicker} items={hotItems} />
             </div>
           </Tile>
 
@@ -225,6 +219,8 @@ export default async function Home({ searchParams }: Props) {
           )}
         </div>
       </section>
+
+      <VibePicker vibes={vibes} />
 
       <SectionBoundary label="Your gigs">
         <YourGigs />
