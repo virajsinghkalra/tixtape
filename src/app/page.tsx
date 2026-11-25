@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { SuggestParamsSchema } from "@/application/events";
 import type { FeedRow } from "@/application/ports/event-feed";
 import { metroOf, type FrontItem } from "@/domain/events/front-page";
@@ -196,26 +195,6 @@ export default async function Home({ searchParams }: Props) {
                 Concert playlists · India
               </Sticker>
             </div>
-            {/* 📻 Gig Radio: the swipe-and-listen feed (analysis, 26 Nov). */}
-            <Link
-              href="/radio"
-              className="mb-4 flex items-center gap-3 rounded-field border-2 border-night bg-night p-2 pr-4 text-white shadow-[3px_4px_0_0_var(--color-violet)] transition-transform duration-(--duration-base) ease-spring hover:-translate-y-0.5 sm:mb-0 sm:inline-flex"
-            >
-              <span className="play-pulse grid size-11 shrink-0 place-items-center rounded-full bg-lime text-lg text-on-block">
-                📻
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-display text-lg leading-tight font-extrabold">
-                  Gig Radio
-                </span>
-                <span className="block text-xs font-semibold text-white/75">
-                  Swipe the gigs. Each one plays.
-                </span>
-              </span>
-              <span aria-hidden className="text-xl text-lime">
-                →
-              </span>
-            </Link>
             <h1
               id="hero-title"
               className="font-display text-mega font-extrabold tracking-tight text-balance max-sm:text-[2rem] max-sm:leading-[1.05] sm:mt-5"
@@ -257,6 +236,7 @@ export default async function Home({ searchParams }: Props) {
         <HotShelf
           kicker={hotKicker}
           items={hotItems}
+          radio
           className="mt-8 max-sm:order-first max-sm:mt-0 max-sm:mb-6"
         />
       </section>

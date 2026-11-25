@@ -144,10 +144,13 @@ export function HotShelf({
   kicker,
   items,
   className = "mt-8",
+  radio = false,
 }: {
   kicker: string;
   items: TrendingItem[];
   className?: string;
+  /** A small "📻 Radio" pill in the header (Gig Radio's one entry point; user, 26 Nov: keep it simple). */
+  radio?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
@@ -159,10 +162,19 @@ export function HotShelf({
           </span>
           {kicker}
         </h2>
-        {items.length > 2 && (
-          <span aria-hidden className="pb-1 text-sm font-bold text-muted">
-            swipe →
-          </span>
+        {radio ? (
+          <Link
+            href="/radio"
+            className="shrink-0 rounded-chip border-2 border-night bg-night px-3 py-1 text-sm font-bold text-lime shadow-[2px_2px_0_0_var(--color-violet)] dark:border-line"
+          >
+            📻 Radio
+          </Link>
+        ) : (
+          items.length > 2 && (
+            <span aria-hidden className="pb-1 text-sm font-bold text-muted">
+              swipe →
+            </span>
+          )
         )}
       </div>
       <ul className="rail-nudge no-scrollbar -mx-4 mt-4 flex snap-x snap-mandatory scroll-px-4 gap-5 overflow-x-auto px-4 pt-1 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6">
