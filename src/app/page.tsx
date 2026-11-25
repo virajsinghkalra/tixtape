@@ -25,12 +25,11 @@ import { TrySearchingTile } from "@/components/TrySearchingTile";
 import { EventSearch } from "@/components/search/EventSearch";
 import { localSections, toEventResult } from "@/components/search/local-sections";
 import type { RecommendationSection } from "@/components/search/types";
-import { SearchLauncher } from "@/components/SearchLauncher";
+import { HomeBottomBar } from "@/components/HomeBottomBar";
 import { Section } from "@/components/Section";
 import { planStory } from "@/components/story-plan";
 import { vibeOf, type Vibe } from "@/components/vibe-copy";
 import { UpNextRings, type RingEvent } from "@/components/UpNextRings";
-import { BottomBar } from "@/components/ui/BottomBar";
 import { Marquee } from "@/components/ui/Marquee";
 import { Sticker } from "@/components/ui/Sticker";
 import { Tile } from "@/components/ui/Tile";
@@ -187,16 +186,18 @@ export default async function Home({ searchParams }: Props) {
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
           <Tile
             tone="lime"
-            className="pop-in z-20 min-w-0 overflow-visible lg:col-span-2 lg:row-span-2"
+            className="pop-in z-20 min-w-0 overflow-visible lg:col-span-2 lg:row-span-2 max-sm:rounded-none max-sm:bg-transparent max-sm:p-0 max-sm:text-ink"
           >
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Phones (user, 25 Nov): under the shelf the intro is plain text and a search box, not
+                another green block. */}
+            <div className="flex flex-wrap items-center gap-3 max-sm:hidden">
               <Sticker tone="night" emoji="🎧" tilt={-4}>
                 Concert playlists · India
               </Sticker>
             </div>
             <h1
               id="hero-title"
-              className="mt-4 sm:mt-5 font-display text-mega font-extrabold tracking-tight text-balance"
+              className="font-display text-mega font-extrabold tracking-tight text-balance max-sm:text-[2rem] max-sm:leading-[1.05] sm:mt-5"
             >
               Every gig. Its playlist.
             </h1>
@@ -206,7 +207,7 @@ export default async function Home({ searchParams }: Props) {
               </span>
               tap a show, vibe to its setlist
             </p>
-            <div className="mt-5 max-w-2xl sm:mt-7">
+            <div className="mt-3 max-w-2xl sm:mt-7">
               <EventSearch initialQuery={q ?? ""} sections={sections} city={city} />
             </div>
           </Tile>
@@ -319,9 +320,7 @@ export default async function Home({ searchParams }: Props) {
 
       {rows.length <= SMALL_CATALOGUE && <HowItWorks />}
 
-      <BottomBar label="Quick actions">
-        <SearchLauncher />
-      </BottomBar>
+      <HomeBottomBar />
     </>
   );
 }

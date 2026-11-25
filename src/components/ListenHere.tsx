@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentEventId, track } from "./analytics/track";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
@@ -9,6 +9,93 @@ import { cx } from "./ui/cx";
 /** The playlist ID from an open.spotify.com playlist URL, or null. */
 export function spotifyPlaylistId(url: string): string | null {
   return /open\.spotify\.com\/(?:[\w-]+\/)?playlist\/([A-Za-z0-9]+)/u.exec(url)?.[1] ?? null;
+}
+
+type Controller = {
+  play: () => void;
+  addListener: (e: string, cb: () => void) => void;
+  destroy: () => void;
+};
+type IFrameApi = {
+  createController: (
+    el: HTMLElement,
+    opts: { uri: string; width: string; height: number },
+    cb: (c: Controller) => void,
+  ) => void;
+};
+
+let apiPromise: Promise<IFrameApi> | null = null;
+
+/** Spotify's iFrame API (loaded once, on the first tap): it lets us press play for the visitor. */
+function loadSpotifyApi(): Promise<IFrameApi> {
+  apiPromise ??= new Promise<IFrameApi>((resolve, reject) => {
+    const w = window as Window & { onSpotifyIframeApiReady?: (api: IFrameApi) => void };
+    w.onSpotifyIframeApiReady = resolve;
+    const script = document.createElement("script");
+    script.src = "https://open.spotify.com/embed/iframe-api/v1";
+    script.async = true;
+    script.onerror = () => {
+      apiPromise = null;
+      reject(new Error("Spotify iFrame API failed to load"));
+    };
+    document.body.appendChild(script);
+  });
+  return apiPromise;
+}
+
+/**
+ * The embed, playing the first song as soon as it's ready (user, 25 Nov). Browsers that block
+ * autoplay just show the player; a tap on its Play works. If the API can't load, a plain embed.
+ */
+function Player({ id, title }: { id: string; title: string }) {
+  const host = useRef<HTMLDivElement>(null);
+  const [plain, setPlain] = useState(false);
+  useEffect(() => {
+    let ctrl: Controller | null = null;
+    let gone = false;
+    const fallback = setTimeout(() => !ctrl && setPlain(true), 6_000);
+    loadSpotifyApi()
+      .then((api) => {
+        if (gone || !host.current) return;
+        const el = document.createElement("div");
+        host.current.appendChild(el);
+        api.createController(
+          el,
+          { uri: `spotify:playlist:${id}`, width: "100%", height: 352 },
+          (c) => {
+            ctrl = c;
+            clearTimeout(fallback);
+            if (gone) return c.destroy();
+            c.addListener("ready", () => c.play());
+          },
+        );
+      })
+      .catch(() => !gone && setPlain(true));
+    return () => {
+      gone = true;
+      clearTimeout(fallback);
+      ctrl?.destroy();
+    };
+  }, [id]);
+  if (plain) {
+    return (
+      <iframe
+        title={`${title} on Spotify`}
+        src={`https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0`}
+        width="100%"
+        height="352"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        className="block rounded-[12px] border-0 bg-night"
+      />
+    );
+  }
+  return (
+    <div
+      ref={host}
+      aria-label={`${title} on Spotify`}
+      className="h-[352px] overflow-hidden rounded-[12px] bg-night [&_iframe]:block [&_iframe]:rounded-[12px] [&_iframe]:border-0"
+    />
+  );
 }
 
 /**
@@ -88,15 +175,7 @@ export function ListenHere({
                   ✕
                 </button>
               </div>
-              <iframe
-                title={`${title} on Spotify`}
-                src={`https://open.spotify.com/embed/playlist/${id}?utm_source=generator&theme=0`}
-                width="100%"
-                height="352"
-                loading="lazy"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                className="block rounded-[12px] border-0 bg-night"
-              />
+              <Player id={id} title={title} />
               <SpotifyOpenLink href={url} eventId={eventId} className="mt-3">
                 <span aria-hidden>▶</span> Open full playlist
               </SpotifyOpenLink>
