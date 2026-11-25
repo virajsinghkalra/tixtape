@@ -51,6 +51,10 @@ function markSeen(id: string) {
 
 /** A clip heard this long counts as "vibed": it lands in the end-of-radio recap. */
 const VIBED_SECS = 10;
+/** A card counts as a listen (analytics) only after this much real playback, once per visit:
+ *  fast swipes and station flips started clips for an instant and inflated the numbers. */
+const HEARD_SECS = 3;
+const heard = new Set<string>();
 type Song = NonNullable<RadioCard["song"]>;
 
 /**
@@ -161,6 +165,11 @@ export function GigRadio({ cards: initial }: { cards: RadioCard[] }) {
     a.ontimeupdate = () => {
       if (!live || !a.duration) return;
       setProgress(a.currentTime / a.duration);
+      if (a.currentTime >= HEARD_SECS && !heard.has(card.id)) {
+        heard.add(card.id);
+        markSeen(card.id);
+        track("playlist_preview", { eventId: card.id });
+      }
       if (a.currentTime >= VIBED_SECS) setVibed((v) => (v.includes(card.id) ? v : [...v, card.id]));
     };
     stopClip();
@@ -183,8 +192,6 @@ export function GigRadio({ cards: initial }: { cards: RadioCard[] }) {
         () => {
           if (!live) return;
           setPlaying(true);
-          markSeen(card.id);
-          track("playlist_preview", { eventId: card.id });
           lockScreen(card, song, step.current);
         },
         () => live && setPlaying(false),
