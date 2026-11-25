@@ -115,6 +115,7 @@ function MiniPlayer({ item, first = false }: { item: TrendingItem; first?: boole
           </span>
         </span>
       </Link>
+      <ListenHere url={item.playlistUrl} eventId={item.id} title={item.title} variant="icon" />
       <SpotifyOpenLink
         href={item.playlistUrl}
         eventId={item.id}

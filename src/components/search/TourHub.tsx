@@ -7,6 +7,7 @@ import { countdownBadge, istParts, yearTag } from "../event-format";
 import { EventVisual } from "../EventVisual";
 import { HeartButton } from "../HeartButton";
 import { toSavedShowInput } from "../saved/save-show";
+import { ListenHere } from "../ListenHere";
 import { SpotifyOpenLink } from "../SpotifyOpenLink";
 import { EqBars } from "../ui/EqBars";
 import { cx } from "../ui/cx";
@@ -72,6 +73,14 @@ export function TourHub({ artist, shows, homeCity, now, playlist }: Props) {
               <EqBars /> Play the tour playlist
             </SpotifyOpenLink>
           ) : null}
+          {playlist && (
+            <ListenHere
+              url={playlist.url}
+              eventId={lead.id}
+              title={`${artist} tour`}
+              variant="wide"
+            />
+          )}
         </div>
       </section>
 

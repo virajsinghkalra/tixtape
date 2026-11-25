@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ListenHere } from "./ListenHere";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { cookingLine, type Vibe } from "./vibe-copy";
 import type { ListenNow as Data } from "@/domain/events/listen-now";
@@ -40,9 +41,12 @@ export function ListenNow({
   if (!data) return null;
   if (data.sibling) {
     return (
-      <SpotifyOpenLink href={data.sibling.url}>
-        <span aria-hidden>▶</span> Open in Spotify
-      </SpotifyOpenLink>
+      <div className="flex flex-col gap-2.5">
+        <SpotifyOpenLink href={data.sibling.url}>
+          <span aria-hidden>▶</span> Open in Spotify
+        </SpotifyOpenLink>
+        <ListenHere url={data.sibling.url} eventId={eventId} title="Tour playlist" variant="wide" />
+      </div>
     );
   }
   // Nothing to play: no heading line that points at an empty space.

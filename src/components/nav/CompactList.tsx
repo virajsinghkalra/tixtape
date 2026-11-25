@@ -4,6 +4,7 @@ import type { FeedRow } from "@/application/ports/event-feed";
 import type { FrontItem } from "@/domain/events/front-page";
 import { istParts, yearTag } from "../event-format";
 import { shortTitle } from "../hero-copy";
+import { ListenHere } from "../ListenHere";
 import { SpotifyOpenLink } from "../SpotifyOpenLink";
 import { cx } from "../ui/cx";
 import { vibeEmoji, vibeOf } from "../vibe-copy";
@@ -85,6 +86,9 @@ function Row({ item, i }: { item: FrontItem<FeedRow>; i: number }) {
           <span className="block truncate text-xs text-muted">{sub}</span>
         </span>
       </Link>
+      {e.playlistUrl && (
+        <ListenHere url={e.playlistUrl} eventId={e.id} title={title} variant="icon" />
+      )}
       {e.playlistUrl ? (
         <SpotifyOpenLink
           href={e.playlistUrl}

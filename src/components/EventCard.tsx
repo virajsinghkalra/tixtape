@@ -9,6 +9,7 @@ import { HeartButton } from "./HeartButton";
 import { toSavedShowInput } from "./saved/save-show";
 import { lineupTeaser, playlistBadge } from "./lineup-copy";
 import { formatStartTime, istParts, yearTag } from "./event-format";
+import { ListenHere } from "./ListenHere";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { vibeEmoji, vibeOf } from "./vibe-copy";
 import { VibeChip } from "./VibeChip";
@@ -230,7 +231,11 @@ export function EventCard({
             {/* "Play the playlist" overflows the button at 360px next to Tickets. */}
             <span aria-hidden>{vibeEmoji(vibe)}</span> Play playlist
           </SpotifyOpenLink>
-        ) : (
+        ) : null}
+        {playlistUrl && (
+          <ListenHere url={playlistUrl} eventId={event.id} title={event.title} variant="icon" />
+        )}
+        {playlistUrl ? null : (
           <ButtonLink href={`/events/${event.id}#playlist`} variant="secondary" className="flex-1">
             <span aria-hidden>{vibeEmoji(vibe)}</span> Playlist <span aria-hidden>→</span>
           </ButtonLink>

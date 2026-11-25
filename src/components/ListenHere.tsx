@@ -114,7 +114,7 @@ export function ListenHere({
   eventId?: string;
   title: string;
   className?: string;
-  variant?: "chip" | "wide";
+  variant?: "chip" | "wide" | "icon";
 }) {
   const [open, setOpen] = useState(false);
   const id = spotifyPlaylistId(url);
@@ -142,14 +142,24 @@ export function ListenHere({
       <button
         type="button"
         onClick={show}
+        aria-label={variant === "icon" ? `Listen to ${title} here` : undefined}
         className={cx(
-          variant === "chip"
-            ? "inline-flex items-center gap-1.5 rounded-chip border-2 border-night bg-surface px-2.5 py-1 text-xs font-bold shadow-[2px_2px_0_0_var(--color-night)] active:translate-y-px dark:border-line"
-            : "flex w-full items-center justify-center gap-2 rounded-field border-2 border-night bg-surface px-4 py-3 font-bold shadow-[3px_3px_0_0_var(--color-night)] active:translate-y-px dark:border-line",
+          variant === "chip" &&
+            "inline-flex items-center gap-1.5 rounded-chip border-2 border-night bg-surface px-2.5 py-1 text-xs font-bold shadow-[2px_2px_0_0_var(--color-night)] active:translate-y-px dark:border-line",
+          variant === "wide" &&
+            "flex w-full items-center justify-center gap-2 rounded-field border-2 border-night bg-surface px-4 py-3 font-bold shadow-[3px_3px_0_0_var(--color-night)] active:translate-y-px dark:border-line",
+          variant === "icon" &&
+            "grid size-11 shrink-0 place-items-center rounded-full border-2 border-night bg-surface text-lg shadow-[2px_3px_0_0_var(--color-night)] transition-transform duration-(--duration-base) ease-spring hover:-translate-y-0.5 active:translate-y-px dark:border-line",
           className,
         )}
       >
-        <span aria-hidden>🎧</span> Listen here
+        {variant === "icon" ? (
+          <span aria-hidden>🎧</span>
+        ) : (
+          <>
+            <span aria-hidden>🎧</span> Listen here
+          </>
+        )}
       </button>
       {open &&
         createPortal(
@@ -176,6 +186,13 @@ export function ListenHere({
                 </button>
               </div>
               <Player id={id} title={title} />
+              {/* The embed's own "⊕ Save on Spotify" follows the playlist in the visitor's library. */}
+              <p className="mt-3 flex items-center gap-2 rounded-field bg-lime/25 px-3 py-2 text-sm font-semibold">
+                <span aria-hidden className="text-base">
+                  ⊕
+                </span>
+                Vibing? Hit Save on Spotify. It&apos;s in your library before the gig.
+              </p>
               <SpotifyOpenLink href={url} eventId={eventId} className="mt-3">
                 <span aria-hidden>▶</span> Open full playlist
               </SpotifyOpenLink>

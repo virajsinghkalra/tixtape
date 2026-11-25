@@ -3,6 +3,8 @@ import type { CSSProperties } from "react";
 import type { FeedRow } from "@/application/ports/event-feed";
 import type { Tour } from "@/domain/events/front-page";
 import { EventVisual } from "./EventVisual";
+import { ListenHere } from "./ListenHere";
+import { cx } from "./ui/cx";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { vibeEmoji, vibeOf } from "./vibe-copy";
 
@@ -65,7 +67,7 @@ function TourCard({ tour }: { tour: Tour<FeedRow> }) {
           <span aria-hidden>🗺️</span>
           {cities.length > 1 ? `${cities.length} cities` : `${tour.events.length} dates`}
         </span>
-        <span className="absolute inset-x-4 bottom-4 pr-14">
+        <span className={cx("absolute inset-x-4 bottom-4", lead.playlistUrl ? "pr-28" : "pr-14")}>
           <span className="block font-display text-2xl leading-tight font-extrabold [overflow-wrap:anywhere]">
             <span aria-hidden>{vibeEmoji(vibe)} </span>
             {artist}
@@ -76,6 +78,15 @@ function TourCard({ tour }: { tour: Tour<FeedRow> }) {
           </span>
         </span>
       </Link>
+      {lead.playlistUrl && (
+        <ListenHere
+          url={lead.playlistUrl}
+          eventId={lead.id}
+          title={`${artist} tour`}
+          variant="icon"
+          className="absolute right-[4.25rem] bottom-[1.1rem] z-10"
+        />
+      )}
       {lead.playlistUrl && (
         <SpotifyOpenLink
           href={lead.playlistUrl}
