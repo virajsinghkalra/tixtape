@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
 import { ListenHere } from "./ListenHere";
+import { RadioPill } from "./radio/RadioLink";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { EqBars } from "./ui/EqBars";
 import { cx } from "./ui/cx";
@@ -32,9 +33,12 @@ export function HotRail({
   kicker,
   items,
   bleed = "tile",
+  radioGig,
 }: {
   kicker: string;
   items: TrendingItem[];
+  /** Shows a small Radio pill that starts Gig Radio on this gig. */
+  radioGig?: string;
   /** Inside the hero tile (its padding) or on the page (the page gutter). */
   bleed?: "tile" | "page";
 }) {
@@ -50,11 +54,17 @@ export function HotRail({
         <span aria-hidden className="hot-flame">
           🔥
         </span>
-        {kicker}
-        {items.length > 1 && (
-          <span aria-hidden className="ml-auto text-xs font-bold opacity-70">
-            swipe →
+        <span className="min-w-0">{kicker}</span>
+        {radioGig ? (
+          <span className="ml-auto shrink-0">
+            <RadioPill gig={radioGig} />
           </span>
+        ) : (
+          items.length > 1 && (
+            <span aria-hidden className="ml-auto text-xs font-bold opacity-70">
+              swipe →
+            </span>
+          )
         )}
       </p>
       <ul
@@ -163,12 +173,7 @@ export function HotShelf({
           {kicker}
         </h2>
         {radio ? (
-          <Link
-            href="/radio"
-            className="shrink-0 rounded-chip border-2 border-night bg-night px-3 py-1 text-sm font-bold text-lime shadow-[2px_2px_0_0_var(--color-violet)] dark:border-line"
-          >
-            📻 Radio
-          </Link>
+          <RadioPill />
         ) : (
           items.length > 2 && (
             <span aria-hidden className="pb-1 text-sm font-bold text-muted">

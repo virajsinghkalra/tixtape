@@ -175,7 +175,7 @@ export default async function EventPage({ params, searchParams }: Params) {
       {more.length > 0 && (
         <section aria-label={moreTitle} className="reveal mt-12">
           <SectionBoundary label="More playlists">
-            <HotRail kicker={moreTitle} items={more} bleed="page" />
+            <HotRail kicker={moreTitle} items={more} bleed="page" radioGig={event.id} />
           </SectionBoundary>
         </section>
       )}

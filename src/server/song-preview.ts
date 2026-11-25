@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { PreviewTrack } from "@/application/ports/spotify";
 import { sharedPlaylists } from "@/db/schema";
 import { findPreviewAudio } from "@/infrastructure/previews/itunes";
@@ -44,4 +44,26 @@ export async function listenData(url: string): Promise<ListenData> {
       .catch(() => {});
   }
   return { song: found, tracks: tracks.map((t) => ({ name: t.name, artist: t.artist })) };
+}
+
+/**
+ * The first stored clip per playlist url, in one query. Reads only what's already on the rows
+ * (no clip lookups); playlists with no stored clip are absent. Never throws.
+ */
+export async function storedFirstSongs(urls: string[]): Promise<Map<string, FirstSong>> {
+  const out = new Map<string, FirstSong>();
+  if (urls.length === 0) return out;
+  try {
+    const rows = await container()
+      .db.select({ url: sharedPlaylists.url, tracks: sharedPlaylists.previewTracks })
+      .from(sharedPlaylists)
+      .where(inArray(sharedPlaylists.url, urls));
+    for (const r of rows) {
+      const t = (r.tracks ?? []).find((x) => typeof x.audio === "string" && x.audio !== "");
+      if (t) out.set(r.url, { name: t.name, artist: t.artist, audio: t.audio! });
+    }
+  } catch {
+    // Best effort: the client fetches each song lazily.
+  }
+  return out;
 }

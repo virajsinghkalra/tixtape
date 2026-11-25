@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SEARCH_INPUT_ID } from "./search/EventSearch";
 import { SearchLauncher } from "./SearchLauncher";
+import { RadioLink } from "./radio/RadioLink";
 import { BottomBar } from "./ui/BottomBar";
 
 /**
@@ -21,6 +22,12 @@ export function HomeBottomBar() {
   return (
     <BottomBar label="Quick actions" hidden={searchOnScreen}>
       <SearchLauncher />
+      <RadioLink
+        aria-label="Gig Radio"
+        className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-night text-xl text-lime"
+      >
+        <span aria-hidden>📻</span>
+      </RadioLink>
     </BottomBar>
   );
 }

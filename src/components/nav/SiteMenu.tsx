@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { RadioLink } from "../radio/RadioLink";
 import { useEffect, useId, useRef, useState } from "react";
 
 const LINKS = [
+  { href: "/radio", label: "📻 Gig Radio" },
   { href: "/ready", label: "🎧 Ready to play" },
   { href: "/week", label: "📅 This week" },
   { href: "/upcoming", label: "🔮 Upcoming" },
@@ -11,6 +13,9 @@ const LINKS = [
   { href: "/me/gigs", label: "♡ Saved" },
   { href: "/search", label: "🔍 Search" },
 ];
+
+const ITEM =
+  "flex min-h-11 items-center rounded-field px-3 text-sm font-semibold hover:bg-surface-2";
 
 /** ☰ in the header: a small disclosure sheet. Esc or an outside tap closes it and returns focus. */
 export function SiteMenu() {
@@ -59,13 +64,15 @@ export function SiteMenu() {
           <ul>
             {LINKS.map((l) => (
               <li key={l.href}>
-                <Link
-                  href={l.href}
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center rounded-field px-3 text-sm font-semibold hover:bg-surface-2"
-                >
-                  {l.label}
-                </Link>
+                {l.href === "/radio" ? (
+                  <RadioLink onClick={() => setOpen(false)} className={ITEM}>
+                    {l.label}
+                  </RadioLink>
+                ) : (
+                  <Link href={l.href} onClick={() => setOpen(false)} className={ITEM}>
+                    {l.label}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
