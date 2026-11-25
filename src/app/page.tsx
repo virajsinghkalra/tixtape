@@ -383,6 +383,7 @@ function ringEvent(e: FeedRow, now: Date): RingEvent {
       eventHref: `/events/${e.id}`,
       playable: Boolean(e.playlistUrl) || e.playlistStatus === "building",
       vibe: vibeOf(e.genre, e.type),
+      playlistUrl: e.playlistUrl,
     }),
   };
 }

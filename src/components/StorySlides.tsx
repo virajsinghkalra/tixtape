@@ -7,6 +7,7 @@ import {
 } from "@/domain/visuals/visuals";
 import { ArtistAvatar, ArtistChip, AvatarStack, TONE_VAR } from "./ArtistAvatar";
 import { EventVisual } from "./EventVisual";
+import { ListenHere } from "./ListenHere";
 import { toneSequence } from "./event-color";
 import type { TitleSize } from "./lineup-copy";
 import type { SlidePlan, StoryArtist, StoryPlan } from "./story-plan";
@@ -39,11 +40,11 @@ export function renderStory(eventId: string, plan: StoryPlan): Story[] {
     label: slide.label,
     tone: tones[i]!,
     dark: slide.kind === "solo" && hasPhoto(slide.artist),
-    content: <SlideContent slide={slide} />,
+    content: <SlideContent slide={slide} eventId={eventId} />,
   }));
 }
 
-function SlideContent({ slide }: { slide: SlidePlan }) {
+function SlideContent({ slide, eventId }: { slide: SlidePlan; eventId: string }) {
   switch (slide.kind) {
     case "solo":
       return (
@@ -145,6 +146,15 @@ function SlideContent({ slide }: { slide: SlidePlan }) {
             <p className="font-display text-big leading-tight font-extrabold">{slide.headline}</p>
             {slide.tagline && <p className="text-lg font-semibold opacity-85">{slide.tagline}</p>}
           </div>
+          {slide.listen && (
+            <ListenHere
+              url={slide.listen}
+              eventId={eventId}
+              title={slide.headline}
+              variant="wide"
+              className="relative z-10 mt-2 py-4 text-lg"
+            />
+          )}
           <div className="relative z-10 mt-2 flex flex-wrap gap-3">
             <ButtonLink href={slide.cta.href} variant="night" size="lg">
               {slide.cta.text} <span aria-hidden>→</span>

@@ -47,6 +47,8 @@ export type StoryInput = {
   playable?: boolean;
   /** The music's vibe, for the last slide's line (vibe-copy.ts). */
   vibe?: Vibe;
+  /** The live playlist (open.spotify.com), for "Listen here" on the last slide. */
+  playlistUrl?: string | null;
 };
 
 type Common = { id: string; label: string };
@@ -89,6 +91,8 @@ export type SlidePlan =
       face: StoryArtist | null;
       cta: { href: string; text: string };
       secondary: { href: string; text: string } | null;
+      /** The live playlist: "Listen here" plays it without leaving the story. */
+      listen: string | null;
     });
 
 export type StoryPlan = { heading: string; slides: SlidePlan[] };
@@ -215,5 +219,6 @@ function playlistSlide(
       text: pending || input.playable === false ? STORY_CTA.listen : STORY_CTA.playlist,
     },
     secondary: input.eventHref ? { href: input.eventHref, text: STORY_CTA.event } : null,
+    listen: pending ? null : (input.playlistUrl ?? null),
   };
 }

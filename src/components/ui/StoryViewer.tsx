@@ -15,6 +15,7 @@ import {
 import { cx } from "./cx";
 import { SPRING_SOFT } from "./motion";
 import { TONE_CLASS, type Tone } from "./tone";
+import { LISTEN_EVENT } from "../ListenHere";
 
 export type Story = {
   id: string;
@@ -158,7 +159,14 @@ function StoryTrack({
   const trackRef = useRef<HTMLOListElement>(null);
   const [current, setCurrent] = useState(initialIndex);
   const [paused, setPaused] = useState(false);
+  const [listening, setListening] = useState(false);
   const last = slides.length - 1;
+
+  useEffect(() => {
+    const on = (e: Event) => setListening(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener(LISTEN_EVENT, on);
+    return () => window.removeEventListener(LISTEN_EVENT, on);
+  }, []);
 
   const goTo = useCallback(
     (index: number) => {
@@ -189,10 +197,10 @@ function StoryTrack({
   );
 
   useEffect(() => {
-    if (!autoAdvanceMs || paused) return;
+    if (!autoAdvanceMs || paused || listening) return;
     const timer = setTimeout(() => (current < last ? goTo(current + 1) : onEnd?.()), autoAdvanceMs);
     return () => clearTimeout(timer);
-  }, [autoAdvanceMs, paused, current, last, goTo, onEnd]);
+  }, [autoAdvanceMs, paused, listening, current, last, goTo, onEnd]);
 
   function onScroll() {
     const track = trackRef.current;
@@ -238,7 +246,7 @@ function StoryTrack({
             <span
               key={i === current ? `run-${current}` : "static"}
               className="block h-full origin-left bg-current"
-              style={progressStyle(i, current, autoAdvanceMs, paused)}
+              style={progressStyle(i, current, autoAdvanceMs, paused || listening)}
             />
           </span>
         ))}

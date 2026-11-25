@@ -6,6 +6,9 @@ import { currentEventId, track } from "./analytics/track";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { cx } from "./ui/cx";
 
+/** Fired on `window` with `detail: boolean` when a Listen-here sheet opens or closes. */
+export const LISTEN_EVENT = "tt:listen";
+
 /** The playlist ID from an open.spotify.com playlist URL, or null. */
 export function spotifyPlaylistId(url: string): string | null {
   return /open\.spotify\.com\/(?:[\w-]+\/)?playlist\/([A-Za-z0-9]+)/u.exec(url)?.[1] ?? null;
@@ -120,14 +123,21 @@ export function ListenHere({
   const id = spotifyPlaylistId(url);
 
   useEffect(() => {
+    // A story behind the sheet holds its timer while the player is open.
+    window.dispatchEvent(new CustomEvent(LISTEN_EVENT, { detail: open }));
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    // Capture phase: Escape closes only this sheet, not a story dialog behind it.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOpen(false);
+    };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       document.body.style.overflow = prev;
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
 
@@ -168,7 +178,13 @@ export function ListenHere({
             aria-modal="true"
             aria-label={`${title} playlist`}
             className="fixed inset-0 z-[90] flex items-end justify-center bg-night/70 backdrop-blur-sm sm:items-center"
-            onClick={() => setOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+            }}
+            // React bubbles portal events to the story behind: keep taps and keys here.
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <div
               className="pop-in w-full max-w-md rounded-t-card border-2 border-night bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-6px_0_0_var(--color-lime)] sm:rounded-card dark:border-line"
