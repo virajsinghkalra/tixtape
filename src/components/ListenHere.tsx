@@ -17,6 +17,7 @@ export function spotifyPlaylistId(url: string): string | null {
 
 type Controller = {
   play: () => void;
+  pause: () => void;
   addListener: (e: string, cb: (ev: { data?: { isPaused?: boolean } }) => void) => void;
   destroy: () => void;
 };
@@ -28,30 +29,48 @@ const SILENCE =
 /** One preview player for the whole page (a new tap takes it over). */
 let shared: HTMLAudioElement | null = null;
 const audio = () => (shared ??= new Audio());
+const stopClip = () => {
+  if (shared && !shared.paused) shared.pause();
+};
+/** The open sheet's Spotify player, so starting our clip can pause it. */
+let embed: Controller | null = null;
+
+/**
+ * Spotify's player tells the page when it starts playing (postMessage). The iFrame API's own
+ * listener didn't pass it on (bug, 25 Nov: two songs at once), so read the messages directly.
+ */
+export function embedStartedPlaying(origin: string, data: unknown): boolean {
+  if (origin !== "https://open.spotify.com" || !data || typeof data !== "object") return false;
+  const m = data as { type?: string; payload?: { isPaused?: boolean } };
+  return (
+    m.type === "playback_started" || (m.type === "playback_update" && m.payload?.isPaused === false)
+  );
+}
 
 type Song = { name: string; artist: string; audio: string };
+type Listen = { song: Song | null; tracks: { name: string; artist: string }[] };
+const NOTHING: Listen = { song: null, tracks: [] };
 
 /** One request per playlist per visit, started on touch-down (before the tap lands). */
-const songs = new Map<string, Promise<Song | null>>();
-function songFor(url: string): Promise<Song | null> {
+const songs = new Map<string, Promise<Listen>>();
+function songFor(url: string): Promise<Listen> {
   let p = songs.get(url);
   if (!p) {
     p = fetch(`/api/listen?url=${encodeURIComponent(url)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ song: Song | null }>) : { song: null }))
-      .then((r) => r.song)
+      .then((r) => (r.ok ? (r.json() as Promise<Listen>) : NOTHING))
+      .then((r) => ({ song: r.song ?? null, tracks: r.tracks ?? [] }))
       .catch(() => {
         songs.delete(url);
-        return null;
+        return NOTHING;
       });
     songs.set(url, p);
   }
   return p;
 }
 
-/** Touch-down: fetch the song and warm Spotify's player script while the finger lifts. */
+/** Touch-down: fetch the song while the finger lifts. */
 function warm(url: string) {
   void songFor(url);
-  void loadSpotifyApi().catch(() => {});
 }
 type IFrameApi = {
   createController: (
@@ -123,6 +142,7 @@ function Player({
             if (gone) return c.destroy();
             c.addListener("ready", () => {
               ready.current = c;
+              embed = c;
               if (auto.current) c.play();
             });
             c.addListener("playback_update", (ev) => {
@@ -135,6 +155,7 @@ function Player({
     return () => {
       gone = true;
       clearTimeout(fallback);
+      if (embed === ctrl) embed = null;
       ctrl?.destroy();
     };
   }, [id]);
@@ -180,6 +201,9 @@ export function ListenHere({
   const [open, setOpen] = useState(false);
   const [song, setSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tracks, setTracks] = useState<Listen["tracks"]>([]);
+  /** Spotify's player (3 MB, ~6 s on a phone) loads only on "Save on Spotify" (user, 25 Nov). */
+  const [full, setFull] = useState(false);
   const [playing, setPlaying] = useState(false);
   /** No clip found: let the embed try to play by itself. */
   const [embedAuto, setEmbedAuto] = useState(false);
@@ -219,12 +243,20 @@ export function ListenHere({
       e.stopPropagation();
       setOpen(false);
     };
+    // Spotify's player started: our clip stops, so two songs never play at once.
+    const onMessage = (e: MessageEvent) => {
+      if (!embedStartedPlaying(e.origin, e.data)) return;
+      stopClip();
+      setPlaying(false);
+    };
+    window.addEventListener("message", onMessage);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("message", onMessage);
     };
   }, [open]);
 
@@ -238,12 +270,15 @@ export function ListenHere({
     void a.play().catch(() => {});
     a.preload = "auto";
     setSong(null);
+    setTracks([]);
+    setFull(false);
     setLoading(true);
     setEmbedAuto(false);
     setOpen(true);
     songFor(url)
-      .then((s) => {
+      .then(({ song: s, tracks: list }) => {
         setLoading(false);
+        setTracks(list);
         if (!s) return setEmbedAuto(true);
         setSong(s);
         a.src = s.audio;
@@ -260,18 +295,19 @@ export function ListenHere({
   };
   const toggle = () => {
     const a = audio();
-    if (a.paused)
+    if (a.paused) {
+      embed?.pause();
       void a.play().then(
         () => setPlaying(true),
         () => {},
       );
-    else {
+    } else {
       a.pause();
       setPlaying(false);
     }
   };
   const embedPlayed = () => {
-    if (shared && !shared.paused) shared.pause();
+    stopClip();
     setPlaying(false);
   };
 
@@ -370,17 +406,50 @@ export function ListenHere({
                   )}
                 </button>
               )}
-              <Player id={id} title={title} autoplay={embedAuto} onEmbedPlay={embedPlayed} />
-              {/* The embed's own "⊕ Save on Spotify" follows the playlist in the visitor's library. */}
-              <p className="mt-3 flex items-center gap-2 rounded-field bg-lime/25 px-3 py-2 text-sm font-semibold">
-                <span aria-hidden className="text-base">
-                  ⊕
-                </span>
-                Vibing? Hit Save on Spotify. It&apos;s in your library before the gig.
-              </p>
-              <SpotifyOpenLink href={url} eventId={eventId} className="mt-3">
-                <span aria-hidden>▶</span> Open full playlist
-              </SpotifyOpenLink>
+              {tracks.length > 1 && !full && (
+                <ol className="mb-3 flex flex-col gap-1 rounded-field bg-bg p-2">
+                  {tracks.slice(0, 4).map((t, n) => (
+                    <li
+                      key={`${t.name}-${n}`}
+                      className={cx(
+                        "flex items-center gap-3 rounded-[10px] px-2 py-1.5 text-sm",
+                        song?.name === t.name && "bg-lime/30 font-bold",
+                      )}
+                    >
+                      <span className="w-4 text-center text-xs font-bold text-muted">{n + 1}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {t.name} <span className="font-normal text-muted">· {t.artist}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {full || embedAuto ? (
+                <>
+                  <Player id={id} title={title} autoplay={embedAuto} onEmbedPlay={embedPlayed} />
+                  {/* The embed's own "⊕ Save on Spotify" follows the playlist in the visitor's library. */}
+                  <p className="mt-3 flex items-center gap-2 rounded-field bg-lime/25 px-3 py-2 text-sm font-semibold">
+                    <span aria-hidden className="text-base">
+                      ⊕
+                    </span>
+                    Hit Save on Spotify above. It&apos;s in your library before the gig.
+                  </p>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setFull(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-field border-2 border-night bg-surface px-4 py-3 font-bold shadow-[3px_3px_0_0_var(--color-night)] active:translate-y-px dark:border-line"
+                >
+                  <span aria-hidden>⊕</span> Save on Spotify · full player
+                </button>
+              )}
+              {/* Off to Spotify: our clip stops (it would keep playing behind the app). */}
+              <div onClickCapture={embedPlayed}>
+                <SpotifyOpenLink href={url} eventId={eventId} className="mt-3">
+                  <span aria-hidden>▶</span> Open full playlist
+                </SpotifyOpenLink>
+              </div>
             </div>
           </div>,
           document.body,

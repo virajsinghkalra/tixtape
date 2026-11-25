@@ -5,12 +5,18 @@ import { findPreviewAudio } from "@/infrastructure/previews/itunes";
 import { container } from "./container";
 
 export type FirstSong = { name: string; artist: string; audio: string };
+export type ListenData = { song: FirstSong | null; tracks: { name: string; artist: string }[] };
 
 /**
  * The first song in a playlist's "Inside" list that has a preview clip (looked up once, then
  * kept on the row: `audio` is the clip, "" means none was found). Null when nothing plays.
  */
 export async function firstSongPreview(url: string): Promise<FirstSong | null> {
+  return (await listenData(url)).song;
+}
+
+/** The first playable clip plus the playlist's top songs (names only), for the light player. */
+export async function listenData(url: string): Promise<ListenData> {
   const db = container().db;
   const [row] = await db
     .select({ tracks: sharedPlaylists.previewTracks })
@@ -37,5 +43,5 @@ export async function firstSongPreview(url: string): Promise<FirstSong | null> {
       .where(eq(sharedPlaylists.url, url))
       .catch(() => {});
   }
-  return found;
+  return { song: found, tracks: tracks.map((t) => ({ name: t.name, artist: t.artist })) };
 }
