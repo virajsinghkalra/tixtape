@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
 import { cookies, headers } from "next/headers";
+import { preconnect } from "react-dom";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader, type HeaderUser } from "@/components/SiteHeader";
 import { Analytics } from "@/components/analytics/Analytics";
@@ -71,6 +72,9 @@ async function headerUser(): Promise<HeaderUser | null> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // "Listen here": the song clip and Spotify's player connect ahead of the tap.
+  preconnect("https://audio-ssl.itunes.apple.com");
+  preconnect("https://open.spotify.com");
   const user = await headerUser();
   const hdrs = await headers();
   const city =

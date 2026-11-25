@@ -30,6 +30,29 @@ let shared: HTMLAudioElement | null = null;
 const audio = () => (shared ??= new Audio());
 
 type Song = { name: string; artist: string; audio: string };
+
+/** One request per playlist per visit, started on touch-down (before the tap lands). */
+const songs = new Map<string, Promise<Song | null>>();
+function songFor(url: string): Promise<Song | null> {
+  let p = songs.get(url);
+  if (!p) {
+    p = fetch(`/api/listen?url=${encodeURIComponent(url)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ song: Song | null }>) : { song: null }))
+      .then((r) => r.song)
+      .catch(() => {
+        songs.delete(url);
+        return null;
+      });
+    songs.set(url, p);
+  }
+  return p;
+}
+
+/** Touch-down: fetch the song and warm Spotify's player script while the finger lifts. */
+function warm(url: string) {
+  void songFor(url);
+  void loadSpotifyApi().catch(() => {});
+}
 type IFrameApi = {
   createController: (
     el: HTMLElement,
@@ -156,6 +179,7 @@ export function ListenHere({
 }) {
   const [open, setOpen] = useState(false);
   const [song, setSong] = useState<Song | null>(null);
+  const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   /** No clip found: let the embed try to play by itself. */
   const [embedAuto, setEmbedAuto] = useState(false);
@@ -195,12 +219,14 @@ export function ListenHere({
     const a = audio();
     a.src = SILENCE;
     void a.play().catch(() => {});
+    a.preload = "auto";
     setSong(null);
+    setLoading(true);
     setEmbedAuto(false);
     setOpen(true);
-    fetch(`/api/listen?url=${encodeURIComponent(url)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ song: Song | null }>) : { song: null }))
-      .then(({ song: s }) => {
+    songFor(url)
+      .then((s) => {
+        setLoading(false);
         if (!s) return setEmbedAuto(true);
         setSong(s);
         a.src = s.audio;
@@ -210,7 +236,10 @@ export function ListenHere({
           () => setPlaying(false),
         );
       })
-      .catch(() => setEmbedAuto(true));
+      .catch(() => {
+        setLoading(false);
+        setEmbedAuto(true);
+      });
   };
   const toggle = () => {
     const a = audio();
@@ -234,6 +263,8 @@ export function ListenHere({
       <button
         type="button"
         onClick={show}
+        onPointerDown={() => warm(url)}
+        onMouseEnter={() => warm(url)}
         aria-label={variant === "icon" ? `Listen to ${title} here` : undefined}
         className={cx(
           variant === "chip" &&
@@ -283,6 +314,16 @@ export function ListenHere({
                   ✕
                 </button>
               </div>
+              {loading && (
+                <div className="mb-3 flex items-center gap-3 rounded-field border-2 border-night bg-night p-2 text-white dark:border-line">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-lime text-on-block">
+                    <EqBars />
+                  </span>
+                  <span className="text-sm font-semibold text-white/80">
+                    Cueing up the first song…
+                  </span>
+                </div>
+              )}
               {song && (
                 <button
                   type="button"
