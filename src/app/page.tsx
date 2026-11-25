@@ -39,6 +39,7 @@ import { noteVisitorDemand } from "@/server/demand";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
 import { events } from "@/server/events";
 import { frontPage, recentSpotifyOpens } from "@/server/front-page";
+import { playlistInside } from "@/server/listen-now";
 import { pickHotList } from "@/domain/events/trending";
 import { HotShelf } from "@/components/TrendingCard";
 import { VibePicker } from "@/components/VibePicker";
@@ -97,7 +98,9 @@ export default async function Home({ searchParams }: Props) {
   const inCity = (e: FeedRow) => Boolean(city && e.city && metroOf(e.city) === metroOf(city));
   const hotList = pickHotList(rows, opens, inCity, 6);
   const hotKicker = hotList[0]?.local && city ? `Hot in ${city}` : "Trending now";
-  const hotItems = hotList.map(({ item: e, local }) => {
+  // "What's inside" each hot playlist (DB only), so the card says what you'd hear.
+  const insides = await Promise.all(hotList.map(({ item }) => playlistInside(item.playlistUrl)));
+  const hotItems = hotList.map(({ item: e, local }, i) => {
     // The shelf heading already says the city: a solo show reads as just the artist.
     const title =
       e.artistCount === 1 && e.headliners[0]
@@ -117,6 +120,7 @@ export default async function Home({ searchParams }: Props) {
       label: e.headliners[0] ?? e.title,
       playlistUrl: e.playlistUrl!,
       vibe: vibeOf(e.genre, e.type),
+      inside: (insides[i]?.tracks ?? []).slice(0, 2).map((t) => t.name.replace(/\s*[([].*$/u, "")),
     };
   });
   // "Pick your vibe": genres with upcoming shows, most shows first.
@@ -178,7 +182,7 @@ export default async function Home({ searchParams }: Props) {
 
       <section
         aria-labelledby="hero-title"
-        className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-10"
+        className="mx-auto flex max-w-6xl flex-col px-4 pt-6 sm:px-6 sm:pt-10"
       >
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
           <Tile
@@ -226,7 +230,13 @@ export default async function Home({ searchParams }: Props) {
             </div>
           )}
         </div>
-        <HotShelf kicker={hotKicker} items={hotItems} />
+        {/* Funnel (25 Nov): shared-link visitors left home without a tap, so on phones the
+            playable shelf comes first and the intro follows. */}
+        <HotShelf
+          kicker={hotKicker}
+          items={hotItems}
+          className="mt-8 max-sm:order-first max-sm:mt-0 max-sm:mb-6"
+        />
       </section>
 
       <VibePicker vibes={vibes} />

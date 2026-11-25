@@ -68,6 +68,18 @@ export const EVENT_PROPS = {
   install: none,
   story_open: z.strictObject({ eventId: eventId.optional() }),
   ticket_click: z.strictObject({ eventId: eventId.optional() }),
+  /** "Listen here": the in-page Spotify player opened. */
+  playlist_preview: z.strictObject({ eventId: eventId.optional() }),
+  /** How far down a page a visitor got (each mark once per page view). */
+  scroll_depth: z.strictObject({
+    path: z.enum(PATH_GROUPS),
+    pct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]),
+  }),
+  /** Seconds on a page before leaving it or hiding the tab (once per page view). */
+  page_leave: z.strictObject({
+    path: z.enum(PATH_GROUPS),
+    secs: z.number().int().min(0).max(3_600),
+  }),
 } as const;
 
 export type AnalyticsEventName = keyof typeof EVENT_PROPS;

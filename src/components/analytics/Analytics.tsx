@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { pathGroup } from "@/domain/analytics/beacon";
-import { currentEventId, track } from "./track";
+import { currentEventId, flush, track } from "./track";
 import { notePlayed } from "../after-play";
 
 /**
@@ -17,6 +17,46 @@ export function Analytics() {
   useEffect(() => {
     if (!pathname || pathname.startsWith("/admin")) return;
     track("page_view", { path: pathGroup(pathname) });
+  }, [pathname]);
+
+  // Funnel (25 Nov): how far down a page people get, and how long they stay, so "left after
+  // one page" can tell a 2-second bounce from a full scroll.
+  useEffect(() => {
+    if (!pathname || pathname.startsWith("/admin")) return;
+    const path = pathGroup(pathname);
+    const start = Date.now();
+    const marks = [25, 50, 75, 100] as const;
+    let reached = 0;
+    let left = false;
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      if (max <= 0) return;
+      const pct = ((window.scrollY + 1) / max) * 100;
+      for (const m of marks) {
+        if (m > reached && pct >= m - 1) {
+          reached = m;
+          track("scroll_depth", { path, pct: m });
+        }
+      }
+    };
+    const leave = () => {
+      if (left) return;
+      left = true;
+      const secs = Math.min(3_600, Math.round((Date.now() - start) / 1000));
+      track("page_leave", { path, secs });
+      flush();
+    };
+    const onHide = () => document.visibilityState === "hidden" && leave();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pagehide", leave);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pagehide", leave);
+      document.removeEventListener("visibilitychange", onHide);
+      leave();
+    };
   }, [pathname]);
 
   useEffect(() => {

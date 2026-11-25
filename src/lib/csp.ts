@@ -17,7 +17,8 @@ export function contentSecurityPolicy({ nonce, dev }: { nonce?: string; dev: boo
     "img-src 'self' data: blob: https:",
     "font-src 'self'",
     `connect-src 'self'${dev ? " ws: wss:" : ""}`,
-    "frame-src 'none'",
+    // The in-page player ("Listen here") is Spotify's embed.
+    "frame-src https://open.spotify.com",
     "object-src 'none'",
     "base-uri 'self'",
     // Login redirects to Spotify's consent page.

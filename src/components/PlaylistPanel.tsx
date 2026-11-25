@@ -22,6 +22,7 @@ import {
 } from "./playlist-state";
 import { PLAYLIST_SOON } from "./lineup-copy";
 import { ListenNow } from "./ListenNow";
+import { ListenHere } from "./ListenHere";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { Button } from "./ui/Button";
 import { Confetti } from "./ui/Confetti";
@@ -261,9 +262,12 @@ function Actions({
   switch (view.kind) {
     case "ready":
       return (
-        <SpotifyOpenLink href={view.url}>
-          <span aria-hidden>▶</span> Open in Spotify
-        </SpotifyOpenLink>
+        <div className="flex flex-col gap-2.5">
+          <SpotifyOpenLink href={view.url}>
+            <span aria-hidden>▶</span> Open in Spotify
+          </SpotifyOpenLink>
+          <ListenHere url={view.url} title="Gig playlist" variant="wide" />
+        </div>
       );
     case "unavailable":
       return null;

@@ -31,10 +31,23 @@ describe("analytics beacon (D-090)", () => {
         "install",
         "story_open",
         "ticket_click",
+        "playlist_preview",
+        "scroll_depth",
+        "page_leave",
       ].sort(),
     );
     expect(isAnalyticsEventName("toString")).toBe(false);
     expect(isAnalyticsEventName("__proto__")).toBe(false);
+  });
+
+  it("accepts scroll and time marks only in their fixed shapes", () => {
+    const ok = (ev: unknown) =>
+      parseBeacon(JSON.stringify({ did: "0b8f2a4e-3c1d-4e5f-9a6b-7c8d9e0f1a2b", ev: [ev] }));
+    expect(ok({ n: "scroll_depth", p: { path: "home", pct: 50 } })).not.toBeNull();
+    expect(ok({ n: "scroll_depth", p: { path: "home", pct: 33 } })).toBeNull();
+    expect(ok({ n: "page_leave", p: { path: "event", secs: 12 } })).not.toBeNull();
+    expect(ok({ n: "page_leave", p: { path: "event", secs: 99_999 } })).toBeNull();
+    expect(ok({ n: "playlist_preview", p: {} })).not.toBeNull();
   });
 
   it("parses a valid batch with a source", () => {

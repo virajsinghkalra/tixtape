@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { VisualArtist } from "@/domain/visuals/visuals";
 import { EventVisual } from "./EventVisual";
+import { ListenHere } from "./ListenHere";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
 import { EqBars } from "./ui/EqBars";
 import { cx } from "./ui/cx";
@@ -18,6 +19,8 @@ export type TrendingItem = {
   label: string;
   playlistUrl: string;
   vibe: Vibe;
+  /** A couple of song names from the playlist, when known. */
+  inside?: string[];
 };
 
 /**
@@ -136,10 +139,18 @@ function MiniPlayer({ item, first = false }: { item: TrendingItem; first?: boole
  * the full title on two lines, the date, and a round Play on the cover. The first Play pulses
  * and the shelf nudges once so the eye lands on it.
  */
-export function HotShelf({ kicker, items }: { kicker: string; items: TrendingItem[] }) {
+export function HotShelf({
+  kicker,
+  items,
+  className = "mt-8",
+}: {
+  kicker: string;
+  items: TrendingItem[];
+  className?: string;
+}) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-8" data-testid="hot-shelf">
+    <div className={className} data-testid="hot-shelf">
       <div className="flex items-end justify-between gap-3">
         <h2 className="flex items-center gap-2 font-display text-big font-extrabold tracking-tight">
           <span aria-hidden className="hot-flame">
@@ -216,7 +227,16 @@ function AlbumCard({ item, first, tilt }: { item: TrendingItem; first: boolean; 
           </span>
           {item.when}
         </span>
+        {item.inside && item.inside.length > 0 && (
+          <span className="mt-1 line-clamp-2 text-xs leading-snug">
+            <span aria-hidden className="text-accent-text">
+              ♪{" "}
+            </span>
+            {item.inside.join(" · ")}
+          </span>
+        )}
       </Link>
+      <ListenHere url={item.playlistUrl} eventId={item.id} title={item.title} className="mt-2" />
     </div>
   );
 }
