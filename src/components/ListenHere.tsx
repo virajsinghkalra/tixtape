@@ -23,13 +23,13 @@ type Controller = {
 };
 
 /** 0.1 s of silence: played inside the tap so the phone lets this page start sound later. */
-const SILENCE =
+export const SILENCE =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 /** One preview player for the whole page (a new tap takes it over). */
 let shared: HTMLAudioElement | null = null;
-const audio = () => (shared ??= new Audio());
-const stopClip = () => {
+export const audio = () => (shared ??= new Audio());
+export const stopClip = () => {
   if (shared && !shared.paused) shared.pause();
 };
 /** The open sheet's Spotify player, so starting our clip can pause it. */
@@ -48,12 +48,12 @@ export function embedStartedPlaying(origin: string, data: unknown): boolean {
 }
 
 type Song = { name: string; artist: string; audio: string };
-type Listen = { song: Song | null; tracks: { name: string; artist: string }[] };
+export type Listen = { song: Song | null; tracks: { name: string; artist: string }[] };
 const NOTHING: Listen = { song: null, tracks: [] };
 
 /** One request per playlist per visit, started on touch-down (before the tap lands). */
 const songs = new Map<string, Promise<Listen>>();
-function songFor(url: string): Promise<Listen> {
+export function songFor(url: string): Promise<Listen> {
   let p = songs.get(url);
   if (!p) {
     p = fetch(`/api/listen?url=${encodeURIComponent(url)}`)
@@ -205,6 +205,8 @@ export function ListenHere({
   /** Spotify's player (3 MB, ~6 s on a phone) loads only on "Save on Spotify" (user, 25 Nov). */
   const [full, setFull] = useState(false);
   const [playing, setPlaying] = useState(false);
+  /** The 30 s clip ran out: nudge toward the full playlist on Spotify. */
+  const [clipDone, setClipDone] = useState(false);
   /** No clip found: let the embed try to play by itself. */
   const [embedAuto, setEmbedAuto] = useState(false);
   const id = spotifyPlaylistId(url);
@@ -274,6 +276,7 @@ export function ListenHere({
     setFull(false);
     setLoading(true);
     setEmbedAuto(false);
+    setClipDone(false);
     setOpen(true);
     songFor(url)
       .then(({ song: s, tracks: list }) => {
@@ -282,7 +285,10 @@ export function ListenHere({
         if (!s) return setEmbedAuto(true);
         setSong(s);
         a.src = s.audio;
-        a.onended = () => setPlaying(false);
+        a.onended = () => {
+          setPlaying(false);
+          setClipDone(true);
+        };
         a.play().then(
           () => setPlaying(true),
           () => setPlaying(false),
@@ -297,6 +303,7 @@ export function ListenHere({
     const a = audio();
     if (a.paused) {
       embed?.pause();
+      setClipDone(false);
       void a.play().then(
         () => setPlaying(true),
         () => {},
@@ -309,6 +316,7 @@ export function ListenHere({
   const embedPlayed = () => {
     stopClip();
     setPlaying(false);
+    setClipDone(false);
   };
 
   return (
@@ -406,6 +414,22 @@ export function ListenHere({
                   )}
                 </button>
               )}
+              {/* The main action: the full playlist on Spotify. Our clip is only a teaser. */}
+              {/* Off to Spotify: our clip stops (it would keep playing behind the app). */}
+              <div onClickCapture={embedPlayed} className="mb-3">
+                {clipDone && (
+                  <p className="mb-2 text-center text-sm font-bold">
+                    That was 30s. The full set&apos;s on Spotify 👇
+                  </p>
+                )}
+                <SpotifyOpenLink
+                  href={url}
+                  eventId={eventId}
+                  className={cx("w-full", clipDone && "play-pulse")}
+                >
+                  <span aria-hidden>▶</span> Open full playlist on Spotify
+                </SpotifyOpenLink>
+              </div>
               {tracks.length > 1 && !full && (
                 <ol className="mb-3 flex flex-col gap-1 rounded-field bg-bg p-2">
                   {tracks.slice(0, 4).map((t, n) => (
@@ -444,12 +468,6 @@ export function ListenHere({
                   <span aria-hidden>⊕</span> Save on Spotify · full player
                 </button>
               )}
-              {/* Off to Spotify: our clip stops (it would keep playing behind the app). */}
-              <div onClickCapture={embedPlayed}>
-                <SpotifyOpenLink href={url} eventId={eventId} className="mt-3">
-                  <span aria-hidden>▶</span> Open full playlist
-                </SpotifyOpenLink>
-              </div>
             </div>
           </div>,
           document.body,

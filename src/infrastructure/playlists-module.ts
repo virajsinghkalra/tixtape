@@ -3,6 +3,7 @@
  * until then src/server/playlists.ts builds it.
  */
 import type { SpotifyTokenRepository, UserRepository } from "@/application/auth/ports";
+import { findPreviewAudio } from "@/infrastructure/previews/itunes";
 import {
   createPlaylistsUseCases,
   REQUEST_TIMEOUT_MS,
@@ -92,6 +93,7 @@ export function createPlaylistsModule(deps: PlaylistsModuleDeps): PlaylistsModul
   return createPlaylistsUseCases({
     tracks: deps.trackCatalog,
     writer: deps.playlistWriter,
+    previewFinder: { find: (name, artist) => findPreviewAudio(name, artist, fetchFn) },
     mostListened:
       lastfm && lastfmClient ? new LastfmMostListened(lastfm, lastfmClient) : noMostListened,
     popularity: lastfm && lastfmClient ? new LastfmPopularity(lastfm, lastfmClient) : undefined,

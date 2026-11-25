@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ReauthRequiredError, SpotifyBlockedError } from "@/application/ports/spotify";
+import {
+  ReauthRequiredError,
+  SpotifyBlockedError,
+  type PlaylistWriter,
+  type PreviewTrack,
+  type SongPreviewFinder,
+} from "@/application/ports/spotify";
+import type { SharedPlaylistRepository } from "@/application/ports/playlists";
 import type { EventDetail } from "@/application/ports/events";
 import type { BillingTier } from "@/domain/shared/lineup";
 import { asArtistId, type PlaylistJobId } from "@/domain/shared/ids";
@@ -872,5 +879,71 @@ describe("8-song fix and D-093 fills", () => {
     expect(count("BigHead")).toBeGreaterThanOrEqual(26);
     const minutes = (items.length * 200_000) / 60_000;
     expect(minutes).toBeGreaterThanOrEqual(75 + 45 + 17.5 - 4);
+  });
+});
+
+describe("shared build: preview clip", () => {
+  const TRACKS: PreviewTrack[] = ["A", "B", "C", "D", "E"].map((n) => ({ name: n, artist: "X" }));
+
+  async function buildWith(find: SongPreviewFinder["find"]) {
+    const calls: string[] = [];
+    const w = playlistWorld({
+      previewFinder: {
+        find: async (name, artist) => {
+          calls.push(name);
+          return find(name, artist);
+        },
+      },
+    });
+    (w.spotify as PlaylistWriter).readTopItems = async () => structuredClone(TRACKS);
+    const saved: PreviewTrack[][] = [];
+    (w.shared as SharedPlaylistRepository).savePreview = async (_id, tracks) =>
+      void saved.push(tracks);
+    festival(w, [["Ritviz", "headliner"]]);
+    await runToEnd(w, await start(w));
+    return { calls, saved };
+  }
+
+  it("looks up only the first track when its clip is found", async () => {
+    const { calls, saved } = await buildWith(async () => "https://a/clip.m4a");
+    expect(calls).toEqual(["A"]);
+    expect(saved[0]!.map((t) => t.audio)).toEqual([
+      "https://a/clip.m4a",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it("tries the next tracks until one is found, at most 4 lookups", async () => {
+    const next = await buildWith(async (n) => (n === "C" ? "https://a/c.m4a" : null));
+    expect(next.calls).toEqual(["A", "B", "C"]);
+    expect(next.saved[0]!.map((t) => t.audio)).toEqual([
+      "",
+      "",
+      "https://a/c.m4a",
+      undefined,
+      undefined,
+    ]);
+
+    const none = await buildWith(async () => null);
+    expect(none.calls).toEqual(["A", "B", "C", "D"]);
+    expect(none.saved[0]!.map((t) => t.audio)).toEqual(["", "", "", "", undefined]);
+  });
+
+  it("treats a throwing finder as not found and still finishes the build", async () => {
+    const { calls, saved } = await buildWith(async (n) => {
+      if (n === "A") throw new Error("boom");
+      return "https://a/b.m4a";
+    });
+    expect(calls).toEqual(["A", "B"]);
+    expect(saved[0]!.map((t) => t.audio)).toEqual([
+      "",
+      "https://a/b.m4a",
+      undefined,
+      undefined,
+      undefined,
+    ]);
   });
 });

@@ -72,6 +72,11 @@ export type CreatedPlaylist = { id: SpotifyPlaylistId; url: string; snapshotId: 
 /** `audio`: a 30-second preview clip ("" = none found), looked up on first "Listen here". */
 export type PreviewTrack = { name: string; artist: string; audio?: string };
 
+/** Finds a 30-second preview clip URL for a song; null when none. Never throws. */
+export interface SongPreviewFinder {
+  find(name: string, artist: string): Promise<string | null>;
+}
+
 export interface PlaylistWriter {
   /** `POST /me/playlists`. */
   createPlaylist(

@@ -21,6 +21,8 @@ import {
   ReauthRequiredError,
   SpotifyBlockedError,
   type PlaylistWriter,
+  type PreviewTrack,
+  type SongPreviewFinder,
 } from "@/application/ports/spotify";
 import { playlistDescription, playlistName } from "@/domain/playlists/naming";
 import { AVG_SONG_MS } from "@/domain/playlists/budget";
@@ -80,6 +82,8 @@ export type BuildDeps = ArtistSongsDeps &
     events: EventLineupReader;
     trending: TrendingSource;
     writer: PlaylistWriter;
+    /** Optional: looks up the first track's clip at build time so it plays instantly. */
+    previewFinder?: SongPreviewFinder;
     alertUnavailable: (problem: PublisherProblem) => void;
   };
 
@@ -435,10 +439,29 @@ class BuildRun {
     const save = this.deps.shared.savePreview?.bind(this.deps.shared);
     if (!read || !save || !cp.playlistId) return;
     try {
-      await save(this.job.eventId, await read(publisherId, cp.playlistId, PREVIEW_TRACKS));
+      const tracks = await read(publisherId, cp.playlistId, PREVIEW_TRACKS);
+      await save(this.job.eventId, await this.withFirstClip(tracks));
     } catch {
       // No preview is fine: the playlist itself is done.
     }
+  }
+
+  /** Sets `audio` on the first track that has a clip (max PREVIEW_TRACKS lookups); never throws. */
+  private async withFirstClip(tracks: PreviewTrack[]): Promise<PreviewTrack[]> {
+    const finder = this.deps.previewFinder;
+    if (!finder) return tracks;
+    const out = tracks.map((t) => ({ ...t }));
+    for (const t of out.slice(0, PREVIEW_TRACKS)) {
+      let audio: string | null = null;
+      try {
+        audio = await finder.find(t.name, t.artist);
+      } catch {
+        // Best effort: a failed lookup counts as "not found".
+      }
+      t.audio = audio ?? "";
+      if (audio) break;
+    }
+    return out;
   }
 
   private async blocked(e: SpotifyBlockedError): Promise<BuildProgress> {

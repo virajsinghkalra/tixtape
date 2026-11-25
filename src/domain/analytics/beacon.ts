@@ -6,13 +6,22 @@
 import { z } from "zod";
 
 /** Pages are grouped, never stored by path (an event path would identify the event twice). */
-export const PATH_GROUPS = ["home", "event", "search", "privacy", "offline", "other"] as const;
+export const PATH_GROUPS = [
+  "home",
+  "event",
+  "search",
+  "radio",
+  "privacy",
+  "offline",
+  "other",
+] as const;
 export type PathGroup = (typeof PATH_GROUPS)[number];
 
 export function pathGroup(pathname: string): PathGroup {
   if (pathname === "/") return "home";
   if (pathname.startsWith("/events/")) return "event";
   if (pathname === "/search" || pathname.startsWith("/search/")) return "search";
+  if (pathname === "/radio") return "radio";
   if (pathname === "/privacy") return "privacy";
   if (pathname === "/offline") return "offline";
   return "other";

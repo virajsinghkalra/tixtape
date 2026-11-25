@@ -26,6 +26,7 @@ import {
 import type {
   CreatedPlaylist,
   PlaylistWriter,
+  SongPreviewFinder,
   SpotifyAlbum,
   SpotifyTrack,
   TrackCatalog,
@@ -447,7 +448,12 @@ export const PUBLISHER_ID = asUserId("11111111-1111-4111-8111-111111111111");
 
 /** Everything wired together with a connected, healthy publisher. */
 export function playlistWorld(
-  opts: { callMs?: number; startsPerHour?: number; songScores?: SongScoreProvider[] } = {},
+  opts: {
+    callMs?: number;
+    startsPerHour?: number;
+    songScores?: SongScoreProvider[];
+    previewFinder?: SongPreviewFinder;
+  } = {},
 ) {
   const clock = new FakeClock();
   const spotify = new FakeSpotify(clock, opts.callMs);
@@ -466,6 +472,7 @@ export function playlistWorld(
   const useCases: PlaylistsUseCases = createPlaylistsUseCases({
     tracks: spotify,
     writer: spotify,
+    previewFinder: opts.previewFinder,
     mostListened: signals,
     trending: signals,
     popularity: signals,
