@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { currentEventId, track } from "./analytics/track";
 import { SpotifyOpenLink } from "./SpotifyOpenLink";
+import { EqBars } from "./ui/EqBars";
 import { cx } from "./ui/cx";
 
 /** Fired on `window` with `detail: boolean` when a Listen-here sheet opens or closes. */
@@ -16,9 +17,19 @@ export function spotifyPlaylistId(url: string): string | null {
 
 type Controller = {
   play: () => void;
-  addListener: (e: string, cb: () => void) => void;
+  addListener: (e: string, cb: (ev: { data?: { isPaused?: boolean } }) => void) => void;
   destroy: () => void;
 };
+
+/** 0.1 s of silence: played inside the tap so the phone lets this page start sound later. */
+const SILENCE =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+/** One preview player for the whole page (a new tap takes it over). */
+let shared: HTMLAudioElement | null = null;
+const audio = () => (shared ??= new Audio());
+
+type Song = { name: string; artist: string; audio: string };
 type IFrameApi = {
   createController: (
     el: HTMLElement,
@@ -47,12 +58,30 @@ function loadSpotifyApi(): Promise<IFrameApi> {
 }
 
 /**
- * The embed, playing the first song as soon as it's ready (user, 25 Nov). Browsers that block
- * autoplay just show the player; a tap on its Play works. If the API can't load, a plain embed.
+ * Spotify's embed, for the whole playlist and "Save on Spotify". It presses play itself only
+ * when we have no preview clip (`autoplay`); when the visitor plays it, our clip stops.
  */
-function Player({ id, title }: { id: string; title: string }) {
+function Player({
+  id,
+  title,
+  autoplay,
+  onEmbedPlay,
+}: {
+  id: string;
+  title: string;
+  autoplay: boolean;
+  onEmbedPlay: () => void;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const [plain, setPlain] = useState(false);
+  const ready = useRef<Controller | null>(null);
+  const auto = useRef(autoplay);
+  const onPlay = useRef(onEmbedPlay);
+  useEffect(() => {
+    auto.current = autoplay;
+    onPlay.current = onEmbedPlay;
+    if (autoplay) ready.current?.play();
+  }, [autoplay, onEmbedPlay]);
   useEffect(() => {
     let ctrl: Controller | null = null;
     let gone = false;
@@ -69,7 +98,13 @@ function Player({ id, title }: { id: string; title: string }) {
             ctrl = c;
             clearTimeout(fallback);
             if (gone) return c.destroy();
-            c.addListener("ready", () => c.play());
+            c.addListener("ready", () => {
+              ready.current = c;
+              if (auto.current) c.play();
+            });
+            c.addListener("playback_update", (ev) => {
+              if (ev.data && ev.data.isPaused === false) onPlay.current();
+            });
           },
         );
       })
@@ -120,7 +155,18 @@ export function ListenHere({
   variant?: "chip" | "wide" | "icon";
 }) {
   const [open, setOpen] = useState(false);
+  const [song, setSong] = useState<Song | null>(null);
+  const [playing, setPlaying] = useState(false);
+  /** No clip found: let the embed try to play by itself. */
+  const [embedAuto, setEmbedAuto] = useState(false);
   const id = spotifyPlaylistId(url);
+
+  // Our clip stops when the sheet closes.
+  useEffect(() => {
+    if (open) return;
+    if (shared && !shared.paused) shared.pause();
+    setPlaying(false);
+  }, [open]);
 
   useEffect(() => {
     // A story behind the sheet holds its timer while the player is open.
@@ -144,7 +190,43 @@ export function ListenHere({
   if (!id) return null;
   const show = () => {
     track("playlist_preview", { eventId: eventId ?? currentEventId() });
+    // Inside the tap: unlock sound for this page, then play the first song's clip when it lands
+    // (user, 25 Nov: "first song should play automatically"; phones block the embed doing it).
+    const a = audio();
+    a.src = SILENCE;
+    void a.play().catch(() => {});
+    setSong(null);
+    setEmbedAuto(false);
     setOpen(true);
+    fetch(`/api/listen?url=${encodeURIComponent(url)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ song: Song | null }>) : { song: null }))
+      .then(({ song: s }) => {
+        if (!s) return setEmbedAuto(true);
+        setSong(s);
+        a.src = s.audio;
+        a.onended = () => setPlaying(false);
+        a.play().then(
+          () => setPlaying(true),
+          () => setPlaying(false),
+        );
+      })
+      .catch(() => setEmbedAuto(true));
+  };
+  const toggle = () => {
+    const a = audio();
+    if (a.paused)
+      void a.play().then(
+        () => setPlaying(true),
+        () => {},
+      );
+    else {
+      a.pause();
+      setPlaying(false);
+    }
+  };
+  const embedPlayed = () => {
+    if (shared && !shared.paused) shared.pause();
+    setPlaying(false);
   };
 
   return (
@@ -201,7 +283,35 @@ export function ListenHere({
                   ✕
                 </button>
               </div>
-              <Player id={id} title={title} />
+              {song && (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="mb-3 flex w-full items-center gap-3 rounded-field border-2 border-night bg-night p-2 pr-3 text-left text-white dark:border-line"
+                >
+                  <span
+                    aria-hidden
+                    className={cx(
+                      "grid size-10 shrink-0 place-items-center rounded-full bg-lime text-on-block",
+                      playing && "play-pulse",
+                    )}
+                  >
+                    {playing ? "❚❚" : "▶"}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">{song.name}</span>
+                    <span className="block truncate text-xs text-white/70">
+                      {song.artist} · {playing ? "Now playing" : "Tap to play"} · preview
+                    </span>
+                  </span>
+                  {playing && (
+                    <span className="text-lime">
+                      <EqBars />
+                    </span>
+                  )}
+                </button>
+              )}
+              <Player id={id} title={title} autoplay={embedAuto} onEmbedPlay={embedPlayed} />
               {/* The embed's own "⊕ Save on Spotify" follows the playlist in the visitor's library. */}
               <p className="mt-3 flex items-center gap-2 rounded-field bg-lime/25 px-3 py-2 text-sm font-semibold">
                 <span aria-hidden className="text-base">

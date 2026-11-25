@@ -19,6 +19,8 @@ export function contentSecurityPolicy({ nonce, dev }: { nonce?: string; dev: boo
     `connect-src 'self'${dev ? " ws: wss:" : ""}`,
     // The in-page player ("Listen here") is Spotify's embed.
     "frame-src https://open.spotify.com",
+    // "Listen here" plays the first song's 30-second clip (Apple's preview CDN).
+    "media-src 'self' data: blob: https://*.itunes.apple.com https://*.mzstatic.com",
     "object-src 'none'",
     "base-uri 'self'",
     // Login redirects to Spotify's consent page.

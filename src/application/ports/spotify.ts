@@ -69,7 +69,8 @@ export interface TrackCatalog {
 export type CreatedPlaylist = { id: SpotifyPlaylistId; url: string; snapshotId: string | null };
 
 /** One song for "what's inside" (the playlist's first few). */
-export type PreviewTrack = { name: string; artist: string };
+/** `audio`: a 30-second preview clip ("" = none found), looked up on first "Listen here". */
+export type PreviewTrack = { name: string; artist: string; audio?: string };
 
 export interface PlaylistWriter {
   /** `POST /me/playlists`. */
