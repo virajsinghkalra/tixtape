@@ -184,6 +184,23 @@ export function ListenHere({
   /** No clip found: let the embed try to play by itself. */
   const [embedAuto, setEmbedAuto] = useState(false);
   const id = spotifyPlaylistId(url);
+  const button = useRef<HTMLButtonElement>(null);
+
+  // On screen: fetch the song's details while idle (a tiny, edge-cached JSON), so the first tap
+  // isn't waiting on a cold server. The clip itself still loads only on the tap.
+  useEffect(() => {
+    const el = button.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      io.disconnect();
+      const go = () => void songFor(url);
+      if ("requestIdleCallback" in window) window.requestIdleCallback(go, { timeout: 2_000 });
+      else setTimeout(go, 300);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [url]);
 
   // Our clip stops when the sheet closes.
   useEffect(() => {
@@ -261,6 +278,7 @@ export function ListenHere({
   return (
     <>
       <button
+        ref={button}
         type="button"
         onClick={show}
         onPointerDown={() => warm(url)}
