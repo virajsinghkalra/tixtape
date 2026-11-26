@@ -1,7 +1,7 @@
 /**
  * Gig Radio's running order (analysis, 26 Nov: listeners hop across genres and cities like
  * changing stations). One card per playlist (a tour plays once: its date in the visitor's
- * city, else the soonest), hottest first, then genres take turns so two of a kind rarely
+ * city, else the soonest), your city's gigs this week first, then the hottest, then genres take turns so two of a kind rarely
  * play back to back. Pure.
  */
 export type RadioInput = {
@@ -12,6 +12,8 @@ export type RadioInput = {
   vibe: string;
   /** Recent Spotify opens: how hot it is. */
   heat: number;
+  /** Whole days until the show (0 = today). */
+  daysAway: number;
 };
 
 export function radioOrder<T extends RadioInput>(rows: T[]): T[] {
@@ -25,7 +27,10 @@ export function radioOrder<T extends RadioInput>(rows: T[]): T[] {
       (r.local === cur.local && r.startsAt.getTime() < cur.startsAt.getTime());
     if (better) byPlaylist.set(r.playlistUrl, r);
   }
-  const score = (r: T) => r.heat * 3 + (r.local ? 4 : 0);
+  // Data, 26 Nov: Radio visitors who reached Spotify started on their own city's soonest big
+  // gig (Diljit Bengaluru, 3 days out). A local gig this week leads; soon helps everywhere.
+  const soon = (r: T) => (r.daysAway <= 7 ? (r.local ? 12 : 2) : 0);
+  const score = (r: T) => r.heat * 3 + (r.local ? 4 : 0) + soon(r);
   const ranked = [...byPlaylist.values()].sort(
     (a, b) => score(b) - score(a) || a.startsAt.getTime() - b.startsAt.getTime(),
   );
@@ -44,5 +49,8 @@ export function radioOrder<T extends RadioInput>(rows: T[]): T[] {
     out.push(pick[1].shift()!);
     last = pick[0];
   }
+  // Your city's hottest gig this week always opens the radio.
+  const lead = out.findIndex((r) => r.local && r.daysAway <= 7);
+  if (lead > 0) out.unshift(...out.splice(lead, 1));
   return out;
 }

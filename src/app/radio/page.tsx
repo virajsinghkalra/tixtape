@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { metroOf } from "@/domain/events/front-page";
 import { GigRadio, type RadioCard } from "@/components/radio/GigRadio";
 import { radioOrder } from "@/components/radio/radio-order";
-import { shortDate } from "@/components/event-format";
+import { countdownBadge, shortDate } from "@/components/event-format";
 import { shortTitle } from "@/components/hero-copy";
 import { vibeEmoji, vibeOf, vibeTag } from "@/components/vibe-copy";
 import { ogVersion } from "@/components/og/og-card";
@@ -12,6 +12,13 @@ import { loadShareEvent } from "@/server/event-share";
 import { storedFirstSongs } from "@/server/song-preview";
 import { frontPage, recentSpotifyOpens } from "@/server/front-page";
 import { CITY_COOKIE, visitorCity } from "@/server/location";
+
+/** "⏰ 3 days to go" for a gig within a week (urgency: save the playlist before it). */
+function soonChip(startsAt: Date, endsAt: Date | null, now: Date): string | null {
+  const b = countdownBadge(startsAt, endsAt, now);
+  const days = (startsAt.getTime() - now.getTime()) / 86_400_000;
+  return b.label !== "Ended" && days <= 7 ? `${b.emoji} ${b.label}` : null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +67,7 @@ export default async function RadioPage({ searchParams }: Props) {
       local: Boolean(city && e.city && metroOf(e.city) === metroOf(city)),
       vibe: vibeOf(e.genre, e.type),
       heat: opens.get(e.id) ?? 0,
+      daysAway: Math.max(0, Math.floor((e.startsAt.getTime() - now.getTime()) / 86_400_000)),
     })),
   );
   // A shared link (?g=) plays that gig first.
@@ -86,6 +94,7 @@ export default async function RadioPage({ searchParams }: Props) {
         ? `${tag.emoji} ${tag.label}`
         : `${vibeEmoji(e.vibe)} ${e.vibe === "festival" ? "Festival" : "Live"}`,
       vibe: e.vibe,
+      soon: soonChip(e.startsAt, e.endsAt, now),
       song: songs.get(e.playlistUrl!) ?? null,
     };
   });

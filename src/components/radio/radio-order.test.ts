@@ -8,6 +8,7 @@ const row = (o: Partial<RadioInput> & { id: string }): RadioInput => ({
   local: false,
   vibe: "edm",
   heat: 0,
+  daysAway: 30,
   ...o,
 });
 
@@ -34,6 +35,14 @@ describe("radioOrder", () => {
       row({ id: "ind1", vibe: "indie", heat: 1 }),
     ]);
     expect(out.map((r) => r.id)).toEqual(["edm1", "pun1", "edm2", "ind1"]);
+  });
+
+  it("leads with a gig in your city this week, even over a hotter one elsewhere", () => {
+    const out = radioOrder([
+      row({ id: "far", vibe: "edm", heat: 30 }),
+      row({ id: "mine", vibe: "punjabi", heat: 1, local: true, daysAway: 3 }),
+    ]);
+    expect(out[0]!.id).toBe("mine");
   });
 
   it("never drops a card", () => {

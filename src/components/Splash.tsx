@@ -1,9 +1,10 @@
 /**
- * The opener (user, 24 Nov: random each visit, ~5 s, cool not childish, in the app's own colours,
+ * The opener (user, 24 Nov: random each visit, cool not childish, in the app's own colours,
  * no emojis). Always the brand palette (night, lime, a violet glow); what changes each visit is
  * the line and the centrepiece: a spinning record with its tonearm, the wordmark over live EQ
  * bars, or a genre ticker. Words resolve from blur, then a curtain lifts. Pure CSS: a tap skips
- * it, a refresh in the same visit skips it, and reduced-motion users never see it.
+ * it, a refresh in the same visit skips it, and reduced-motion users never see it. ~3 s, home only
+ * (data, 26 Nov).
  */
 const LINES = [
   ["Every gig.", "Its playlist."],
@@ -19,10 +20,11 @@ const GENRES = ["EDM", "BOLLYWOOD", "PUNJABI", "INDIE", "HIP HOP", "SUFI", "ROCK
 const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
 
 /**
- * Seen this visit already (a refresh or another page): hide it before first paint with a flag on
- * <html>. Never remove the node: React would put it back while hydrating (and replay it).
+ * Seen this visit already (a refresh or another page), or landing straight on a gig / Radio
+ * link (data, 26 Nov: they came for that gig, not an intro): hide it before first paint with a
+ * flag on <html>. Never remove the node: React would put it back while hydrating (and replay it).
  */
-const DROP_IF_SEEN = `try{var s=sessionStorage;if(s.getItem("tt.splash")){document.documentElement.dataset.splash="seen"}else{s.setItem("tt.splash","1")}}catch(e){}`;
+const DROP_IF_SEEN = `try{var s=sessionStorage;if(s.getItem("tt.splash")||location.pathname!=="/"){document.documentElement.dataset.splash="seen"}s.setItem("tt.splash","1")}catch(e){}`;
 
 export function Splash({ nonce }: { nonce?: string }) {
   const lines = pick(LINES);

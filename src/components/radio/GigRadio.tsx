@@ -25,6 +25,8 @@ export type RadioCard = {
   tag: string;
   /** The radio station this card belongs to (vibe key: "edm", "punjabi"…). */
   vibe: string;
+  /** "⏰ 3 days to go" when the gig is within a week. */
+  soon?: string | null;
   /** The first song's clip when already known on the server (plays with no extra request). */
   song?: { name: string; artist: string; audio: string } | null;
 };
@@ -390,6 +392,11 @@ export function GigRadio({ cards: initial }: { cards: RadioCard[] }) {
                     <span className="rounded-chip bg-white/15 px-2.5 py-0.5 text-xs font-bold backdrop-blur">
                       {c.tag}
                     </span>
+                    {c.soon && (
+                      <span className="rounded-chip bg-pink px-2.5 py-0.5 text-xs font-extrabold text-on-block">
+                        {c.soon}
+                      </span>
+                    )}
                     {fresh.has(c.id) && (
                       <span className="rounded-chip bg-lime px-2.5 py-0.5 text-xs font-extrabold text-on-block">
                         🆕 New
